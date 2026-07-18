@@ -3,6 +3,24 @@
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
 
+  const THEME_PRESETS = {
+    formal: { name: 'ทางการ', description: 'แดงเข้มและทอง เหมาะกับงานราชการ', primary: '#b91c1c', secondary: '#f59e0b' },
+    comfort: { name: 'สบายตา', description: 'เขียวหม่นและครีม ใช้งานนานไม่ล้าตา', primary: '#3f7d6b', secondary: '#e8c97a' },
+    ocean: { name: 'สดใส', description: 'ฟ้าและเหลือง ให้ความรู้สึกกระฉับกระเฉง', primary: '#2563eb', secondary: '#fbbf24' },
+    warm: { name: 'อบอุ่น', description: 'ส้มอิฐและทราย เป็นมิตรและอ่านง่าย', primary: '#c65d2e', secondary: '#f1c27d' },
+    elegant: { name: 'เรียบหรู', description: 'กรมท่าและม่วงอ่อน สุภาพทันสมัย', primary: '#1e3a5f', secondary: '#a78bfa' },
+    dark: { name: 'กลางคืน', description: 'เทาเข้มและม่วง ลดแสงจ้าในที่มืด', primary: '#1f2937', secondary: '#8b5cf6' },
+  };
+
+  const DEFAULT_DISPLAY_SETTINGS = {
+    preset: 'formal',
+    primary: THEME_PRESETS.formal.primary,
+    secondary: THEME_PRESETS.formal.secondary,
+    fontScale: 1,
+    reducedMotion: false,
+    highContrast: false,
+  };
+
   const root = document.getElementById('app-root');
   const state = {
     token: sessionStorage.getItem('officialDocToken') || '',
@@ -19,7 +37,72 @@
     selectedStamp: null,
     stampInteractionMode: 'move',
     allUsers: [],
+    appSettings: null,
+    displaySettings: null,
   };
+
+  applyDisplaySettings(loadDisplaySettings());
+
+  function normalizeHexColor(value, fallback) {
+    const text = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : fallback;
+  }
+
+  function mixHex(colorA, colorB, amount) {
+    const a = normalizeHexColor(colorA, '#000000').slice(1);
+    const b = normalizeHexColor(colorB, '#ffffff').slice(1);
+    const ratio = Math.max(0, Math.min(1, Number(amount) || 0));
+    const result = [0, 2, 4].map((index) => {
+      const start = parseInt(a.slice(index, index + 2), 16);
+      const end = parseInt(b.slice(index, index + 2), 16);
+      return Math.round(start + (end - start) * ratio).toString(16).padStart(2, '0');
+    }).join('');
+    return `#${result}`;
+  }
+
+  function displayStorageKey(username) {
+    const key = String(username || state.user?.username || 'guest').toLowerCase();
+    return `officialDocDisplaySettings:${key}`;
+  }
+
+  function loadDisplaySettings(username) {
+    let stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(displayStorageKey(username)) || localStorage.getItem('officialDocDisplaySettings:last') || 'null');
+    } catch (_) {}
+    const merged = { ...DEFAULT_DISPLAY_SETTINGS, ...(stored || {}) };
+    merged.primary = normalizeHexColor(merged.primary, DEFAULT_DISPLAY_SETTINGS.primary);
+    merged.secondary = normalizeHexColor(merged.secondary, DEFAULT_DISPLAY_SETTINGS.secondary);
+    merged.fontScale = [0.9, 1, 1.15].includes(Number(merged.fontScale)) ? Number(merged.fontScale) : 1;
+    merged.reducedMotion = !!merged.reducedMotion;
+    merged.highContrast = !!merged.highContrast;
+    return merged;
+  }
+
+  function applyDisplaySettings(settings) {
+    const next = { ...DEFAULT_DISPLAY_SETTINGS, ...(settings || {}) };
+    next.primary = normalizeHexColor(next.primary, DEFAULT_DISPLAY_SETTINGS.primary);
+    next.secondary = normalizeHexColor(next.secondary, DEFAULT_DISPLAY_SETTINGS.secondary);
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--app-primary', next.primary);
+    rootStyle.setProperty('--app-primary-dark', mixHex(next.primary, '#000000', .24));
+    rootStyle.setProperty('--app-primary-soft', mixHex(next.primary, '#ffffff', .88));
+    rootStyle.setProperty('--app-secondary', next.secondary);
+    rootStyle.setProperty('--app-secondary-dark', mixHex(next.secondary, '#000000', .22));
+    rootStyle.setProperty('--app-secondary-soft', mixHex(next.secondary, '#ffffff', .84));
+    rootStyle.fontSize = `${16 * Number(next.fontScale || 1)}px`;
+    document.documentElement.classList.toggle('reduced-motion', !!next.reducedMotion);
+    document.documentElement.classList.toggle('high-contrast', !!next.highContrast);
+    document.documentElement.dataset.themePreset = next.preset || 'custom';
+    state.displaySettings = next;
+  }
+
+  function saveDisplaySettings(settings) {
+    const next = { ...DEFAULT_DISPLAY_SETTINGS, ...(settings || {}) };
+    localStorage.setItem(displayStorageKey(), JSON.stringify(next));
+    localStorage.setItem('officialDocDisplaySettings:last', JSON.stringify(next));
+    applyDisplaySettings(next);
+  }
 
   function escapeHtml(value) {
     return String(value == null ? '' : value)
@@ -116,6 +199,7 @@
         }
         state.token = result.token;
         state.user = result.user;
+        applyDisplaySettings(loadDisplaySettings(state.user.username));
         sessionStorage.setItem('officialDocToken', state.token);
         state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
         await loadDashboard();
@@ -133,6 +217,7 @@
     try {
       const result = await gasCall('getSessionInfo', state.token);
       state.user = result.user;
+      applyDisplaySettings(loadDisplaySettings(state.user.username));
       state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
       await loadDashboard();
       Swal.close();
@@ -143,11 +228,15 @@
   }
 
   async function loadDashboard() {
-    const result = await gasCall('getDashboardDocuments', state.token);
+    const [result, appSettings] = await Promise.all([
+      gasCall('getDashboardDocuments', state.token),
+      gasCall('getApplicationSettings', state.token),
+    ]);
     state.actionDocs = result.actionDocs || [];
     state.inboxDocs = result.inboxDocs || [];
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
+    state.appSettings = appSettings || state.appSettings;
     renderDashboard();
   }
 
@@ -161,6 +250,7 @@
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
+              <button id="settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า" title="การตั้งค่า">⚙</button>
               <button id="logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
             </div>
           </div>
@@ -200,6 +290,7 @@
       try { await loadDashboard(); Swal.close(); } catch (error) { showError(error); }
     };
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
+    document.getElementById('settings-btn').onclick = openSettingsPanel;
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
@@ -271,6 +362,8 @@
   }
 
   function openUploadModal() {
+    const defaultSender = state.appSettings?.defaults?.fromSender || 'สพป.ชม.2';
+    const defaultOperationMode = state.appSettings?.defaults?.operationMode || 'normal';
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
     overlay.innerHTML = `<div class="modal-panel max-w-md">
@@ -278,13 +371,13 @@
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
         <div><label class="font-semibold text-sm">ไฟล์ PDF ไม่เกิน 15 MB</label><input class="input mt-1" type="file" name="pdfFile" accept="application/pdf" required></div>
-        <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="สพป.ชม.2" required></div>
+        <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="${escapeHtml(defaultSender)}" required></div>
         <div><label class="font-semibold text-sm">เรื่อง</label><input class="input mt-1" name="subject" required></div>
         <fieldset class="operation-picker">
           <legend>การดำเนินงาน</legend>
-          <label class="operation-option operation-normal"><input type="radio" name="operationMode" value="normal" checked><span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span></label>
-          <label class="operation-option operation-acting-option"><input type="radio" name="operationMode" value="acting"><span><b>2. รองรักษาการ</b><small>รองผู้อำนวยการรักษาการแทนผู้อำนวยการ</small></span></label>
-          <label class="operation-option operation-director-option"><input type="radio" name="operationMode" value="director"><span><b>3. รองผู้อำนวยการไม่อยู่</b><small>ส่งตรงให้ผู้อำนวยการดำเนินงาน</small></span></label>
+          <label class="operation-option operation-normal"><input type="radio" name="operationMode" value="normal" ${defaultOperationMode === 'normal' ? 'checked' : ''}><span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span></label>
+          <label class="operation-option operation-acting-option"><input type="radio" name="operationMode" value="acting" ${defaultOperationMode === 'acting' ? 'checked' : ''}><span><b>2. รองรักษาการ</b><small>รองผู้อำนวยการรักษาการแทนผู้อำนวยการ</small></span></label>
+          <label class="operation-option operation-director-option"><input type="radio" name="operationMode" value="director" ${defaultOperationMode === 'director' ? 'checked' : ''}><span><b>3. รองผู้อำนวยการไม่อยู่</b><small>ส่งตรงให้ผู้อำนวยการดำเนินงาน</small></span></label>
         </fieldset>
         <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-primary" type="submit">อัปโหลด</button></div>
       </form></div>`;
@@ -844,6 +937,203 @@
     state.currentDoc = null;
     state.originalPdfBase64 = '';
     state.currentPdf = null;
+  }
+
+
+  function openExternal(url) {
+    if (!url) {
+      Swal.fire('ไม่พบลิงก์', 'ระบบยังไม่มีลิงก์สำหรับรายการนี้', 'warning');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  function settingsNavButton(id, icon, title, description, admin) {
+    return `<button class="settings-nav-item ${admin ? 'settings-admin-item' : ''}" data-settings-section="${id}"><span class="settings-nav-icon">${icon}</span><span><b>${title}</b><small>${description}</small></span></button>`;
+  }
+
+  function statusPill(ready, label) {
+    return `<span class="settings-status ${ready ? 'is-ready' : 'is-missing'}">${ready ? '✓' : '!' } ${escapeHtml(label)}</span>`;
+  }
+
+  function themePresetCards(current) {
+    return Object.entries(THEME_PRESETS).map(([key, preset]) => `<button type="button" class="theme-preset-card ${current.preset === key ? 'selected' : ''}" data-theme-preset="${key}">
+      <span class="theme-preset-colors"><i style="background:${preset.primary}"></i><i style="background:${preset.secondary}"></i></span>
+      <span><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small></span>
+    </button>`).join('');
+  }
+
+  function settingsSectionMarkup(sectionId, isAdmin) {
+    const user = state.user || {};
+    const admin = state.appSettings?.admin || {};
+    const defaults = state.appSettings?.defaults || { fromSender: 'สพป.ชม.2', operationMode: 'normal' };
+    const display = state.displaySettings || DEFAULT_DISPLAY_SETTINGS;
+    const signatureHtml = user.signatureDataUrl
+      ? `<img class="settings-signature-preview" src="${user.signatureDataUrl}" alt="ตัวอย่างลายเซ็น">`
+      : '<div class="settings-empty-signature">ยังไม่ได้ตั้งค่าลายเซ็น</div>';
+
+    const sections = {
+      account: `<section class="settings-content-section"><h2>👤 บัญชีของฉัน</h2><p class="settings-lead">ข้อมูลบัญชีที่อ่านจากชีต Users</p><div class="settings-info-grid"><div><span>ชื่อ</span><b>${escapeHtml(user.name)}</b></div><div><span>ชื่อผู้ใช้</span><b>${escapeHtml(user.username)}</b></div><div><span>บทบาท</span><b>${escapeHtml(user.role)}</b></div><div><span>ฝ่าย/งาน</span><b>${escapeHtml(user.department || 'ยังไม่ระบุ')}</b></div><div><span>อีเมล</span><b>${escapeHtml(user.email || 'ยังไม่ระบุ')}</b></div><div><span>ลายเซ็น</span><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าแล้ว' : 'ยังไม่ตั้งค่า'}</b></div></div></section>`,
+      password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
+      signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
+      display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-toggle-list"><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
+      users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">เพิ่ม แก้ไขบทบาท ปิดบัญชี และตั้งค่า File ID ลายเซ็นผ่านชีต Users</p><div class="settings-summary-card"><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>การตั้งรหัสผ่านของผู้ใช้รายอื่นยังทำผ่านเมนู “ระบบสารบรรณ” ใน Google Sheet</p><button id="open-users-sheet" class="btn btn-primary" type="button">เปิดชีต Users</button></div></section>`,
+      import: `<section class="settings-content-section"><h2>📥 ค่าเริ่มต้นการนำเข้า</h2><p class="settings-lead">ค่าที่กำหนดจะถูกใส่ให้อัตโนมัติเมื่อเปิดหน้าต่างนำเข้าหนังสือใหม่</p><form id="import-defaults-form" class="settings-form"><label>หน่วยงานผู้ส่งเริ่มต้น<input class="input" name="fromSender" value="${escapeHtml(defaults.fromSender || 'สพป.ชม.2')}" required></label><label>รูปแบบการดำเนินงานเริ่มต้น<select class="input" name="operationMode"><option value="normal" ${defaults.operationMode === 'normal' ? 'selected' : ''}>ปกติ</option><option value="acting" ${defaults.operationMode === 'acting' ? 'selected' : ''}>รองรักษาการ</option><option value="director" ${defaults.operationMode === 'director' ? 'selected' : ''}>รองผู้อำนวยการไม่อยู่</option></select></label><button class="btn btn-primary" type="submit">บันทึกค่าเริ่มต้น</button></form></section>`,
+      receive: `<section class="settings-content-section"><h2>🔢 เลขรับและปีทะเบียน</h2><p class="settings-lead">ระบบจะนำเลขรับล่าสุดมาบวก 1 สำหรับเอกสารฉบับถัดไป</p><form id="receive-settings-form" class="settings-form"><label>เลขรับล่าสุด<input class="input" type="number" min="0" step="1" name="lastNumber" value="${Number(admin.receive?.lastNumber || 0)}" required></label><label>ปีทะเบียน พ.ศ.<input class="input" type="number" min="2500" max="3000" step="1" name="year" value="${Number(admin.receive?.year || new Date().getFullYear() + 543)}" required></label><div class="settings-next-number">เลขถัดไป: <b id="next-receive-number">${escapeHtml(admin.receive?.nextNumber || '-')}</b></div><button class="btn btn-primary" type="submit">บันทึกเลขรับ</button></form></section>`,
+      system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
+      data: `<section class="settings-content-section"><h2>🗂️ จัดการข้อมูล</h2><p class="settings-lead">เปิดทะเบียนและโฟลเดอร์จัดเก็บข้อมูลของระบบ</p><div class="data-link-grid"><button data-open-url="${escapeHtml(admin.documentsSheetUrl || '')}">📄 ชีต Documents<small>${Number(admin.counts?.documents || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.auditSheetUrl || '')}">🧾 Audit Log<small>${Number(admin.counts?.audit || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.folders?.original || '')}">📥 เอกสารต้นฉบับ</button><button data-open-url="${escapeHtml(admin.folders?.stamped || '')}">✅ เอกสารประทับตรา</button><button data-open-url="${escapeHtml(admin.folders?.attachments || '')}">📎 ไฟล์แนบ</button><button data-open-url="${escapeHtml(admin.folders?.signatures || '')}">✍️ ลายเซ็น</button></div><div class="settings-warning-box">เพื่อป้องกันการลบผิด ระบบยังไม่ใส่ปุ่ม “ล้างข้อมูลทั้งหมด” ในหน้าเว็บ การล้างข้อมูลให้ทำจาก Google Sheet และ Drive หลังสำรองข้อมูลแล้ว</div><button id="settings-open-download-center" class="btn btn-primary mt-4" type="button">เปิดศูนย์ดาวน์โหลดเอกสาร</button></section>`,
+    };
+    if (!isAdmin && ['users', 'import', 'receive', 'system', 'data'].includes(sectionId)) return sections.account;
+    return sections[sectionId] || sections.account;
+  }
+
+  function openSettingsPanel() {
+    const isAdmin = state.user?.role === 'ธุรการ';
+    let activeSection = 'account';
+    let originalDisplay = { ...(state.displaySettings || DEFAULT_DISPLAY_SETTINGS) };
+    let displayDraft = { ...originalDisplay };
+    let displaySaved = true;
+    const overlay = document.createElement('div');
+    overlay.className = 'settings-backdrop';
+    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    document.body.appendChild(overlay);
+
+    const content = overlay.querySelector('#settings-content');
+    const renderSection = (sectionId) => {
+      activeSection = sectionId;
+      content.innerHTML = settingsSectionMarkup(sectionId, isAdmin);
+      overlay.querySelectorAll('[data-settings-section]').forEach((button) => button.classList.toggle('active', button.dataset.settingsSection === sectionId));
+      bindSettingsSection(sectionId);
+    };
+
+    const close = () => {
+      if (!displaySaved) applyDisplaySettings(originalDisplay);
+      overlay.remove();
+    };
+
+    const updateThemePreview = () => {
+      const primary = normalizeHexColor(overlay.querySelector('#theme-primary')?.value, displayDraft.primary);
+      const secondary = normalizeHexColor(overlay.querySelector('#theme-secondary')?.value, displayDraft.secondary);
+      displayDraft = { ...displayDraft, primary, secondary, preset: displayDraft.preset || 'custom' };
+      const preview = overlay.querySelector('#theme-live-preview');
+      if (preview) {
+        preview.style.setProperty('--preview-primary', primary);
+        preview.style.setProperty('--preview-secondary', secondary);
+      }
+      applyDisplaySettings(displayDraft);
+      displaySaved = false;
+    };
+
+    const bindSettingsSection = (sectionId) => {
+      const passwordForm = overlay.querySelector('#change-own-password-form');
+      if (passwordForm) passwordForm.onsubmit = async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        if (form.get('newPassword') !== form.get('confirmPassword')) {
+          Swal.fire('ตรวจสอบข้อมูล', 'รหัสผ่านใหม่และช่องยืนยันไม่ตรงกัน', 'warning');
+          return;
+        }
+        loading('กำลังเปลี่ยนรหัสผ่าน...');
+        try {
+          await gasCall('changeOwnPassword', state.token, form.get('currentPassword'), form.get('newPassword'));
+          Swal.fire('สำเร็จ', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', 'success');
+          event.currentTarget.reset();
+        } catch (error) { showError(error); }
+      };
+
+      if (sectionId === 'display') {
+        const syncTextAndColor = (colorId, textId) => {
+          const color = overlay.querySelector(colorId);
+          const text = overlay.querySelector(textId);
+          color.oninput = () => { text.value = color.value; displayDraft.preset = 'custom'; updateThemePreview(); };
+          text.onchange = () => { text.value = normalizeHexColor(text.value, color.value); color.value = text.value; displayDraft.preset = 'custom'; updateThemePreview(); };
+        };
+        syncTextAndColor('#theme-primary', '#theme-primary-text');
+        syncTextAndColor('#theme-secondary', '#theme-secondary-text');
+        overlay.querySelectorAll('[data-theme-preset]').forEach((button) => button.onclick = () => {
+          const key = button.dataset.themePreset;
+          const preset = THEME_PRESETS[key];
+          displayDraft = { ...displayDraft, preset: key, primary: preset.primary, secondary: preset.secondary };
+          overlay.querySelector('#theme-primary').value = preset.primary;
+          overlay.querySelector('#theme-primary-text').value = preset.primary;
+          overlay.querySelector('#theme-secondary').value = preset.secondary;
+          overlay.querySelector('#theme-secondary-text').value = preset.secondary;
+          overlay.querySelectorAll('[data-theme-preset]').forEach((item) => item.classList.toggle('selected', item === button));
+          updateThemePreview();
+        });
+        overlay.querySelector('#display-font-scale').onchange = (event) => { displayDraft.fontScale = Number(event.target.value); updateThemePreview(); };
+        overlay.querySelector('#display-reduced-motion').onchange = (event) => { displayDraft.reducedMotion = event.target.checked; updateThemePreview(); };
+        overlay.querySelector('#display-high-contrast').onchange = (event) => { displayDraft.highContrast = event.target.checked; updateThemePreview(); };
+        overlay.querySelector('#save-display-settings').onclick = () => {
+          saveDisplaySettings(displayDraft);
+          originalDisplay = { ...displayDraft };
+          displaySaved = true;
+          Swal.fire('บันทึกแล้ว', 'ระบบจดจำธีมและการแสดงผลบนเครื่องนี้แล้ว', 'success');
+        };
+        overlay.querySelector('#reset-display-settings').onclick = () => {
+          displayDraft = { ...DEFAULT_DISPLAY_SETTINGS };
+          applyDisplaySettings(displayDraft);
+          displaySaved = false;
+          renderSection('display');
+        };
+      }
+
+      const usersButton = overlay.querySelector('#open-users-sheet');
+      if (usersButton) usersButton.onclick = () => openExternal(state.appSettings?.admin?.usersSheetUrl);
+
+      const importForm = overlay.querySelector('#import-defaults-form');
+      if (importForm) importForm.onsubmit = async (event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        loading('กำลังบันทึกค่าเริ่มต้น...');
+        try {
+          const result = await gasCall('saveImportDefaults', state.token, { fromSender: form.get('fromSender'), operationMode: form.get('operationMode') });
+          state.appSettings.defaults = result.defaults;
+          Swal.fire('สำเร็จ', 'บันทึกค่าเริ่มต้นการนำเข้าแล้ว', 'success');
+        } catch (error) { showError(error); }
+      };
+
+      const receiveForm = overlay.querySelector('#receive-settings-form');
+      if (receiveForm) {
+        const updateNext = () => {
+          const number = Number(receiveForm.elements.lastNumber.value || 0);
+          const year = Number(receiveForm.elements.year.value || 0);
+          overlay.querySelector('#next-receive-number').textContent = `${number + 1}/${year}`;
+        };
+        receiveForm.elements.lastNumber.oninput = updateNext;
+        receiveForm.elements.year.oninput = updateNext;
+        receiveForm.onsubmit = async (event) => {
+          event.preventDefault();
+          loading('กำลังบันทึกเลขรับ...');
+          try {
+            const result = await gasCall('saveReceiveSettings', state.token, { lastNumber: Number(receiveForm.elements.lastNumber.value), year: Number(receiveForm.elements.year.value) });
+            state.appSettings.admin.receive = result.receive;
+            overlay.querySelector('#next-receive-number').textContent = result.receive.nextNumber;
+            Swal.fire('สำเร็จ', `เลขรับถัดไปคือ ${result.receive.nextNumber}`, 'success');
+          } catch (error) { showError(error); }
+        };
+      }
+
+      const refreshStatus = overlay.querySelector('#refresh-system-status');
+      if (refreshStatus) refreshStatus.onclick = async () => {
+        loading('กำลังตรวจสอบระบบ...');
+        try {
+          const result = await gasCall('refreshAdminSystemStatus', state.token);
+          state.appSettings.admin = result.admin;
+          Swal.close();
+          renderSection('system');
+        } catch (error) { showError(error); }
+      };
+
+      overlay.querySelectorAll('[data-open-url]').forEach((button) => button.onclick = () => openExternal(button.dataset.openUrl));
+      const downloadButton = overlay.querySelector('#settings-open-download-center');
+      if (downloadButton) downloadButton.onclick = () => { close(); openDownloadCenter(); };
+    };
+
+    overlay.querySelectorAll('[data-settings-section]').forEach((button) => button.onclick = () => renderSection(button.dataset.settingsSection));
+    overlay.querySelectorAll('.settings-close, .settings-close-bottom').forEach((button) => button.onclick = close);
+    overlay.onclick = (event) => { if (event.target === overlay) close(); };
+    renderSection(activeSection);
   }
 
   function openDownloadCenter() {
