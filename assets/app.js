@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
+
   const root = document.getElementById('app-root');
   const state = {
     token: sessionStorage.getItem('officialDocToken') || '',
@@ -59,12 +61,12 @@
 
   function renderLogin() {
     root.innerHTML = `
-      <div class="min-h-screen flex items-center justify-center p-5 bg-gradient-to-br from-blue-50 via-white to-indigo-100">
+      <div class="min-h-screen flex items-center justify-center p-5 bg-gradient-to-br from-red-50 via-amber-50 to-yellow-100">
         <div class="card w-full max-w-md p-8">
           <div class="text-center mb-7">
-            <div class="w-16 h-16 mx-auto rounded-2xl bg-blue-600 text-white flex items-center justify-center text-3xl shadow-lg">📚</div>
-            <h1 class="text-2xl font-bold text-blue-800 mt-4">${escapeHtml(window.APP_BOOTSTRAP?.name || 'ระบบสารบรรณ')}</h1>
-            <p class="text-slate-500 mt-1">เข้าสู่ระบบด้วยผู้ใช้ที่กำหนดใน Google Sheet</p>
+            <div class="login-logo-wrap"><img class="brand-logo login" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"></div>
+            <h1 class="text-2xl font-bold text-red-800 mt-4">${escapeHtml(window.APP_BOOTSTRAP?.name || 'ระบบสารบรรณ')}</h1>
+            <p class="text-amber-900/80 mt-1">เข้าสู่ระบบด้วยผู้ใช้ที่กำหนดใน Google Sheet</p>
           </div>
           <form id="login-form" class="space-y-4">
             <div><label class="font-semibold text-sm text-slate-700">ชื่อผู้ใช้</label><input id="login-username" class="input mt-1" autocomplete="username" required></div>
@@ -113,12 +115,9 @@
 
   async function loadDashboard() {
     const result = await gasCall('getDashboardDocuments', state.token);
-    if (!result || typeof result !== 'object') {
-      throw new Error('Apps Script ไม่ได้ส่งข้อมูล Dashboard กลับมา กรุณาอัปเดต Deployment เป็นเวอร์ชันล่าสุด แล้วเข้าสู่ระบบใหม่');
-    }
-    state.actionDocs = Array.isArray(result.actionDocs) ? result.actionDocs : [];
-    state.inboxDocs = Array.isArray(result.inboxDocs) ? result.inboxDocs : [];
-    state.allDocs = Array.isArray(result.allDocs) ? result.allDocs : [];
+    state.actionDocs = result.actionDocs || [];
+    state.inboxDocs = result.inboxDocs || [];
+    state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
     renderDashboard();
   }
@@ -129,11 +128,11 @@
       <div class="app-shell">
         <header class="topbar">
           <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
-            <div><div class="font-bold text-lg">📚 ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="text-blue-100 text-xs">Google Drive + Google Sheets</div></div>
+            <div class="brand-mark"><img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"><div><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub">Google Drive + Google Sheets</div></div></div>
             <div class="flex items-center gap-3">
-              <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-blue-100">${escapeHtml(state.user.role)}</div></div>
+              <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
-              <button id="logout-btn" class="btn bg-blue-900/50 text-white">ออกจากระบบ</button>
+              <button id="logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
             </div>
           </div>
         </header>
@@ -538,7 +537,7 @@
   }
 
   function dispatchMarkup() {
-    return `<div id="dispatch-panel" class="dispatch-panel"><h3 class="text-xl font-bold text-blue-700 border-b pb-3">ดำเนินการขั้นสุดท้าย</h3><div class="flex flex-wrap gap-5 my-4"><label><input type="radio" name="dispatch-type" value="ยุติเรื่อง"> ยุติเรื่อง</label><label><input type="radio" name="dispatch-type" value="ทุกคน"> ส่งให้ทุกคน</label><label><input type="radio" name="dispatch-type" value="บางคน"> ส่งให้บางคน</label></div><div id="dispatch-users" class="hide border rounded-xl bg-blue-50 p-4"><div class="font-bold mb-3">เลือกผู้รับ</div><div id="dispatch-user-grid" class="user-grid"></div></div><div class="text-right mt-5"><button id="dispatch-submit" class="btn btn-success">บันทึกการส่งเรื่อง</button></div></div>`;
+    return `<div id="dispatch-panel" class="dispatch-panel"><h3 class="text-xl font-bold text-red-800 border-b pb-3">ดำเนินการขั้นสุดท้าย</h3><div class="flex flex-wrap gap-5 my-4"><label><input type="radio" name="dispatch-type" value="ยุติเรื่อง"> ยุติเรื่อง</label><label><input type="radio" name="dispatch-type" value="ทุกคน"> ส่งให้ทุกคน</label><label><input type="radio" name="dispatch-type" value="บางคน"> ส่งให้บางคน</label></div><div id="dispatch-users" class="hide border rounded-xl bg-amber-50 p-4"><div class="font-bold mb-3">เลือกผู้รับ</div><div id="dispatch-user-grid" class="user-grid"></div></div><div class="text-right mt-5"><button id="dispatch-submit" class="btn btn-success">บันทึกการส่งเรื่อง</button></div></div>`;
   }
 
   async function loadDispatchUsers() {
