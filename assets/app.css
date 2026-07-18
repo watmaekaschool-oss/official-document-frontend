@@ -43,15 +43,15 @@ button, input, select, textarea { font: inherit; }
 .pdf-container { position:relative; flex:0 0 auto; background:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); overflow:visible; margin:auto; }
 #pdf-render-canvas { display:block; background:#fff; }
 
-.draggable-stamp { position:absolute; z-index:20; color:var(--brand-red-dark); touch-action:none; user-select:none; transform-origin:top left; border:1px dashed transparent; }
+.draggable-stamp { position:absolute; z-index:20; color:#000; touch-action:none; user-select:none; transform-origin:top left; border:1px dashed transparent; }
 .draggable-stamp.selected { border-color:var(--brand-red); background:rgba(255,248,230,.55); }
 .stamp-content { transform-origin:top left; }
 .stamp-resize-handle { position:absolute; right:-10px; bottom:-10px; width:22px; height:22px; border-radius:999px; background:var(--brand-red); border:3px solid #fff7ed; box-shadow:0 2px 9px rgba(0,0,0,.35); cursor:nwse-resize; touch-action:none; }
 .stamp-scale-label { position:absolute; left:0; top:-24px; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; background:var(--brand-red); color:#fff; white-space:nowrap; }
 .draggable-stamp:not(.selected) .stamp-resize-handle,
 .draggable-stamp:not(.selected) .stamp-scale-label { display:none; }
-.stamp-textarea { width:100%; border:0; resize:none; outline:none; background:transparent; color:var(--brand-red-dark); font-family:'Sarabun',sans-serif; line-height:1.55; overflow:hidden; }
-.temp-text-div { color:var(--brand-red-dark); font-family:'Sarabun',sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
+.stamp-textarea { width:100%; border:0; resize:none; outline:none; background:transparent; color:#000; font-family:'Sarabun',sans-serif; line-height:1.55; overflow:hidden; }
+.temp-text-div { color:#000; font-family:'Sarabun',sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
 
 .dispatch-panel { margin:1.5rem auto 3rem; width:min(920px,100%); background:#fffdf8; border-radius:1rem; padding:1.25rem; box-shadow:0 16px 45px rgba(0,0,0,.25); border:1px solid #f5d28a; }
 .user-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.65rem; }
@@ -66,6 +66,31 @@ button, input, select, textarea { font: inherit; }
 .brand-title-main { font-weight:800; letter-spacing:.2px; }
 .brand-title-sub { font-size:.78rem; color:#fff5e6; opacity:.95; }
 .login-logo-wrap { display:flex; justify-content:center; margin-bottom:.25rem; }
+
+
+.draggable-stamp .stamp-content,
+.draggable-stamp .stamp-content *,
+.draggable-stamp .stamp-textarea,
+.draggable-stamp .temp-text-div { color:#000 !important; }
+.draggable-stamp input { accent-color:#b91c1c; }
+.stamp-mode-label { position:absolute; right:0; top:-24px; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; background:#f59e0b; color:#3b1f0b !important; white-space:nowrap; }
+.draggable-stamp:not(.selected) .stamp-mode-label { display:none; }
+.stamp-mode-move.selected { outline:2px solid rgba(185,28,28,.7); outline-offset:3px; cursor:move; }
+.stamp-mode-resize.selected { outline:2px solid rgba(245,158,11,.9); outline-offset:3px; cursor:ew-resize; }
+
+.stamp-tool-backdrop { position:fixed; inset:0; z-index:140; background:rgba(0,0,0,.48); display:flex; align-items:flex-end; justify-content:center; padding:1rem; }
+.stamp-tool-sheet { width:min(460px,100%); background:#fffdf8; border-radius:1.25rem 1.25rem .85rem .85rem; padding:1rem; box-shadow:0 -14px 45px rgba(0,0,0,.28); border:1px solid #f5d28a; }
+.stamp-tool-title { text-align:center; font-size:1.1rem; font-weight:800; color:#7f1d1d; }
+.stamp-tool-help { text-align:center; font-size:.82rem; color:#7c5a35; margin:.25rem 0 .85rem; }
+.stamp-tool-option { width:100%; border:1px solid #f2c879; background:#fff; border-radius:.9rem; padding:.85rem; display:flex; gap:.8rem; align-items:center; text-align:left; margin:.55rem 0; color:#3b1f0b; }
+.stamp-tool-option:active { transform:scale(.985); background:#fff4d6; }
+.stamp-tool-number { flex:0 0 2rem; width:2rem; height:2rem; border-radius:999px; display:grid; place-items:center; background:#b91c1c; color:#fff !important; font-weight:800; }
+.stamp-tool-option b { display:block; font-size:1rem; color:#1f1307; }
+.stamp-tool-option small { display:block; color:#795832; margin-top:.1rem; }
+.stamp-quick-resize { display:grid; grid-template-columns:1fr auto 1fr; gap:.6rem; align-items:center; margin:.8rem 0; }
+.stamp-quick-resize button { border:0; border-radius:.75rem; padding:.72rem; background:#f59e0b; color:#3b1f0b; font-weight:800; }
+.stamp-quick-resize span { min-width:64px; text-align:center; font-weight:800; color:#7f1d1d; }
+.stamp-tool-cancel { width:100%; border:0; border-radius:.75rem; padding:.72rem; background:#f3e8d1; color:#5b3a16; font-weight:700; }
 
 @media (max-width: 640px) {
   .pdf-scroll-area { padding:1rem; }
