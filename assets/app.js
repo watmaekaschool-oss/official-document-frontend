@@ -208,7 +208,13 @@
       return;
     }
     tbody.innerHTML = docs.map((doc) => {
-      const recipientText = doc.recipientCount ? `<button class="text-xs text-slate-600 underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${doc.recipientCount}</button>` : '';
+      const isAckComplete = Number(doc.recipientCount || 0) > 0 && Number(doc.ackCount || 0) >= Number(doc.recipientCount || 0);
+      const ackStatusClass = state.tab === 'inbox'
+        ? (isAckComplete ? 'text-green-600 font-bold' : 'text-red-600 font-bold')
+        : 'text-slate-600';
+      const recipientText = doc.recipientCount
+        ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${doc.recipientCount}</button>`
+        : '';
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
       const ackButton = state.tab === 'inbox' && ownRecipient && !ownRecipient.acknowledgedAt
         ? `<button class="btn btn-success text-xs acknowledge-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
@@ -243,7 +249,7 @@
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
         <div><label class="font-semibold text-sm">ไฟล์ PDF ไม่เกิน 15 MB</label><input class="input mt-1" type="file" name="pdfFile" accept="application/pdf" required></div>
-        <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" required></div>
+        <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="สพป.ชม.2" required></div>
         <div><label class="font-semibold text-sm">เรื่อง</label><input class="input mt-1" name="subject" required></div>
         <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-primary" type="submit">อัปโหลด</button></div>
       </form></div>`;
