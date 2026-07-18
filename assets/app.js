@@ -113,9 +113,12 @@
 
   async function loadDashboard() {
     const result = await gasCall('getDashboardDocuments', state.token);
-    state.actionDocs = result.actionDocs || [];
-    state.inboxDocs = result.inboxDocs || [];
-    state.allDocs = result.allDocs || [];
+    if (!result || typeof result !== 'object') {
+      throw new Error('Apps Script ไม่ได้ส่งข้อมูล Dashboard กลับมา กรุณาอัปเดต Deployment เป็นเวอร์ชันล่าสุด แล้วเข้าสู่ระบบใหม่');
+    }
+    state.actionDocs = Array.isArray(result.actionDocs) ? result.actionDocs : [];
+    state.inboxDocs = Array.isArray(result.inboxDocs) ? result.inboxDocs : [];
+    state.allDocs = Array.isArray(result.allDocs) ? result.allDocs : [];
     state.user = result.user || state.user;
     renderDashboard();
   }
