@@ -355,7 +355,7 @@
     const signature = state.user.signatureDataUrl || '';
     if (role === 'รองผู้อำนวยการ') {
       return stampWrapper('stamp-deputy', 235, `
-        <div style="width:235px;padding:5px;color:#000000;font-size:11px;line-height:1.45">
+        <div style="width:235px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
           <div style="font-weight:700;font-size:12px;margin-bottom:4px">เรียน ผู้อำนวยการโรงเรียนวัดแม่กะ</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px"><span>เพื่อโปรด</span><label><input type="checkbox" data-meta="ทราบ"> ทราบ</label><label><input type="checkbox" data-meta="พิจารณา"> พิจารณา</label></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><label><input type="checkbox" data-meta="เห็นควรมอบ"> เห็นควรมอบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
@@ -366,7 +366,7 @@
     }
     if (role === 'ผู้อำนวยการ') {
       return stampWrapper('stamp-director', 220, `
-        <div style="width:220px;padding:5px;color:#000000;font-size:11px;line-height:1.45">
+        <div style="width:220px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
           <div style="display:flex;justify-content:space-around;font-weight:700"><label><input type="checkbox" data-meta="ทราบ"> ทราบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
           <div style="text-align:center;font-weight:700;margin:5px 0"><label><input type="checkbox" data-meta="ดำเนินการตามเสนอ"> ดำเนินการตามเสนอ</label></div>
           <div style="font-weight:700">ข้อสั่งการ</div><textarea class="stamp-textarea" rows="4"></textarea>
@@ -374,9 +374,9 @@
         </div>`);
     }
     return stampWrapper('stamp-clerk-1', 180, `
-      <div style="width:180px;padding:5px;color:#000000;font-size:12px;line-height:1.55"><div style="text-align:center;font-weight:700;font-size:14px">โรงเรียนวัดแม่กะ</div><div>เลขรับที่: <b>${escapeHtml(recvNo)}</b></div><div>วันที่: <b>${new Date().toLocaleDateString('th-TH')}</b></div></div>`) +
+      <div style="width:180px;padding:5px;color:#1254c0;font-size:12px;line-height:1.55"><div style="text-align:center;font-weight:700;font-size:14px">โรงเรียนวัดแม่กะ</div><div>เลขรับที่: <b>${escapeHtml(recvNo)}</b></div><div>วันที่: <b>${new Date().toLocaleDateString('th-TH')}</b></div></div>`) +
       stampWrapper('stamp-clerk-2', 245, `
-      <div style="width:245px;padding:5px;color:#000000;font-size:11px;line-height:1.5"><div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div><textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea><div style="text-align:center">${signature ? `<img src="${signature}" style="height:30px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div></div></div>`);
+      <div style="width:245px;padding:5px;color:#1254c0;font-size:11px;line-height:1.5"><div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div><textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea><div style="text-align:center">${signature ? `<img src="${signature}" style="height:30px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div></div></div>`);
   }
 
   function stampWrapper(id, width, content) {
@@ -389,10 +389,36 @@
     stamps.forEach((stamp) => {
       const content = stamp.querySelector('.stamp-content');
       const baseWidth = Number(stamp.dataset.baseWidth || stamp.offsetWidth);
-      const baseHeight = content.getBoundingClientRect().height;
-      stamp.dataset.baseHeight = String(baseHeight);
       stamp.dataset.interactionMode = stamp.dataset.interactionMode || 'move';
-      setStampScale(stamp, 1);
+      refreshStampBounds(stamp);
+      setStampScale(stamp, Number(stamp.dataset.scale || 1));
+
+      // The signature image can finish decoding after the stamp is displayed.
+      // Recalculate the real unscaled height so the selection frame stays
+      // attached to the text and signature on phones, tablets, and desktops.
+      const images = [...content.querySelectorAll('img')];
+      images.forEach((image) => {
+        const update = () => {
+          refreshStampBounds(stamp);
+          setStampScale(stamp, Number(stamp.dataset.scale || 1));
+        };
+        if (image.complete) {
+          if (image.decode) image.decode().catch(() => {}).finally(update);
+          else update();
+        } else {
+          image.addEventListener('load', update, { once: true });
+          image.addEventListener('error', update, { once: true });
+        }
+      });
+
+      if (window.ResizeObserver) {
+        const observer = new ResizeObserver(() => {
+          refreshStampBounds(stamp);
+          setStampScale(stamp, Number(stamp.dataset.scale || 1));
+        });
+        observer.observe(content);
+        stamp._stampResizeObserver = observer;
+      }
 
       let tapStart = null;
       stamp.addEventListener('pointerdown', (event) => {
@@ -537,6 +563,17 @@
     });
   }
 
+  function refreshStampBounds(stamp) {
+    const content = stamp.querySelector('.stamp-content');
+    if (!content) return;
+    const baseWidth = Number(stamp.dataset.baseWidth || content.scrollWidth || 200);
+    // scrollHeight is measured before CSS transform, so it represents the
+    // true content size and prevents the frame from drifting away.
+    const baseHeight = Math.max(1, content.scrollHeight, content.offsetHeight);
+    stamp.dataset.baseWidth = String(baseWidth);
+    stamp.dataset.baseHeight = String(baseHeight);
+  }
+
   function setStampScale(stamp, scale) {
     stamp.dataset.scale = String(scale);
     const baseWidth = Number(stamp.dataset.baseWidth || 200);
@@ -576,6 +613,92 @@
     if (label) label.textContent = `${Math.round(state.currentScale * 100)}%`;
   }
 
+  async function captureStampAtNativeResolution(stamp, captureScale) {
+    const originalContent = stamp.querySelector('.stamp-content');
+    const clone = originalContent.cloneNode(true);
+    const baseWidth = Number(stamp.dataset.baseWidth || originalContent.scrollWidth || 200);
+
+    clone.classList.add('stamp-capture-clone');
+    clone.style.transform = 'none';
+    clone.style.width = `${baseWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.position = 'fixed';
+    clone.style.left = '-12000px';
+    clone.style.top = '0';
+    clone.style.zIndex = '-1';
+    clone.style.pointerEvents = 'none';
+    clone.style.color = '#1254c0';
+    clone.style.background = 'transparent';
+
+    const originalInputs = [...originalContent.querySelectorAll('input')];
+    const cloneInputs = [...clone.querySelectorAll('input')];
+    cloneInputs.forEach((input, index) => {
+      const source = originalInputs[index];
+      if (!source) return;
+      input.checked = source.checked;
+      input.value = source.value;
+    });
+
+    const originalTextareas = [...originalContent.querySelectorAll('textarea')];
+    const cloneTextareas = [...clone.querySelectorAll('textarea')];
+    cloneTextareas.forEach((textarea, index) => {
+      const source = originalTextareas[index];
+      textarea.value = source ? source.value : '';
+    });
+
+    document.body.appendChild(clone);
+    try {
+      const cloneImages = [...clone.querySelectorAll('img')];
+      await Promise.all(cloneImages.map((image) => {
+        if (image.complete) return image.decode ? image.decode().catch(() => {}) : Promise.resolve();
+        return new Promise((resolve) => {
+          image.addEventListener('load', resolve, { once: true });
+          image.addEventListener('error', resolve, { once: true });
+        });
+      }));
+
+      // Replace textarea controls with static text before capture. This avoids
+      // browser-specific textarea rasterization and keeps Thai text aligned.
+      const liveTextareas = [...clone.querySelectorAll('textarea')];
+      liveTextareas.forEach((textarea) => {
+        const computed = getComputedStyle(textarea);
+        const div = document.createElement('div');
+        div.className = 'temp-text-div';
+        div.textContent = textarea.value || '';
+        div.style.width = `${textarea.offsetWidth}px`;
+        div.style.minHeight = `${textarea.offsetHeight}px`;
+        div.style.padding = computed.padding;
+        div.style.margin = computed.margin;
+        div.style.font = computed.font;
+        div.style.fontFamily = computed.fontFamily;
+        div.style.fontSize = computed.fontSize;
+        div.style.fontWeight = computed.fontWeight;
+        div.style.lineHeight = computed.lineHeight;
+        div.style.letterSpacing = computed.letterSpacing;
+        div.style.whiteSpace = 'pre-wrap';
+        div.style.overflowWrap = 'anywhere';
+        div.style.color = '#1254c0';
+        textarea.replaceWith(div);
+      });
+
+      // Reflow once after replacing controls.
+      void clone.offsetHeight;
+      return await html2canvas(clone, {
+        backgroundColor: null,
+        scale: captureScale,
+        useCORS: true,
+        logging: false,
+        removeContainer: true,
+        imageTimeout: 15000,
+        foreignObjectRendering: false,
+        scrollX: 0,
+        scrollY: 0,
+      });
+    } finally {
+      clone.remove();
+    }
+  }
+
   async function saveAndStamp() {
     loading('กำลังประทับตราและส่งต่อ...');
     try {
@@ -587,34 +710,25 @@
       const scaleY = page.getHeight() / container.offsetHeight;
       const stamps = [...document.querySelectorAll('.draggable-stamp')];
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
-      const stampCaptureScale = Math.min(5, Math.max(4, (window.devicePixelRatio || 1) * 2));
+      const stampCaptureScale = Math.min(8, Math.max(6, (window.devicePixelRatio || 1) * 3));
 
       for (const stamp of stamps) {
-        const textareas = [...stamp.querySelectorAll('textarea')];
-        textareas.forEach((textarea) => {
-          const div = document.createElement('div');
-          div.className = 'temp-text-div';
-          div.style.cssText = textarea.style.cssText;
-          div.style.width = `${textarea.offsetWidth}px`;
-          div.style.minHeight = `${textarea.offsetHeight}px`;
-          div.textContent = textarea.value;
-          textarea.style.display = 'none';
-          textarea.parentNode.insertBefore(div, textarea);
-        });
-        stamp.classList.remove('selected');
-        const capture = await html2canvas(stamp, { backgroundColor: null, scale: stampCaptureScale, useCORS: true, logging: false, removeContainer: true });
-        const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
         const rect = stamp.getBoundingClientRect();
         const x = rect.left - containerRect.left;
         const y = rect.top - containerRect.top;
+
+        // Capture an untransformed clone. Capturing the on-screen element
+        // after CSS scaling softens Thai glyphs and can shift the frame.
+        // The clone stays at its native layout size and is rasterized at
+        // high resolution, then placed into the PDF at the user's chosen size.
+        const capture = await captureStampAtNativeResolution(stamp, stampCaptureScale);
+        const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
         page.drawImage(image, {
           x: x * scaleX,
           y: page.getHeight() - y * scaleY - rect.height * scaleY,
           width: rect.width * scaleX,
           height: rect.height * scaleY,
         });
-        stamp.querySelectorAll('.temp-text-div').forEach((div) => div.remove());
-        textareas.forEach((textarea) => textarea.style.display = 'block');
       }
       const base64 = await pdfDoc.saveAsBase64();
       const stampMeta = collectStampMeta();
