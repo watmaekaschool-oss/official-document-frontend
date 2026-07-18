@@ -17,6 +17,7 @@
     currentPageNumber: 1,
     currentScale: 1.3,
     selectedStamp: null,
+    stampInteractionMode: 'move',
     allUsers: [],
   };
 
@@ -354,7 +355,7 @@
     const signature = state.user.signatureDataUrl || '';
     if (role === 'รองผู้อำนวยการ') {
       return stampWrapper('stamp-deputy', 235, `
-        <div style="width:235px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
+        <div style="width:235px;padding:5px;color:#000000;font-size:11px;line-height:1.45">
           <div style="font-weight:700;font-size:12px;margin-bottom:4px">เรียน ผู้อำนวยการโรงเรียนวัดแม่กะ</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px"><span>เพื่อโปรด</span><label><input type="checkbox" data-meta="ทราบ"> ทราบ</label><label><input type="checkbox" data-meta="พิจารณา"> พิจารณา</label></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><label><input type="checkbox" data-meta="เห็นควรมอบ"> เห็นควรมอบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
@@ -365,7 +366,7 @@
     }
     if (role === 'ผู้อำนวยการ') {
       return stampWrapper('stamp-director', 220, `
-        <div style="width:220px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
+        <div style="width:220px;padding:5px;color:#000000;font-size:11px;line-height:1.45">
           <div style="display:flex;justify-content:space-around;font-weight:700"><label><input type="checkbox" data-meta="ทราบ"> ทราบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
           <div style="text-align:center;font-weight:700;margin:5px 0"><label><input type="checkbox" data-meta="ดำเนินการตามเสนอ"> ดำเนินการตามเสนอ</label></div>
           <div style="font-weight:700">ข้อสั่งการ</div><textarea class="stamp-textarea" rows="4"></textarea>
@@ -373,14 +374,14 @@
         </div>`);
     }
     return stampWrapper('stamp-clerk-1', 180, `
-      <div style="width:180px;padding:5px;color:#1254c0;font-size:12px;line-height:1.55"><div style="text-align:center;font-weight:700;font-size:14px">โรงเรียนวัดแม่กะ</div><div>เลขรับที่: <b>${escapeHtml(recvNo)}</b></div><div>วันที่: <b>${new Date().toLocaleDateString('th-TH')}</b></div></div>`) +
+      <div style="width:180px;padding:5px;color:#000000;font-size:12px;line-height:1.55"><div style="text-align:center;font-weight:700;font-size:14px">โรงเรียนวัดแม่กะ</div><div>เลขรับที่: <b>${escapeHtml(recvNo)}</b></div><div>วันที่: <b>${new Date().toLocaleDateString('th-TH')}</b></div></div>`) +
       stampWrapper('stamp-clerk-2', 245, `
-      <div style="width:245px;padding:5px;color:#1254c0;font-size:11px;line-height:1.5"><div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div><textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea><div style="text-align:center">${signature ? `<img src="${signature}" style="height:30px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div></div></div>`);
+      <div style="width:245px;padding:5px;color:#000000;font-size:11px;line-height:1.5"><div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div><textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea><div style="text-align:center">${signature ? `<img src="${signature}" style="height:30px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div></div></div>`);
   }
 
   function stampWrapper(id, width, content) {
     const top = id.includes('2') ? 170 : id.includes('deputy') ? 250 : id.includes('director') ? 360 : 35;
-    return `<div id="${id}" class="draggable-stamp" style="left:35px;top:${top}px;width:${width}px" data-base-width="${width}" data-scale="1"><div class="stamp-content">${content}</div><span class="stamp-scale-label">100%</span><span class="stamp-resize-handle" title="ลากเพื่อย่อ/ขยาย"></span></div>`;
+    return `<div id="${id}" class="draggable-stamp stamp-mode-move" style="left:35px;top:${top}px;width:${width}px" data-base-width="${width}" data-scale="1" data-interaction-mode="move"><div class="stamp-content">${content}</div><span class="stamp-scale-label">100%</span><span class="stamp-mode-label">โหมด: ย้าย</span><span class="stamp-resize-handle" title="ลากเพื่อย่อ/ขยาย"></span></div>`;
   }
 
   function initializeStamps() {
@@ -390,15 +391,43 @@
       const baseWidth = Number(stamp.dataset.baseWidth || stamp.offsetWidth);
       const baseHeight = content.getBoundingClientRect().height;
       stamp.dataset.baseHeight = String(baseHeight);
+      stamp.dataset.interactionMode = stamp.dataset.interactionMode || 'move';
       setStampScale(stamp, 1);
-      stamp.addEventListener('pointerdown', () => selectStamp(stamp));
+
+      let tapStart = null;
+      stamp.addEventListener('pointerdown', (event) => {
+        selectStamp(stamp);
+        if (event.target.closest('input, textarea, label, .stamp-resize-handle')) return;
+        tapStart = { x: event.clientX, y: event.clientY };
+      });
+      stamp.addEventListener('pointerup', (event) => {
+        if (!tapStart || event.target.closest('input, textarea, label, .stamp-resize-handle')) {
+          tapStart = null;
+          return;
+        }
+        const distance = Math.hypot(event.clientX - tapStart.x, event.clientY - tapStart.y);
+        tapStart = null;
+        if (distance < 9) openStampToolMenu(stamp);
+      });
+      stamp.addEventListener('pointercancel', () => { tapStart = null; });
       initResizeHandle(stamp);
     });
+
     interact('.draggable-stamp').draggable({
       ignoreFrom: '.stamp-resize-handle, input, textarea, label',
       listeners: {
         move(event) {
           const target = event.target;
+          selectStamp(target);
+          const mode = target.dataset.interactionMode || 'move';
+          if (mode === 'resize') {
+            const currentScale = Number(target.dataset.scale || 1);
+            const baseWidth = Number(target.dataset.baseWidth || 200);
+            const delta = (event.dx + event.dy) / 2;
+            const nextScale = Math.min(2, Math.max(.5, currentScale + delta / baseWidth));
+            setStampScale(target, nextScale);
+            return;
+          }
           const x = (parseFloat(target.dataset.x) || 0) + event.dx;
           const y = (parseFloat(target.dataset.y) || 0) + event.dy;
           target.dataset.x = x;
@@ -417,6 +446,74 @@
   function selectStamp(stamp) {
     document.querySelectorAll('.draggable-stamp').forEach((item) => item.classList.toggle('selected', item === stamp));
     state.selectedStamp = stamp;
+  }
+
+  function setStampInteractionMode(stamp, mode) {
+    const normalizedMode = mode === 'resize' ? 'resize' : 'move';
+    stamp.dataset.interactionMode = normalizedMode;
+    stamp.classList.toggle('stamp-mode-move', normalizedMode === 'move');
+    stamp.classList.toggle('stamp-mode-resize', normalizedMode === 'resize');
+    const label = stamp.querySelector('.stamp-mode-label');
+    if (label) label.textContent = normalizedMode === 'resize' ? 'โหมด: ย่อ/ขยาย' : 'โหมด: ย้าย';
+    state.stampInteractionMode = normalizedMode;
+    selectStamp(stamp);
+  }
+
+  function openStampToolMenu(stamp) {
+    selectStamp(stamp);
+    const oldMenu = document.getElementById('stamp-tool-menu');
+    if (oldMenu) oldMenu.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'stamp-tool-menu';
+    overlay.className = 'stamp-tool-backdrop';
+    overlay.innerHTML = `
+      <div class="stamp-tool-sheet" role="dialog" aria-modal="true" aria-label="เครื่องมือตราประทับ">
+        <div class="stamp-tool-title">เลือกวิธีปรับตราประทับ</div>
+        <div class="stamp-tool-help">หลังเลือกแล้ว ให้แตะค้างและลากบนตราประทับ</div>
+        <button type="button" class="stamp-tool-option" data-mode="move">
+          <span class="stamp-tool-number">1</span>
+          <span><b>ย้าย</b><small>ลากตราไปยังตำแหน่งที่ต้องการ</small></span>
+        </button>
+        <button type="button" class="stamp-tool-option" data-mode="resize">
+          <span class="stamp-tool-number">2</span>
+          <span><b>ย่อ / ขยาย</b><small>ลากไปทางขวาเพื่อขยาย ลากซ้ายเพื่อย่อ</small></span>
+        </button>
+        <div class="stamp-quick-resize">
+          <button type="button" data-scale-step="-0.1">− ย่อ</button>
+          <span>${Math.round(Number(stamp.dataset.scale || 1) * 100)}%</span>
+          <button type="button" data-scale-step="0.1">＋ ขยาย</button>
+        </div>
+        <button type="button" class="stamp-tool-cancel">ปิด</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('pointerdown', (event) => {
+      if (event.target === overlay) close();
+    });
+    overlay.querySelectorAll('[data-mode]').forEach((button) => {
+      button.addEventListener('click', () => {
+        setStampInteractionMode(stamp, button.dataset.mode);
+        close();
+        Swal.fire({
+          toast: true,
+          position: 'bottom',
+          timer: 1800,
+          showConfirmButton: false,
+          icon: 'info',
+          title: button.dataset.mode === 'resize' ? 'โหมดย่อ/ขยาย: ลากบนตราเพื่อปรับขนาด' : 'โหมดย้าย: ลากตราไปยังตำแหน่งใหม่'
+        });
+      });
+    });
+    overlay.querySelectorAll('[data-scale-step]').forEach((button) => {
+      button.addEventListener('click', () => {
+        setStampInteractionMode(stamp, 'resize');
+        const step = Number(button.dataset.scaleStep || 0);
+        setStampScale(stamp, Math.min(2, Math.max(.5, Number(stamp.dataset.scale || 1) + step)));
+        const percent = overlay.querySelector('.stamp-quick-resize span');
+        if (percent) percent.textContent = `${Math.round(Number(stamp.dataset.scale || 1) * 100)}%`;
+      });
+    });
+    overlay.querySelector('.stamp-tool-cancel').addEventListener('click', close);
   }
 
   function initResizeHandle(stamp) {
@@ -489,6 +586,8 @@
       const scaleX = page.getWidth() / container.offsetWidth;
       const scaleY = page.getHeight() / container.offsetHeight;
       const stamps = [...document.querySelectorAll('.draggable-stamp')];
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      const stampCaptureScale = Math.min(5, Math.max(4, (window.devicePixelRatio || 1) * 2));
 
       for (const stamp of stamps) {
         const textareas = [...stamp.querySelectorAll('textarea')];
@@ -503,7 +602,7 @@
           textarea.parentNode.insertBefore(div, textarea);
         });
         stamp.classList.remove('selected');
-        const capture = await html2canvas(stamp, { backgroundColor: null, scale: 2, useCORS: true });
+        const capture = await html2canvas(stamp, { backgroundColor: null, scale: stampCaptureScale, useCORS: true, logging: false, removeContainer: true });
         const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
         const rect = stamp.getBoundingClientRect();
         const x = rect.left - containerRect.left;
