@@ -148,3 +148,288 @@ button, input, select, textarea { font: inherit; }
   .pixel-letter { animation:none; opacity:1; transform:none; filter:none; }
   .pixel-build::after { display:none; }
 }
+
+
+/* =========================================================
+   Login page: Aurora Soft Gradient + Rainbow Wave subtitle
+   ========================================================= */
+.login-aurora-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 2rem);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.98) 0 12%, rgba(255,255,255,.54) 36%, transparent 66%),
+    linear-gradient(135deg, #fffaf1 0%, #fff4e7 28%, #fff6cf 58%, #fdf0f7 82%, #eef7ff 100%);
+}
+
+.login-aurora-shell::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  z-index: -5;
+  background: conic-gradient(
+    from 190deg at 50% 50%,
+    rgba(255, 107, 107, .22),
+    rgba(255, 180, 95, .22),
+    rgba(255, 226, 123, .28),
+    rgba(255, 155, 202, .22),
+    rgba(166, 214, 255, .19),
+    rgba(205, 181, 255, .18),
+    rgba(255, 107, 107, .22)
+  );
+  filter: blur(72px) saturate(118%);
+  animation: auroraBackgroundRotate 24s linear infinite;
+}
+
+.aurora-layer {
+  position: absolute;
+  z-index: -4;
+  width: min(54vw, 780px);
+  aspect-ratio: 1;
+  border-radius: 46% 54% 62% 38% / 38% 42% 58% 62%;
+  filter: blur(58px);
+  opacity: .42;
+  will-change: transform;
+  pointer-events: none;
+}
+.aurora-layer-one {
+  left: -16vw;
+  top: -20vh;
+  background: linear-gradient(135deg, #ff8fa3, #ffc66d 54%, #fff1a3);
+  animation: auroraFloatOne 16s ease-in-out infinite alternate;
+}
+.aurora-layer-two {
+  right: -14vw;
+  top: 7vh;
+  background: linear-gradient(135deg, #ffe275, #ffb7d2 55%, #a9d9ff);
+  animation: auroraFloatTwo 19s ease-in-out infinite alternate;
+}
+.aurora-layer-three {
+  left: 18vw;
+  bottom: -35vh;
+  width: min(68vw, 980px);
+  background: linear-gradient(90deg, #ff9fa6, #ffd68a 32%, #f8ef9c 57%, #b7dfff 82%, #d9baff);
+  opacity: .34;
+  animation: auroraFloatThree 22s ease-in-out infinite alternate;
+}
+
+.aurora-wave {
+  position: absolute;
+  left: -12%;
+  width: 124%;
+  height: 34%;
+  z-index: -3;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.34);
+  filter: blur(.2px) drop-shadow(0 0 22px rgba(255,255,255,.36));
+  opacity: .55;
+  transform: rotate(-5deg);
+  pointer-events: none;
+}
+.aurora-wave::before,
+.aurora-wave::after {
+  content: '';
+  position: absolute;
+  inset: 12% 0;
+  border-radius: inherit;
+  border-top: 1px solid rgba(255,255,255,.62);
+  box-shadow: 0 -10px 36px rgba(255, 205, 120, .22);
+}
+.aurora-wave-one {
+  bottom: -9%;
+  background: linear-gradient(90deg, rgba(255,112,130,.15), rgba(255,205,113,.22), rgba(255,240,160,.2), rgba(166,219,255,.14), rgba(215,178,255,.14));
+  animation: auroraWaveDrift 17s ease-in-out infinite alternate;
+}
+.aurora-wave-two {
+  bottom: 5%;
+  opacity: .34;
+  transform: rotate(5deg) scaleX(1.06);
+  animation: auroraWaveDriftReverse 21s ease-in-out infinite alternate;
+}
+
+.aurora-sparkles {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  opacity: .5;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.95) 0 1px, transparent 1.7px),
+    radial-gradient(circle, rgba(255,245,190,.86) 0 1.2px, transparent 2px);
+  background-size: 122px 122px, 177px 177px;
+  background-position: 17px 12px, 82px 65px;
+  animation: auroraSparkleMove 18s linear infinite;
+}
+
+.login-card {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 470px);
+  background: rgba(255, 253, 248, .91);
+  border: 1px solid rgba(245, 189, 98, .52);
+  box-shadow:
+    0 24px 62px rgba(111, 51, 18, .17),
+    0 0 0 1px rgba(255,255,255,.6) inset;
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+.login-system-title {
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .14em;
+  color: #a91d1d;
+  font-size: clamp(1.45rem, 3.1vw, 2rem);
+  line-height: 1.26;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 2px 10px rgba(169, 29, 29, .08);
+}
+.login-system-title > span {
+  display: block;
+  max-width: 100%;
+}
+.login-school-name {
+  white-space: nowrap;
+}
+
+.rainbow-wave-title {
+  position: relative;
+  width: max-content;
+  max-width: 100%;
+  margin: .7rem auto 0;
+  padding: 0 .4rem .72rem;
+  overflow: visible;
+  font-family: 'Sarabun', system-ui, sans-serif;
+  font-size: clamp(1.35rem, 3.4vw, 2rem);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: .01em;
+  text-align: center;
+}
+.rainbow-wave-title > span {
+  display: inline-block;
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    #f05279 0%,
+    #ff824d 16%,
+    #f5bd2f 32%,
+    #72c46b 48%,
+    #34a6e8 64%,
+    #6c6ce5 80%,
+    #c65ae8 100%
+  );
+  background-size: 260% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 3px 8px rgba(111, 91, 208, .16));
+  animation: rainbowTextFlow 5.2s linear infinite, rainbowTextBob 3.2s ease-in-out infinite;
+}
+.rainbow-wave-title::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: .16rem;
+  height: 10px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f05279, #ff9a51, #f8d447, #66c783, #35a7e9, #6e69e4, #c358e6);
+  background-size: 240% 100%;
+  opacity: .68;
+  filter: blur(3px);
+  transform: skewX(-12deg) scaleY(.72);
+  animation: rainbowWaveFlow 4.7s linear infinite, rainbowUnderlinePulse 2.8s ease-in-out infinite;
+}
+
+.login-input {
+  background: rgba(255,255,255,.82);
+  min-height: 3.45rem;
+  border-color: rgba(240, 175, 74, .72);
+  box-shadow: 0 6px 18px rgba(122, 70, 19, .04);
+}
+.login-input:focus {
+  background: #fff;
+}
+.login-submit {
+  min-height: 3.55rem;
+  background: linear-gradient(110deg, #bd1717, #e92c2c 48%, #b91616);
+  background-size: 180% 100%;
+  box-shadow: 0 10px 22px rgba(185, 28, 28, .24);
+  animation: loginButtonGlow 6s ease-in-out infinite;
+}
+
+@keyframes auroraBackgroundRotate {
+  to { transform: rotate(360deg) scale(1.06); }
+}
+@keyframes auroraFloatOne {
+  from { transform: translate3d(-2%, -2%, 0) rotate(-8deg) scale(.94); }
+  to { transform: translate3d(18%, 15%, 0) rotate(14deg) scale(1.12); }
+}
+@keyframes auroraFloatTwo {
+  from { transform: translate3d(8%, -4%, 0) rotate(4deg) scale(1.02); }
+  to { transform: translate3d(-18%, 18%, 0) rotate(-15deg) scale(.91); }
+}
+@keyframes auroraFloatThree {
+  from { transform: translate3d(-9%, 10%, 0) rotate(-4deg) scale(.95); }
+  to { transform: translate3d(12%, -13%, 0) rotate(11deg) scale(1.08); }
+}
+@keyframes auroraWaveDrift {
+  from { transform: translateX(-2%) rotate(-6deg) scaleX(1.02); }
+  to { transform: translateX(4%) rotate(-2deg) scaleX(.98); }
+}
+@keyframes auroraWaveDriftReverse {
+  from { transform: translateX(4%) rotate(7deg) scaleX(1.08); }
+  to { transform: translateX(-5%) rotate(2deg) scaleX(1.01); }
+}
+@keyframes auroraSparkleMove {
+  to { background-position: 139px 134px, -95px 242px; }
+}
+@keyframes rainbowTextFlow {
+  to { background-position: 260% 50%; }
+}
+@keyframes rainbowTextBob {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes rainbowWaveFlow {
+  to { background-position: 240% 50%; }
+}
+@keyframes rainbowUnderlinePulse {
+  0%,100% { opacity:.48; transform: skewX(-12deg) scaleY(.58) translateX(-1%); }
+  50% { opacity:.82; transform: skewX(-12deg) scaleY(.9) translateX(1%); }
+}
+@keyframes loginButtonGlow {
+  0%,100% { background-position: 0% 50%; box-shadow: 0 10px 22px rgba(185, 28, 28, .22); }
+  50% { background-position: 100% 50%; box-shadow: 0 12px 28px rgba(221, 49, 49, .32); }
+}
+
+@media (max-width: 640px) {
+  .login-aurora-shell { padding: 1rem; }
+  .login-card { padding: 1.5rem !important; border-radius: 1.15rem; }
+  .brand-logo.login { width: 64px; height: 64px; }
+  .login-system-title { font-size: clamp(1.25rem, 6.2vw, 1.65rem); }
+  .rainbow-wave-title { font-size: clamp(1.25rem, 7vw, 1.7rem); }
+  .aurora-layer { filter: blur(46px); opacity: .34; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-aurora-shell::before,
+  .aurora-layer,
+  .aurora-wave,
+  .aurora-sparkles,
+  .rainbow-wave-title > span,
+  .rainbow-wave-title::after,
+  .login-submit {
+    animation: none !important;
+  }
+}
