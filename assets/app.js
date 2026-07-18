@@ -78,17 +78,29 @@
 
   function renderLogin() {
     root.innerHTML = `
-      <div class="min-h-screen flex items-center justify-center p-5 bg-gradient-to-br from-red-50 via-amber-50 to-yellow-100">
-        <div class="card w-full max-w-md p-8">
+      <div class="login-aurora-shell">
+        <div class="aurora-layer aurora-layer-one" aria-hidden="true"></div>
+        <div class="aurora-layer aurora-layer-two" aria-hidden="true"></div>
+        <div class="aurora-layer aurora-layer-three" aria-hidden="true"></div>
+        <div class="aurora-wave aurora-wave-one" aria-hidden="true"></div>
+        <div class="aurora-wave aurora-wave-two" aria-hidden="true"></div>
+        <div class="aurora-sparkles" aria-hidden="true"></div>
+
+        <div class="login-card card w-full max-w-md p-8">
           <div class="text-center mb-7">
-            <div class="login-logo-wrap"><img class="brand-logo login" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"></div>
-            <h1 class="text-2xl font-bold text-red-800 mt-4">${escapeHtml(window.APP_BOOTSTRAP?.name || 'ระบบสารบรรณ')}</h1>
-            <p class="text-amber-900/80 mt-1">เข้าสู่ระบบด้วยผู้ใช้ที่กำหนดใน Google Sheet</p>
+            <div class="login-logo-wrap"><img class="brand-logo login" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียนวัดแม่กะ"></div>
+            <h1 class="login-system-title mt-4">
+              <span>ระบบสารบรรณอิเล็กทรอนิกส์</span>
+              <span class="login-school-name">โรงเรียนวัดแม่กะ</span>
+            </h1>
+            <div class="rainbow-wave-title" aria-label="Watmaeka school">
+              <span>Watmaeka school</span>
+            </div>
           </div>
           <form id="login-form" class="space-y-4">
-            <div><label class="font-semibold text-sm text-slate-700">ชื่อผู้ใช้</label><input id="login-username" class="input mt-1" autocomplete="username" required></div>
-            <div><label class="font-semibold text-sm text-slate-700">รหัสผ่าน</label><input id="login-password" type="password" class="input mt-1" autocomplete="current-password" required></div>
-            <button class="btn btn-primary w-full py-3" type="submit">เข้าสู่ระบบ</button>
+            <div><label class="font-semibold text-sm text-slate-700">ชื่อผู้ใช้</label><input id="login-username" class="input login-input mt-1" autocomplete="username" placeholder="กรุณากรอกชื่อผู้ใช้" required></div>
+            <div><label class="font-semibold text-sm text-slate-700">รหัสผ่าน</label><input id="login-password" type="password" class="input login-input mt-1" autocomplete="current-password" placeholder="กรุณากรอกรหัสผ่าน" required></div>
+            <button class="btn btn-primary login-submit w-full py-3" type="submit">เข้าสู่ระบบ</button>
           </form>
           <p class="text-xs text-slate-400 text-center mt-6">เวอร์ชัน ${escapeHtml(window.APP_BOOTSTRAP?.version || '')}</p>
         </div>
