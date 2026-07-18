@@ -43,15 +43,15 @@ button, input, select, textarea { font: inherit; }
 .pdf-container { position:relative; flex:0 0 auto; background:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); overflow:visible; margin:auto; }
 #pdf-render-canvas { display:block; background:#fff; }
 
-.draggable-stamp { position:absolute; z-index:20; color:#000; touch-action:none; user-select:none; transform-origin:top left; border:1px dashed transparent; }
+.draggable-stamp { position:absolute; z-index:20; color:#1254c0; touch-action:none; user-select:none; transform-origin:top left; border:1px dashed transparent; overflow:visible; }
 .draggable-stamp.selected { border-color:var(--brand-red); background:rgba(255,248,230,.55); }
-.stamp-content { transform-origin:top left; }
+.stamp-content { transform-origin:top left; width:100%; height:auto; color:#1254c0; }
 .stamp-resize-handle { position:absolute; right:-10px; bottom:-10px; width:22px; height:22px; border-radius:999px; background:var(--brand-red); border:3px solid #fff7ed; box-shadow:0 2px 9px rgba(0,0,0,.35); cursor:nwse-resize; touch-action:none; }
 .stamp-scale-label { position:absolute; left:0; top:-24px; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; background:var(--brand-red); color:#fff; white-space:nowrap; }
 .draggable-stamp:not(.selected) .stamp-resize-handle,
 .draggable-stamp:not(.selected) .stamp-scale-label { display:none; }
-.stamp-textarea { width:100%; border:0; resize:none; outline:none; background:transparent; color:#000; font-family:'Sarabun',sans-serif; line-height:1.55; overflow:hidden; }
-.temp-text-div { color:#000; font-family:'Sarabun',sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
+.stamp-textarea { width:100%; border:0; resize:none; outline:none; background:transparent; color:#1254c0; font-family:'Sarabun',sans-serif; line-height:1.55; overflow:hidden; }
+.temp-text-div { color:#1254c0; font-family:'Sarabun',sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
 
 .dispatch-panel { margin:1.5rem auto 3rem; width:min(920px,100%); background:#fffdf8; border-radius:1rem; padding:1.25rem; box-shadow:0 16px 45px rgba(0,0,0,.25); border:1px solid #f5d28a; }
 .user-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.65rem; }
@@ -71,8 +71,10 @@ button, input, select, textarea { font: inherit; }
 .draggable-stamp .stamp-content,
 .draggable-stamp .stamp-content *,
 .draggable-stamp .stamp-textarea,
-.draggable-stamp .temp-text-div { color:#000 !important; }
-.draggable-stamp input { accent-color:#b91c1c; }
+.draggable-stamp .temp-text-div,
+.stamp-capture-clone,
+.stamp-capture-clone * { color:#1254c0 !important; }
+.draggable-stamp input, .stamp-capture-clone input { accent-color:#1254c0; }
 .stamp-mode-label { position:absolute; right:0; top:-24px; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; background:#f59e0b; color:#3b1f0b !important; white-space:nowrap; }
 .draggable-stamp:not(.selected) .stamp-mode-label { display:none; }
 .stamp-mode-move.selected { outline:2px solid rgba(185,28,28,.7); outline-offset:3px; cursor:move; }
@@ -97,3 +99,8 @@ button, input, select, textarea { font: inherit; }
   .workspace-toolbar { align-items:flex-start; }
   .data-table { min-width:760px; }
 }
+
+/* Crisp blue-ink stamp capture and exact selection bounds */
+.draggable-stamp.selected { box-sizing:border-box; }
+.stamp-capture-clone { box-sizing:border-box; color:#1254c0 !important; font-family:'Sarabun',sans-serif; }
+.stamp-capture-clone .stamp-textarea, .stamp-capture-clone .temp-text-div { color:#1254c0 !important; }
