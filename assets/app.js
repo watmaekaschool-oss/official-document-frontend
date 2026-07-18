@@ -30,6 +30,22 @@
       .replace(/'/g, '&#039;');
   }
 
+  function pixelTextMarkup(text) {
+    return [...String(text || '')]
+      .map((character, index) => `<span class="pixel-letter" style="--pixel-index:${index}">${character === ' ' ? '&nbsp;' : escapeHtml(character)}</span>`)
+      .join('');
+  }
+
+  function operationBadge(operationMode) {
+    if (operationMode === 'รักษาการ') {
+      return '<span class="operation-badge operation-acting">รักษาการ</span>';
+    }
+    if (operationMode === 'ผู้อำนวยการดำเนินงาน') {
+      return '<span class="operation-badge operation-director">ผู้อำนวยการดำเนินงาน</span>';
+    }
+    return '';
+  }
+
   function gasCall(functionName, ...args) {
     return new Promise((resolve, reject) => {
       if (!window.google || !google.script || !google.script.run) {
@@ -129,7 +145,7 @@
       <div class="app-shell">
         <header class="topbar">
           <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
-            <div class="brand-mark"><img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"><div><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub">Google Drive + Google Sheets</div></div></div>
+            <div class="brand-mark"><img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"><div><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div></div>
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
@@ -194,7 +210,7 @@
     const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
     const filter = document.getElementById('doc-filter')?.value || 'all';
     let docs = currentDocuments().filter((doc) => {
-      const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status}`.toLowerCase();
+      const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''}`.toLowerCase();
       if (query && !text.includes(query)) return false;
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
       if (filter === 'unread') return ownRecipient ? !ownRecipient.acknowledgedAt : doc.ackCount < doc.recipientCount;
@@ -209,7 +225,8 @@
     }
     tbody.innerHTML = docs.map((doc) => {
       const isAckComplete = Number(doc.recipientCount || 0) > 0 && Number(doc.ackCount || 0) >= Number(doc.recipientCount || 0);
-      const ackStatusClass = state.tab === 'inbox'
+      const showAckCompletionColor = state.tab === 'inbox' || state.tab === 'all';
+      const ackStatusClass = showAckCompletionColor
         ? (isAckComplete ? 'text-green-600 font-bold' : 'text-red-600 font-bold')
         : 'text-slate-600';
       const recipientText = doc.recipientCount
@@ -225,7 +242,7 @@
         <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
         <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
-        <td><span class="badge">${escapeHtml(doc.status)}</span><div class="mt-2">${recipientText}</div></td>
+        <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}</div><div class="mt-2">${recipientText}</div></td>
         <td><div class="flex flex-col gap-2">${actionButton}${ackButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
@@ -251,15 +268,38 @@
         <div><label class="font-semibold text-sm">ไฟล์ PDF ไม่เกิน 15 MB</label><input class="input mt-1" type="file" name="pdfFile" accept="application/pdf" required></div>
         <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="สพป.ชม.2" required></div>
         <div><label class="font-semibold text-sm">เรื่อง</label><input class="input mt-1" name="subject" required></div>
+        <fieldset class="operation-picker">
+          <legend>การดำเนินงาน</legend>
+          <label class="operation-option operation-normal"><input type="radio" name="operationMode" value="normal" checked><span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span></label>
+          <label class="operation-option operation-acting-option"><input type="radio" name="operationMode" value="acting"><span><b>2. รองรักษาการ</b><small>รองผู้อำนวยการรักษาการแทนผู้อำนวยการ</small></span></label>
+          <label class="operation-option operation-director-option"><input type="radio" name="operationMode" value="director"><span><b>3. รองผู้อำนวยการไม่อยู่</b><small>ส่งตรงให้ผู้อำนวยการดำเนินงาน</small></span></label>
+        </fieldset>
         <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-primary" type="submit">อัปโหลด</button></div>
       </form></div>`;
     document.body.appendChild(overlay);
     overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
     overlay.querySelector('#upload-form').onsubmit = async (event) => {
       event.preventDefault();
+      const form = event.currentTarget;
+      const selectedMode = form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
+      if (selectedMode !== 'normal') {
+        const detail = selectedMode === 'acting'
+          ? 'หนังสือจะส่งให้รองผู้อำนวยการในฐานะผู้รักษาการ และเมื่อรองฯ บันทึกแล้วจะกลับไปคิวธุรการโดยไม่ผ่านบัญชีผู้อำนวยการ'
+          : 'หนังสือจะข้ามคิวรองผู้อำนวยการและส่งตรงไปยังผู้อำนวยการ';
+        const confirmation = await Swal.fire({
+          icon: 'warning',
+          title: 'ยืนยันรูปแบบการดำเนินงาน',
+          text: detail,
+          showCancelButton: true,
+          confirmButtonText: 'ยืนยัน',
+          cancelButtonText: 'กลับไปตรวจสอบ',
+          confirmButtonColor: '#b91c1c',
+        });
+        if (!confirmation.isConfirmed) return;
+      }
       loading('กำลังอัปโหลด...', 'บันทึกไฟล์ลง Google Drive');
       try {
-        const result = await gasCall('uploadNewDocument', event.currentTarget);
+        const result = await gasCall('uploadNewDocument', form);
         overlay.remove();
         await loadDashboard();
         Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo}`, 'success');
@@ -360,6 +400,9 @@
   function stampMarkup(role, recvNo) {
     const signature = state.user.signatureDataUrl || '';
     if (role === 'รองผู้อำนวยการ') {
+      const actingTitle = state.currentDoc?.operationMode === 'รักษาการ'
+        ? '<div style="font-size:9px;font-weight:700">รักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ</div>'
+        : '';
       return stampWrapper('stamp-deputy', 235, `
         <div style="width:235px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
           <div style="font-weight:700;font-size:12px;margin-bottom:4px">เรียน ผู้อำนวยการโรงเรียนวัดแม่กะ</div>
@@ -367,7 +410,7 @@
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><label><input type="checkbox" data-meta="เห็นควรมอบ"> เห็นควรมอบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:0 8px 4px"><label><input type="radio" name="deputy-dept" value="วิชาการ"> วิชาการ</label><label><input type="radio" name="deputy-dept" value="บุคคล"> บุคคล</label><label><input type="radio" name="deputy-dept" value="งบประมาณ"> งบประมาณ</label><label><input type="radio" name="deputy-dept" value="ทั่วไป"> ทั่วไป</label></div>
           <textarea class="stamp-textarea" rows="3" placeholder="บันทึกความเห็นเพิ่มเติม"></textarea>
-          <div style="text-align:center;margin-top:5px">${signature ? `<img src="${signature}" style="height:32px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div><div style="font-size:9px">รองผู้อำนวยการโรงเรียนวัดแม่กะ</div></div>
+          <div style="text-align:center;margin-top:5px">${signature ? `<img src="${signature}" style="height:32px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div><div style="font-size:9px">รองผู้อำนวยการโรงเรียนวัดแม่กะ</div>${actingTitle}</div>
         </div>`);
     }
     if (role === 'ผู้อำนวยการ') {
@@ -746,7 +789,7 @@
   }
 
   function collectStampMeta() {
-    const meta = { role: state.user.role, options: [], department: '', text: '', scales: [] };
+    const meta = { role: state.user.role, operationMode: state.currentDoc?.operationMode || '', options: [], department: '', text: '', scales: [] };
     document.querySelectorAll('.draggable-stamp input[type="checkbox"]:checked').forEach((input) => meta.options.push(input.dataset.meta || input.value || 'checked'));
     const department = document.querySelector('.draggable-stamp input[type="radio"]:checked');
     if (department) meta.department = department.value;
