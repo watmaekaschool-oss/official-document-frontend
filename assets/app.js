@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
 
@@ -38,6 +39,7 @@
     stampInteractionMode: 'move',
     allUsers: [],
     appSettings: null,
+    adminUsers: [],
     displaySettings: null,
   };
 
@@ -185,9 +187,12 @@
             <div><label class="font-semibold text-sm text-slate-700">รหัสผ่าน</label><input id="login-password" type="password" class="input login-input mt-1" autocomplete="current-password" placeholder="กรุณากรอกรหัสผ่าน" required></div>
             <button class="btn btn-primary login-submit w-full py-3" type="submit">เข้าสู่ระบบ</button>
           </form>
-          <p class="text-xs text-slate-400 text-center mt-6">เวอร์ชัน ${escapeHtml(window.APP_BOOTSTRAP?.version || '')}</p>
+          <button id="mobile-access-help" class="login-help-link" type="button">เปิดไม่ได้ใน Google Chrome มือถือ?</button>
+          <p class="text-xs text-slate-400 text-center mt-3">เวอร์ชัน ${escapeHtml(window.APP_BOOTSTRAP?.version || '')}</p>
         </div>
       </div>`;
+    const mobileHelpButton = document.getElementById('mobile-access-help');
+    if (mobileHelpButton) mobileHelpButton.onclick = openMobileAccessHelp;
     document.getElementById('login-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       loading('กำลังตรวจสอบ...');
@@ -505,9 +510,34 @@
   function stampMarkup(role, recvNo) {
     const signature = state.user.signatureDataUrl || '';
     if (role === 'รองผู้อำนวยการ') {
-      const actingTitle = state.currentDoc?.operationMode === 'รักษาการ'
-        ? '<div style="font-size:9px;font-weight:700">รักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ</div>'
-        : '';
+      const isActing = state.currentDoc?.operationMode === 'รักษาการ';
+      if (isActing) {
+        return stampWrapper('stamp-deputy-acting', 250, `
+          <div class="acting-stamp-card">
+            <div class="acting-stamp-grid acting-stamp-check-grid">
+              <label class="acting-stamp-option"><input type="checkbox" data-meta="ทราบ"><span>ทราบ</span></label>
+              <label class="acting-stamp-option"><input type="checkbox" data-meta="พิจารณา"><span>พิจารณา</span></label>
+              <label class="acting-stamp-option"><input type="checkbox" data-meta="เห็นควรมอบ"><span>เห็นควรมอบ</span></label>
+              <label class="acting-stamp-option"><input type="checkbox" data-meta="ยุติเรื่อง"><span>ยุติเรื่อง</span></label>
+            </div>
+
+            <div class="acting-stamp-grid acting-stamp-department-grid">
+              <label class="acting-stamp-option"><input type="radio" name="deputy-acting-dept" value="วิชาการ"><span>วิชาการ</span></label>
+              <label class="acting-stamp-option"><input type="radio" name="deputy-acting-dept" value="บุคคล"><span>บุคคล</span></label>
+              <label class="acting-stamp-option"><input type="radio" name="deputy-acting-dept" value="งบประมาณ"><span>งบประมาณ</span></label>
+              <label class="acting-stamp-option"><input type="radio" name="deputy-acting-dept" value="ทั่วไป"><span>ทั่วไป</span></label>
+            </div>
+
+            <textarea class="stamp-textarea acting-stamp-comment" rows="4" placeholder="บันทึกความคิดเห็น / ข้อสั่งการ"></textarea>
+
+            <div class="acting-stamp-signature">
+              ${signature ? `<img class="acting-stamp-signature-image" src="${signature}" alt="ลายเซ็น">` : '<div class="acting-stamp-signature-space"></div>'}
+              <div class="acting-stamp-user-name">(${escapeHtml(state.user.name)})</div>
+              <div class="acting-stamp-position">รองผู้อำนวยการโรงเรียนวัดแม่กะ</div>
+              <div class="acting-stamp-position acting-stamp-position-acting">รักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ</div>
+            </div>
+          </div>`);
+      }
       return stampWrapper('stamp-deputy', 235, `
         <div style="width:235px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
           <div style="font-weight:700;font-size:12px;margin-bottom:4px">เรียน ผู้อำนวยการโรงเรียนวัดแม่กะ</div>
@@ -515,7 +545,7 @@
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px"><label><input type="checkbox" data-meta="เห็นควรมอบ"> เห็นควรมอบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:0 8px 4px"><label><input type="radio" name="deputy-dept" value="วิชาการ"> วิชาการ</label><label><input type="radio" name="deputy-dept" value="บุคคล"> บุคคล</label><label><input type="radio" name="deputy-dept" value="งบประมาณ"> งบประมาณ</label><label><input type="radio" name="deputy-dept" value="ทั่วไป"> ทั่วไป</label></div>
           <textarea class="stamp-textarea" rows="3" placeholder="บันทึกความเห็นเพิ่มเติม"></textarea>
-          <div style="text-align:center;margin-top:5px">${signature ? `<img src="${signature}" style="height:32px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div><div style="font-size:9px">รองผู้อำนวยการโรงเรียนวัดแม่กะ</div>${actingTitle}</div>
+          <div style="text-align:center;margin-top:5px">${signature ? `<img src="${signature}" style="height:32px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div><div style="font-size:9px">รองผู้อำนวยการโรงเรียนวัดแม่กะ</div></div>
         </div>`);
     }
     if (role === 'ผู้อำนวยการ') {
@@ -948,6 +978,67 @@
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  async function copyTextToClipboard(text, successMessage) {
+    const value = String(text || '').trim();
+    if (!value) {
+      Swal.fire('ไม่พบข้อมูล', 'ยังไม่มีข้อความหรือลิงก์ให้คัดลอก', 'warning');
+      return false;
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = value;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+      }
+      Swal.fire('คัดลอกแล้ว', successMessage || 'คัดลอกเรียบร้อยแล้ว', 'success');
+      return true;
+    } catch (error) {
+      Swal.fire({
+        title: 'คัดลอกไม่สำเร็จ',
+        html: `<p>แตะค้างที่ลิงก์ด้านล่างแล้วเลือกคัดลอก</p><div class="mobile-url-box">${escapeHtml(value)}</div>`,
+        icon: 'warning',
+      });
+      return false;
+    }
+  }
+
+  function generateTemporaryPassword() {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const values = new Uint32Array(12);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(values);
+      return [...values].map((value) => alphabet[value % alphabet.length]).join('');
+    }
+    return Array.from({ length: 12 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  }
+
+  function openMobileAccessHelp() {
+    const webAppUrl = String(window.APP_BOOTSTRAP?.webAppUrl || state.appSettings?.admin?.system?.webAppUrl || '').trim();
+    Swal.fire({
+      title: 'เปิดระบบบน Google Chrome มือถือ',
+      width: 680,
+      html: `
+        <div class="mobile-help-content">
+          <div class="mobile-help-step"><b>1. ใช้ลิงก์ Web App เท่านั้น</b><p>ลิงก์ที่ถูกต้องควรเป็น Google Apps Script และลงท้ายด้วย <code>/exec</code> ไม่ใช่ลิงก์ GitHub Pages</p></div>
+          <div class="mobile-help-step"><b>2. เปิดด้วย Chrome ปกติ</b><p>หลีกเลี่ยงโหมดไม่ระบุตัวตน และตรวจว่า Chrome อนุญาตคุกกี้สำหรับเว็บไซต์ Google</p></div>
+          <div class="mobile-help-step"><b>3. ตรวจสิทธิ์ Deployment</b><p>ผู้ดูแลควรตั้ง “ผู้ที่มีสิทธิ์เข้าถึง” เป็น “ทุกคน” หรือให้ผู้ใช้ลงชื่อเข้า Google ด้วยบัญชีที่ได้รับอนุญาต</p></div>
+          ${webAppUrl ? `<div class="mobile-url-box">${escapeHtml(webAppUrl)}</div>` : '<div class="settings-warning-box">ยังอ่าน URL ของ Web App ไม่ได้ กรุณาให้ธุรการเปิดเมนู ตรวจสอบระบบ</div>'}
+        </div>`,
+      showCancelButton: !!webAppUrl,
+      confirmButtonText: webAppUrl ? 'คัดลอกลิงก์' : 'ปิด',
+      cancelButtonText: 'ปิด',
+      preConfirm: () => webAppUrl ? copyTextToClipboard(webAppUrl, 'คัดลอกลิงก์สำหรับเปิดบนมือถือแล้ว') : true,
+    });
+  }
+
   function settingsNavButton(id, icon, title, description, admin) {
     return `<button class="settings-nav-item ${admin ? 'settings-admin-item' : ''}" data-settings-section="${id}"><span class="settings-nav-icon">${icon}</span><span><b>${title}</b><small>${description}</small></span></button>`;
   }
@@ -977,10 +1068,11 @@
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
       display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-toggle-list"><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
-      users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">เพิ่ม แก้ไขบทบาท ปิดบัญชี และตั้งค่า File ID ลายเซ็นผ่านชีต Users</p><div class="settings-summary-card"><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>การตั้งรหัสผ่านของผู้ใช้รายอื่นยังทำผ่านเมนู “ระบบสารบรรณ” ใน Google Sheet</p><button id="open-users-sheet" class="btn btn-primary" type="button">เปิดชีต Users</button></div></section>`,
+      users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
       import: `<section class="settings-content-section"><h2>📥 ค่าเริ่มต้นการนำเข้า</h2><p class="settings-lead">ค่าที่กำหนดจะถูกใส่ให้อัตโนมัติเมื่อเปิดหน้าต่างนำเข้าหนังสือใหม่</p><form id="import-defaults-form" class="settings-form"><label>หน่วยงานผู้ส่งเริ่มต้น<input class="input" name="fromSender" value="${escapeHtml(defaults.fromSender || 'สพป.ชม.2')}" required></label><label>รูปแบบการดำเนินงานเริ่มต้น<select class="input" name="operationMode"><option value="normal" ${defaults.operationMode === 'normal' ? 'selected' : ''}>ปกติ</option><option value="acting" ${defaults.operationMode === 'acting' ? 'selected' : ''}>รองรักษาการ</option><option value="director" ${defaults.operationMode === 'director' ? 'selected' : ''}>รองผู้อำนวยการไม่อยู่</option></select></label><button class="btn btn-primary" type="submit">บันทึกค่าเริ่มต้น</button></form></section>`,
       receive: `<section class="settings-content-section"><h2>🔢 เลขรับและปีทะเบียน</h2><p class="settings-lead">ระบบจะนำเลขรับล่าสุดมาบวก 1 สำหรับเอกสารฉบับถัดไป</p><form id="receive-settings-form" class="settings-form"><label>เลขรับล่าสุด<input class="input" type="number" min="0" step="1" name="lastNumber" value="${Number(admin.receive?.lastNumber || 0)}" required></label><label>ปีทะเบียน พ.ศ.<input class="input" type="number" min="2500" max="3000" step="1" name="year" value="${Number(admin.receive?.year || new Date().getFullYear() + 543)}" required></label><div class="settings-next-number">เลขถัดไป: <b id="next-receive-number">${escapeHtml(admin.receive?.nextNumber || '-')}</b></div><button class="btn btn-primary" type="submit">บันทึกเลขรับ</button></form></section>`,
-      system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
+      system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="webapp-link-card"><div><b>ลิงก์สำหรับเปิดระบบและส่งให้ผู้ใช้งาน</b><p>ใช้ลิงก์ Google Apps Script Web App ที่ลงท้ายด้วย <code>/exec</code> เท่านั้น</p><div class="mobile-url-box">${escapeHtml(admin.system?.webAppUrl || 'ยังอ่านลิงก์ Web App ไม่ได้')}</div></div><button id="copy-webapp-url" class="btn btn-primary" type="button" ${admin.system?.webAppUrl ? '' : 'disabled'}>คัดลอกลิงก์</button></div><div class="settings-warning-box">หากเปิดใน LINE ได้ แต่เปิดใน Chrome ไม่ได้ ให้ตรวจ Deployment ว่าอนุญาต “ทุกคน” หรือให้ผู้ใช้ลงชื่อเข้า Google ด้วยบัญชีที่ได้รับอนุญาต และตรวจการอนุญาตคุกกี้ของเว็บไซต์ Google</div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
+
       data: `<section class="settings-content-section"><h2>🗂️ จัดการข้อมูล</h2><p class="settings-lead">เปิดทะเบียนและโฟลเดอร์จัดเก็บข้อมูลของระบบ</p><div class="data-link-grid"><button data-open-url="${escapeHtml(admin.documentsSheetUrl || '')}">📄 ชีต Documents<small>${Number(admin.counts?.documents || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.auditSheetUrl || '')}">🧾 Audit Log<small>${Number(admin.counts?.audit || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.folders?.original || '')}">📥 เอกสารต้นฉบับ</button><button data-open-url="${escapeHtml(admin.folders?.stamped || '')}">✅ เอกสารประทับตรา</button><button data-open-url="${escapeHtml(admin.folders?.attachments || '')}">📎 ไฟล์แนบ</button><button data-open-url="${escapeHtml(admin.folders?.signatures || '')}">✍️ ลายเซ็น</button></div><div class="settings-warning-box">เพื่อป้องกันการลบผิด ระบบยังไม่ใส่ปุ่ม “ล้างข้อมูลทั้งหมด” ในหน้าเว็บ การล้างข้อมูลให้ทำจาก Google Sheet และ Drive หลังสำรองข้อมูลแล้ว</div><button id="settings-open-download-center" class="btn btn-primary mt-4" type="button">เปิดศูนย์ดาวน์โหลดเอกสาร</button></section>`,
     };
     if (!isAdmin && ['users', 'import', 'receive', 'system', 'data'].includes(sectionId)) return sections.account;
@@ -1035,9 +1127,13 @@
         }
         loading('กำลังเปลี่ยนรหัสผ่าน...');
         try {
-          await gasCall('changeOwnPassword', state.token, form.get('currentPassword'), form.get('newPassword'));
-          Swal.fire('สำเร็จ', 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', 'success');
+          const result = await gasCall('changeOwnPassword', state.token, form.get('currentPassword'), form.get('newPassword'));
           event.currentTarget.reset();
+          Swal.fire(
+            result.auditSaved === false ? 'เปลี่ยนรหัสผ่านแล้ว' : 'สำเร็จ',
+            result.message || 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว',
+            result.auditSaved === false ? 'warning' : 'success'
+          );
         } catch (error) { showError(error); }
       };
 
@@ -1081,6 +1177,71 @@
       const usersButton = overlay.querySelector('#open-users-sheet');
       if (usersButton) usersButton.onclick = () => openExternal(state.appSettings?.admin?.usersSheetUrl);
 
+      if (sectionId === 'users') {
+        const list = overlay.querySelector('#admin-user-list');
+        const search = overlay.querySelector('#admin-user-search');
+        const renderAdminUsers = () => {
+          const query = String(search?.value || '').trim().toLowerCase();
+          const filtered = (state.adminUsers || []).filter((item) => `${item.name} ${item.username} ${item.role} ${item.department || ''} ${item.email || ''}`.toLowerCase().includes(query));
+          list.innerHTML = filtered.length ? filtered.map((item) => `
+            <div class="admin-user-row ${item.active ? '' : 'is-inactive'}">
+              <div class="admin-user-avatar">${escapeHtml((item.name || item.username || '?').slice(0, 1))}</div>
+              <div class="admin-user-main"><b>${escapeHtml(item.name || '-')}</b><span>@${escapeHtml(item.username)} • ${escapeHtml(item.role || '-')}</span><small>${escapeHtml(item.department || 'ยังไม่ระบุฝ่าย')}${item.email ? ' • ' + escapeHtml(item.email) : ''}</small></div>
+              <div class="admin-user-flags"><span class="mini-status ${item.active ? 'ok' : 'off'}">${item.active ? 'ใช้งาน' : 'ปิดบัญชี'}</span><span class="mini-status ${item.signatureConfigured ? 'ok' : 'neutral'}">${item.signatureConfigured ? 'มีลายเซ็น' : 'ไม่มีลายเซ็น'}</span></div>
+              <button class="btn btn-primary admin-reset-password" type="button" data-user-id="${escapeHtml(item.userId)}" ${item.active ? '' : 'disabled'}>ตั้งรหัสใหม่</button>
+            </div>`).join('') : '<div class="settings-empty-row">ไม่พบผู้ใช้ที่ตรงกับคำค้นหา</div>';
+          list.querySelectorAll('.admin-reset-password').forEach((button) => {
+            button.onclick = async () => {
+              const target = state.adminUsers.find((item) => item.userId === button.dataset.userId);
+              if (!target) return;
+              const temporary = generateTemporaryPassword();
+              const dialog = await Swal.fire({
+                title: `ตั้งรหัสผ่านใหม่ให้ ${escapeHtml(target.name)}`,
+                html: `<div class="admin-password-dialog"><p>ระบบไม่จำเป็นต้องทราบรหัสผ่านเดิม</p><label>รหัสผ่านใหม่<input id="admin-new-password" class="swal2-input" type="text" value="${temporary}" minlength="8"></label><label>ยืนยันรหัสผ่าน<input id="admin-confirm-password" class="swal2-input" type="text" value="${temporary}" minlength="8"></label><small>อย่างน้อย 8 ตัวอักษร กรุณาส่งรหัสให้เจ้าของบัญชีเป็นการส่วนตัว</small></div>`,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกรหัสใหม่',
+                cancelButtonText: 'ยกเลิก',
+                focusConfirm: false,
+                preConfirm: () => {
+                  const password = document.getElementById('admin-new-password').value;
+                  const confirm = document.getElementById('admin-confirm-password').value;
+                  if (password.length < 8) {
+                    Swal.showValidationMessage('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+                    return false;
+                  }
+                  if (password !== confirm) {
+                    Swal.showValidationMessage('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+                    return false;
+                  }
+                  return password;
+                },
+              });
+              if (!dialog.isConfirmed) return;
+              loading('กำลังตั้งรหัสผ่านใหม่...');
+              try {
+                const result = await gasCall('adminResetUserPassword', state.token, target.userId, dialog.value);
+                await Swal.fire({
+                  title: result.auditSaved === false ? 'เปลี่ยนรหัสผ่านแล้ว' : 'สำเร็จ',
+                  html: `<p>${escapeHtml(result.message || 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว')}</p><div class="temporary-password-box"><span>${escapeHtml(dialog.value)}</span><button id="copy-temp-password" class="btn btn-muted" type="button">คัดลอกรหัส</button></div><p class="text-sm text-slate-500">ให้เจ้าของบัญชีเข้าสู่ระบบด้วยรหัสนี้ แล้วเปลี่ยนรหัสผ่านของตนเองอีกครั้ง</p>`,
+                  icon: result.auditSaved === false ? 'warning' : 'success',
+                  didOpen: () => {
+                    const copy = document.getElementById('copy-temp-password');
+                    if (copy) copy.onclick = () => copyTextToClipboard(dialog.value, 'คัดลอกรหัสผ่านแล้ว');
+                  },
+                });
+              } catch (error) { showError(error); }
+            };
+          });
+        };
+        if (search) search.oninput = renderAdminUsers;
+        gasCall('listUsersForAdmin', state.token)
+          .then((result) => {
+            state.adminUsers = result.users || [];
+            renderAdminUsers();
+          })
+          .catch((error) => { list.innerHTML = `<div class="settings-error-row">${escapeHtml(error.message || error)}</div>`; });
+      }
+
       const importForm = overlay.querySelector('#import-defaults-form');
       if (importForm) importForm.onsubmit = async (event) => {
         event.preventDefault();
@@ -1113,6 +1274,9 @@
           } catch (error) { showError(error); }
         };
       }
+
+      const copyWebAppButton = overlay.querySelector('#copy-webapp-url');
+      if (copyWebAppButton) copyWebAppButton.onclick = () => copyTextToClipboard(state.appSettings?.admin?.system?.webAppUrl, 'คัดลอกลิงก์ Web App สำหรับส่งให้ผู้ใช้งานแล้ว');
 
       const refreshStatus = overlay.querySelector('#refresh-system-status');
       if (refreshStatus) refreshStatus.onclick = async () => {
