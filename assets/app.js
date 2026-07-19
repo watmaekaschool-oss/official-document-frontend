@@ -22,6 +22,74 @@
     highContrast: false,
   };
 
+
+  const ADMIN_MASCOT_CATALOG = [
+    { id: 'chibi-girl', name: 'เด็กหญิงจิบิ', icon: '👧🏻', message: 'สู้ ๆ นะคะ ✨' },
+    { id: 'chibi-boy', name: 'เด็กชายจิบิ', icon: '👦🏻', message: 'วันนี้ทำได้แน่นอน!' },
+    { id: 'chibi-teacher', name: 'คุณครูจิบิ', icon: '👩🏻‍🏫', message: 'ตรวจเอกสารเรียบร้อยนะคะ' },
+    { id: 'bunny', name: 'กระต่ายน้อย', icon: '🐰', message: 'ฮึบ ๆ ไปกันต่อ!' },
+    { id: 'cat', name: 'แมวน้อย', icon: '🐱', message: 'เหมียว~ งานใกล้เสร็จแล้ว' },
+    { id: 'bear', name: 'หมีน้อย', icon: '🐻', message: 'พักสายตาสักนิดนะ' },
+    { id: 'chick', name: 'ลูกเจี๊ยบ', icon: '🐥', message: 'ปิ๊บ ๆ มีงานใหม่ไหมนะ' },
+    { id: 'panda', name: 'แพนด้าน้อย', icon: '🐼', message: 'ใจเย็น ๆ แล้วค่อยทำ' },
+    { id: 'puppy', name: 'สุนัขน้อย', icon: '🐶', message: 'พร้อมช่วยตรวจงานแล้ว!' },
+    { id: 'bird', name: 'นกน้อย', icon: '🐦', message: 'มีข่าวสารมาส่งค่ะ' },
+  ];
+
+  const DEFAULT_ADMIN_MASCOT_SETTINGS = {
+    enabled: true,
+    selected: ['chibi-girl', 'bunny', 'cat'],
+    position: 'top',
+    speed: 'normal',
+  };
+
+  const ROLE_GUIDES = {
+    'ธุรการ': {
+      title: 'คู่มือการใช้งานสำหรับธุรการ',
+      intro: 'ใช้สำหรับนำเข้าหนังสือ ส่งต่อผู้บริหาร จ่ายเรื่องให้ผู้รับ และดูแลบัญชีผู้ใช้งาน',
+      steps: [
+        ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกเลขรับ ผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน จากนั้นแนบไฟล์ PDF'],
+        ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
+        ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
+        ['ตั้งรหัสผ่านใหม่', 'ไปที่ ⚙ การตั้งค่า → จัดการผู้ใช้งาน แล้วเลือก “ตั้งรหัสใหม่” กรณีผู้ใช้ลืมรหัสเดิม'],
+        ['ตรวจสอบสถานะ', 'ดูตัวเลขรับทราบในจดหมายเข้าและจดหมายทั้งหมด สีแดงหมายถึงยังไม่ครบ สีเขียวหมายถึงครบแล้ว'],
+      ],
+    },
+    'รองผู้อำนวยการ': {
+      title: 'คู่มือการใช้งานสำหรับรองผู้อำนวยการ',
+      intro: 'ใช้สำหรับเปิดหนังสือที่รอดำเนินการ ประทับตรา ลงลายเซ็น และส่งต่อ',
+      steps: [
+        ['เปิดงานรอดำเนินการ', 'เลือกเอกสารจากแท็บ “งานรอดำเนินการ” แล้วกด “ประทับตรา / จัดการ”'],
+        ['เลือกข้อความในตรา', 'เลือก ทราบ พิจารณา เห็นควรมอบ ยุติเรื่อง และเลือกฝ่ายที่เกี่ยวข้อง พร้อมพิมพ์ข้อสั่งการ'],
+        ['กรณีรักษาการ', 'ตราจะแสดงตำแหน่งรองผู้อำนวยการโรงเรียนวัดแม่กะ และรักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ'],
+        ['จัดวางตรา', 'ลากตราไปยังตำแหน่งที่ต้องการ และใช้เครื่องมือย่อ–ขยายก่อนบันทึก'],
+        ['ส่งต่อ', 'ตรวจความถูกต้องของตราและลายเซ็น แล้วกดยืนยันเพื่อส่งเอกสารตามเส้นทางงาน'],
+      ],
+    },
+    'ผู้อำนวยการ': {
+      title: 'คู่มือการใช้งานสำหรับผู้อำนวยการ',
+      intro: 'ใช้สำหรับพิจารณาหนังสือ ประทับตรา ลงลายเซ็น และส่งกลับธุรการ',
+      steps: [
+        ['เปิดเอกสาร', 'เลือกเอกสารในแท็บ “งานรอดำเนินการ” และเปิดหน้าเอกสาร'],
+        ['ระบุคำสั่ง', 'เลือกตัวเลือกในตราและพิมพ์ข้อสั่งการให้ครบถ้วน'],
+        ['ตรวจลายเซ็น', 'ตรวจว่าลายเซ็นและชื่อผู้ลงนามแสดงถูกต้องก่อนบันทึก'],
+        ['จัดวางตรา', 'ลากและย่อ–ขยายตราให้ไม่ทับเนื้อหาสำคัญของหนังสือ'],
+        ['ส่งกลับธุรการ', 'กดยืนยันเพื่อส่งเอกสารกลับให้ธุรการดำเนินการจ่ายเรื่อง'],
+      ],
+    },
+    'ครู': {
+      title: 'คู่มือการใช้งานสำหรับครู',
+      intro: 'ใช้สำหรับเปิดอ่านหนังสือที่ได้รับ ดาวน์โหลดไฟล์ และยืนยันการรับทราบ',
+      steps: [
+        ['เปิดจดหมายเข้า', 'เลือกหนังสือจากแท็บ “จดหมายเข้า” แล้วกด “ดูเอกสาร”'],
+        ['อ่านเอกสารและไฟล์แนบ', 'ตรวจรายละเอียดหนังสือและเปิดไฟล์แนบที่เกี่ยวข้อง'],
+        ['กดรับทราบ', 'เมื่ออ่านเรียบร้อยแล้ว ให้กดปุ่ม “รับทราบ” เพื่อบันทึกวันและเวลา'],
+        ['ดาวน์โหลด', 'ใช้ปุ่มดาวน์โหลดเมื่อต้องการเก็บไฟล์ไว้ในเครื่อง'],
+        ['ตรวจข้อมูลบัญชี', 'ไปที่ ⚙ การตั้งค่า → บัญชีของฉัน เพื่อดูชื่อ บทบาท ฝ่าย และสถานะลายเซ็น'],
+      ],
+    },
+  };
+
   const root = document.getElementById('app-root');
   const state = {
     token: sessionStorage.getItem('officialDocToken') || '',
@@ -41,6 +109,7 @@
     appSettings: null,
     adminUsers: [],
     displaySettings: null,
+    mascotSettings: null,
   };
 
   applyDisplaySettings(loadDisplaySettings());
@@ -104,6 +173,124 @@
     localStorage.setItem(displayStorageKey(), JSON.stringify(next));
     localStorage.setItem('officialDocDisplaySettings:last', JSON.stringify(next));
     applyDisplaySettings(next);
+  }
+
+
+  function mascotStorageKey(username) {
+    const key = String(username || state.user?.username || 'guest').toLowerCase();
+    return `officialDocAdminMascots:${key}`;
+  }
+
+  function loadMascotSettings(username) {
+    let stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(mascotStorageKey(username)) || 'null');
+    } catch (_) {}
+    const next = { ...DEFAULT_ADMIN_MASCOT_SETTINGS, ...(stored || {}) };
+    const validIds = new Set(ADMIN_MASCOT_CATALOG.map((item) => item.id));
+    next.selected = Array.isArray(next.selected)
+      ? next.selected.filter((id) => validIds.has(id)).slice(0, 10)
+      : [...DEFAULT_ADMIN_MASCOT_SETTINGS.selected];
+    if (!next.selected.length) next.selected = [...DEFAULT_ADMIN_MASCOT_SETTINGS.selected];
+    next.position = ['top', 'page'].includes(next.position) ? next.position : 'top';
+    next.speed = ['slow', 'normal', 'fast'].includes(next.speed) ? next.speed : 'normal';
+    next.enabled = next.enabled !== false;
+    return next;
+  }
+
+  function saveMascotSettings(settings) {
+    const next = { ...DEFAULT_ADMIN_MASCOT_SETTINGS, ...(settings || {}) };
+    next.selected = Array.isArray(next.selected) ? next.selected.slice(0, 10) : [];
+    localStorage.setItem(mascotStorageKey(), JSON.stringify(next));
+    state.mascotSettings = next;
+    return next;
+  }
+
+  function mascotCharacterMarkup(item, index, speed) {
+    const durationMap = { slow: 24, normal: 17, fast: 11 };
+    const duration = durationMap[speed] || durationMap.normal;
+    const delay = -(index * Math.max(1.8, duration / Math.max(3, ADMIN_MASCOT_CATALOG.length)));
+    const pageTop = 18 + ((index * 13) % 66);
+    const direction = index % 2 ? 'reverse' : 'normal';
+    return `
+      <button class="admin-mascot-character mascot-${escapeHtml(item.id)}"
+        type="button"
+        data-mascot-id="${escapeHtml(item.id)}"
+        data-message="${escapeHtml(item.message)}"
+        aria-label="${escapeHtml(item.name)}"
+        title="แตะ ${escapeHtml(item.name)}"
+        style="--mascot-index:${index};--mascot-duration:${duration}s;--mascot-delay:${delay}s;--mascot-page-top:${pageTop}%;--mascot-direction:${direction}">
+        <span class="admin-mascot-body" aria-hidden="true">
+          <span class="admin-mascot-icon">${item.icon}</span>
+          <span class="admin-mascot-shadow"></span>
+        </span>
+      </button>`;
+  }
+
+  function mascotLayerMarkup() {
+    if (state.user?.role !== 'ธุรการ') return '';
+    const settings = state.mascotSettings || loadMascotSettings();
+    if (!settings.enabled) return '';
+    const selectedItems = settings.selected
+      .map((id) => ADMIN_MASCOT_CATALOG.find((item) => item.id === id))
+      .filter(Boolean)
+      .slice(0, 10);
+    if (!selectedItems.length) return '';
+    return `
+      <div id="admin-mascot-layer" class="admin-mascot-layer mascot-position-${settings.position}" aria-label="มาสคอตสำหรับธุรการ">
+        ${selectedItems.map((item, index) => mascotCharacterMarkup(item, index, settings.speed)).join('')}
+      </div>`;
+  }
+
+  function createMascotBurst(character, message) {
+    const rect = character.getBoundingClientRect();
+    const burst = document.createElement('div');
+    burst.className = 'mascot-click-burst';
+    burst.style.left = `${rect.left + rect.width / 2}px`;
+    burst.style.top = `${rect.top + rect.height / 2}px`;
+    burst.innerHTML = `
+      <span class="mascot-particle p1">♥</span>
+      <span class="mascot-particle p2">★</span>
+      <span class="mascot-particle p3">✦</span>
+      <span class="mascot-particle p4">♥</span>
+      <span class="mascot-speech">${escapeHtml(message || 'สวัสดีค่ะ')}</span>`;
+    document.body.appendChild(burst);
+    window.setTimeout(() => burst.remove(), 1500);
+  }
+
+  function bindAdminMascots() {
+    if (state.user?.role !== 'ธุรการ') return;
+    document.querySelectorAll('.admin-mascot-character').forEach((character) => {
+      character.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const body = character.querySelector('.admin-mascot-body');
+        const reactions = ['react-jump', 'react-spin', 'react-wiggle', 'react-pop'];
+        const reaction = reactions[Math.floor(Math.random() * reactions.length)];
+        body.classList.remove(...reactions);
+        void body.offsetWidth;
+        body.classList.add(reaction);
+        createMascotBurst(character, character.dataset.message);
+        window.setTimeout(() => body.classList.remove(reaction), 950);
+      });
+    });
+  }
+
+  function openRoleGuide() {
+    const guide = ROLE_GUIDES[state.user?.role] || ROLE_GUIDES['ครู'];
+    const steps = guide.steps.map(([title, description], index) => `
+      <div class="role-guide-step">
+        <span>${index + 1}</span>
+        <div><b>${escapeHtml(title)}</b><p>${escapeHtml(description)}</p></div>
+      </div>`).join('');
+    Swal.fire({
+      title: guide.title,
+      html: `<div class="role-guide-content"><p class="role-guide-intro">${escapeHtml(guide.intro)}</p>${steps}<div class="role-guide-tip">คำแนะนำ: ตรวจชื่อ เลขรับ เรื่อง และผู้รับทุกครั้งก่อนยืนยันการส่งเอกสาร</div></div>`,
+      width: 720,
+      confirmButtonText: 'ปิดคู่มือ',
+      confirmButtonColor: state.displaySettings?.primary || '#b91c1c',
+      customClass: { popup: 'role-guide-popup' },
+    });
   }
 
   function escapeHtml(value) {
@@ -205,6 +392,7 @@
         state.token = result.token;
         state.user = result.user;
         applyDisplaySettings(loadDisplaySettings(state.user.username));
+        state.mascotSettings = loadMascotSettings(state.user.username);
         sessionStorage.setItem('officialDocToken', state.token);
         state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
         await loadDashboard();
@@ -223,6 +411,7 @@
       const result = await gasCall('getSessionInfo', state.token);
       state.user = result.user;
       applyDisplaySettings(loadDisplaySettings(state.user.username));
+      state.mascotSettings = loadMascotSettings(state.user.username);
       state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
       await loadDashboard();
       Swal.close();
@@ -242,6 +431,9 @@
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
     state.appSettings = appSettings || state.appSettings;
+    if (state.user?.role === 'ธุรการ' && !state.mascotSettings) {
+      state.mascotSettings = loadMascotSettings(state.user.username);
+    }
     renderDashboard();
   }
 
@@ -260,9 +452,14 @@
             </div>
           </div>
         </header>
-        <main class="max-w-7xl mx-auto px-4 py-6">
+        ${mascotLayerMarkup()}
+        <main class="max-w-7xl mx-auto px-4 py-6 ${state.user?.role === 'ธุรการ' && (state.mascotSettings || loadMascotSettings()).enabled && (state.mascotSettings || loadMascotSettings()).position === 'top' ? 'admin-mascot-top-space' : ''}">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2 items-stretch">
+              <button id="role-guide-btn" class="guide-tool-btn" type="button" aria-label="เปิดคู่มือการใช้งาน">
+                <span class="guide-book-animation" aria-hidden="true"><i class="guide-book-cover"></i><i class="guide-book-page guide-page-left"></i><i class="guide-book-page guide-page-right"></i></span>
+                <span>คู่มือการใช้งาน</span>
+              </button>
               ${!isTeacher ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
             </div>
@@ -296,6 +493,8 @@
     };
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
     document.getElementById('settings-btn').onclick = openSettingsPanel;
+    document.getElementById('role-guide-btn').onclick = openRoleGuide;
+    bindAdminMascots();
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
@@ -1068,6 +1267,7 @@
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
       display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-toggle-list"><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
+      mascots: `<section class="settings-content-section"><h2>🎀 มาสคอตและตัวละคร</h2><p class="settings-lead">แสดงเฉพาะบัญชีที่มีบทบาท “ธุรการ” เลือกตัวละครได้สูงสุด 10 ตัว และเลือกตำแหน่งที่ต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>เปิดใช้งานมาสคอต</b><small>ปิดได้ทุกเมื่อหากต้องการหน้าเว็บแบบเรียบ</small></span><input id="mascot-enabled" type="checkbox" ${(state.mascotSettings || loadMascotSettings()).enabled ? 'checked' : ''}></label><div class="mascot-settings-block"><h3>เลือกตัวละคร <small>เลือกได้ไม่เกิน 10 ตัว</small></h3><div id="mascot-choice-grid" class="mascot-choice-grid">${ADMIN_MASCOT_CATALOG.map((item) => `<label class="mascot-choice-card"><input type="checkbox" value="${item.id}" ${(state.mascotSettings || loadMascotSettings()).selected.includes(item.id) ? 'checked' : ''}><span class="mascot-choice-icon">${item.icon}</span><b>${escapeHtml(item.name)}</b></label>`).join('')}</div></div><div class="mascot-settings-options"><fieldset><legend>ตำแหน่งแสดงผล</legend><label><input type="radio" name="mascotPosition" value="top" ${(state.mascotSettings || loadMascotSettings()).position === 'top' ? 'checked' : ''}> วิ่งบริเวณด้านบนของหน้าเว็บ</label><label><input type="radio" name="mascotPosition" value="page" ${(state.mascotSettings || loadMascotSettings()).position === 'page' ? 'checked' : ''}> วิ่งภายในพื้นที่หน้าเว็บ</label></fieldset><label>ความเร็ว<select id="mascot-speed" class="input"><option value="slow" ${(state.mascotSettings || loadMascotSettings()).speed === 'slow' ? 'selected' : ''}>ช้า</option><option value="normal" ${(state.mascotSettings || loadMascotSettings()).speed === 'normal' ? 'selected' : ''}>ปกติ</option><option value="fast" ${(state.mascotSettings || loadMascotSettings()).speed === 'fast' ? 'selected' : ''}>เร็ว</option></select></label></div><div class="mascot-preview-box"><b>ตัวอย่างที่เลือก</b><div id="mascot-settings-preview" class="mascot-settings-preview"></div><small>เมื่อแตะตัวละครในหน้าเว็บ จะสุ่มแอนิเมชันและแสดงหัวใจ ดาว หรือข้อความสั้น ๆ</small></div></div><div class="settings-actions"><button id="reset-mascot-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-mascot-settings" class="btn btn-primary" type="button">บันทึกมาสคอต</button></div></section>`,
       users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
       import: `<section class="settings-content-section"><h2>📥 ค่าเริ่มต้นการนำเข้า</h2><p class="settings-lead">ค่าที่กำหนดจะถูกใส่ให้อัตโนมัติเมื่อเปิดหน้าต่างนำเข้าหนังสือใหม่</p><form id="import-defaults-form" class="settings-form"><label>หน่วยงานผู้ส่งเริ่มต้น<input class="input" name="fromSender" value="${escapeHtml(defaults.fromSender || 'สพป.ชม.2')}" required></label><label>รูปแบบการดำเนินงานเริ่มต้น<select class="input" name="operationMode"><option value="normal" ${defaults.operationMode === 'normal' ? 'selected' : ''}>ปกติ</option><option value="acting" ${defaults.operationMode === 'acting' ? 'selected' : ''}>รองรักษาการ</option><option value="director" ${defaults.operationMode === 'director' ? 'selected' : ''}>รองผู้อำนวยการไม่อยู่</option></select></label><button class="btn btn-primary" type="submit">บันทึกค่าเริ่มต้น</button></form></section>`,
       receive: `<section class="settings-content-section"><h2>🔢 เลขรับและปีทะเบียน</h2><p class="settings-lead">ระบบจะนำเลขรับล่าสุดมาบวก 1 สำหรับเอกสารฉบับถัดไป</p><form id="receive-settings-form" class="settings-form"><label>เลขรับล่าสุด<input class="input" type="number" min="0" step="1" name="lastNumber" value="${Number(admin.receive?.lastNumber || 0)}" required></label><label>ปีทะเบียน พ.ศ.<input class="input" type="number" min="2500" max="3000" step="1" name="year" value="${Number(admin.receive?.year || new Date().getFullYear() + 543)}" required></label><div class="settings-next-number">เลขถัดไป: <b id="next-receive-number">${escapeHtml(admin.receive?.nextNumber || '-')}</b></div><button class="btn btn-primary" type="submit">บันทึกเลขรับ</button></form></section>`,
@@ -1087,7 +1287,7 @@
     let displaySaved = true;
     const overlay = document.createElement('div');
     overlay.className = 'settings-backdrop';
-    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('mascots','🎀','มาสคอตและตัวละคร','เลือกตัวละครและตำแหน่ง',true)}${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
     document.body.appendChild(overlay);
 
     const content = overlay.querySelector('#settings-content');
@@ -1171,6 +1371,54 @@
           applyDisplaySettings(displayDraft);
           displaySaved = false;
           renderSection('display');
+        };
+      }
+
+      if (sectionId === 'mascots' && isAdmin) {
+        const updateMascotPreview = () => {
+          const preview = overlay.querySelector('#mascot-settings-preview');
+          if (!preview) return;
+          const selected = [...overlay.querySelectorAll('#mascot-choice-grid input:checked')].map((input) => input.value).slice(0, 10);
+          preview.innerHTML = selected.length
+            ? selected.map((id) => {
+                const item = ADMIN_MASCOT_CATALOG.find((candidate) => candidate.id === id);
+                return item ? `<span title="${escapeHtml(item.name)}">${item.icon}</span>` : '';
+              }).join('')
+            : '<em>ยังไม่ได้เลือกตัวละคร</em>';
+        };
+        overlay.querySelectorAll('#mascot-choice-grid input').forEach((input) => {
+          input.onchange = () => {
+            const checked = overlay.querySelectorAll('#mascot-choice-grid input:checked');
+            if (checked.length > 10) {
+              input.checked = false;
+              Swal.fire('เลือกได้สูงสุด 10 ตัว', 'กรุณายกเลิกตัวละครบางตัวก่อนเลือกเพิ่ม', 'warning');
+            }
+            updateMascotPreview();
+          };
+        });
+        updateMascotPreview();
+
+        overlay.querySelector('#save-mascot-settings').onclick = () => {
+          const selected = [...overlay.querySelectorAll('#mascot-choice-grid input:checked')].map((input) => input.value).slice(0, 10);
+          const enabled = overlay.querySelector('#mascot-enabled').checked;
+          if (enabled && !selected.length) {
+            Swal.fire('ยังไม่ได้เลือกตัวละคร', 'กรุณาเลือกอย่างน้อย 1 ตัว หรือปิดการใช้งานมาสคอต', 'warning');
+            return;
+          }
+          saveMascotSettings({
+            enabled,
+            selected,
+            position: overlay.querySelector('input[name="mascotPosition"]:checked')?.value || 'top',
+            speed: overlay.querySelector('#mascot-speed').value || 'normal',
+          });
+          Swal.fire({ icon: 'success', title: 'บันทึกมาสคอตแล้ว', text: 'การตั้งค่าใหม่จะแสดงทันทีบนหน้ารายการเอกสาร', timer: 1500, showConfirmButton: false });
+          close();
+          renderDashboard();
+        };
+
+        overlay.querySelector('#reset-mascot-settings').onclick = () => {
+          saveMascotSettings({ ...DEFAULT_ADMIN_MASCOT_SETTINGS, selected: [...DEFAULT_ADMIN_MASCOT_SETTINGS.selected] });
+          renderSection('mascots');
         };
       }
 
