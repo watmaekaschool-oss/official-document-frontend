@@ -842,8 +842,37 @@ html.reduced-motion *::after { animation-duration:.001ms !important; animation-i
 
 
 /* =========================================================
-   Version 1.4.2: role guide button + admin-only kawaii mascots
+   Version 1.4.3: visible admin mascots + guide button beside title
    ========================================================= */
+.brand-copy { min-width:0; }
+.header-guide-btn {
+  min-width:78px;
+  min-height:54px;
+  margin-left:.35rem;
+  padding:.25rem .55rem .35rem;
+  border:1px solid rgba(255,255,255,.46);
+  border-radius:.8rem;
+  background:rgba(255,255,255,.14);
+  color:#fff;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:.05rem;
+  font-size:.64rem;
+  font-weight:800;
+  line-height:1.1;
+  cursor:pointer;
+  flex:0 0 auto;
+  box-shadow:0 5px 13px rgba(69,10,10,.16);
+  transition:transform .18s ease,background .18s ease,box-shadow .18s ease;
+}
+.header-guide-btn:hover { transform:translateY(-1px); background:rgba(255,255,255,.24); box-shadow:0 8px 18px rgba(69,10,10,.23); }
+.header-guide-btn:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+.header-guide-btn .guide-book-animation { width:34px; height:23px; transform:scale(.84); transform-origin:center; }
+.header-guide-btn .guide-book-cover { background:linear-gradient(135deg,#fff7d6,#fef3c7); }
+.header-guide-btn .guide-book-page { background:#fff; border-color:rgba(127,29,29,.24); }
+
 .guide-tool-btn {
   min-width:104px;
   min-height:66px;
@@ -899,7 +928,7 @@ html.reduced-motion *::after { animation-duration:.001ms !important; animation-i
 
 .admin-mascot-layer {
   position:fixed;
-  z-index:38;
+  z-index:39;
   pointer-events:none;
   overflow:hidden;
   contain:layout paint;
@@ -1003,6 +1032,16 @@ html.reduced-motion *::after { animation-duration:.001ms !important; animation-i
 .mascot-preview-box small { color:#64748b; }
 @keyframes mascotPreviewBob { from { transform:translateY(2px) rotate(-2deg); } to { transform:translateY(-4px) rotate(2deg); } }
 
+@media (max-width:1100px) {
+  .header-guide-btn { min-width:66px; padding-left:.35rem; padding-right:.35rem; }
+  .header-guide-btn > span:last-child { font-size:.58rem; }
+}
+@media (max-width:760px) {
+  .brand-mark { gap:.5rem; }
+  .header-guide-btn { min-width:48px; min-height:44px; }
+  .header-guide-btn > span:last-child { display:none; }
+  .header-guide-btn .guide-book-animation { transform:scale(.76); }
+}
 @media (max-width:900px) {
   .mascot-choice-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .admin-mascot-layer.mascot-position-top { top:68px; }
@@ -1016,7 +1055,41 @@ html.reduced-motion *::after { animation-duration:.001ms !important; animation-i
   .admin-mascot-icon { width:46px; height:46px; font-size:1.95rem; }
   .mascot-position-page .admin-mascot-character:nth-child(n+7) { opacity:.72; }
 }
+/* Reduced-motion mode keeps mascots visible, but stops continuous movement. */
+html.reduced-motion .admin-mascot-layer,
+html.reduced-motion .admin-mascot-layer.mascot-position-top {
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:.4rem;
+  overflow:visible;
+}
+html.reduced-motion .admin-mascot-character {
+  position:relative;
+  left:auto;
+  top:auto !important;
+  transform:none !important;
+  animation:none !important;
+  flex:0 0 auto;
+}
+html.reduced-motion .admin-mascot-character:nth-child(n+6) { display:none; }
+
 @media (prefers-reduced-motion:reduce) {
   .guide-page-left,.guide-page-right,.admin-mascot-character,.admin-mascot-shadow,.mascot-settings-preview span { animation:none !important; }
-  .admin-mascot-layer { display:none; }
+  .admin-mascot-layer,
+  .admin-mascot-layer.mascot-position-top {
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    gap:.4rem;
+    overflow:visible;
+  }
+  .admin-mascot-character {
+    position:relative;
+    left:auto;
+    top:auto !important;
+    transform:none !important;
+    flex:0 0 auto;
+  }
+  .admin-mascot-character:nth-child(n+6) { display:none; }
 }
