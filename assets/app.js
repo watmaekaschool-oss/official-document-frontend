@@ -114,6 +114,14 @@
 
   applyDisplaySettings(loadDisplaySettings());
 
+  function normalizedUserRole() {
+    return String(state.user?.role || '').trim();
+  }
+
+  function isClericalUser() {
+    return normalizedUserRole() === 'ธุรการ';
+  }
+
   function normalizeHexColor(value, fallback) {
     const text = String(value || '').trim();
     return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : fallback;
@@ -228,7 +236,7 @@
   }
 
   function mascotLayerMarkup() {
-    if (state.user?.role !== 'ธุรการ') return '';
+    if (!isClericalUser()) return '';
     const settings = state.mascotSettings || loadMascotSettings();
     if (!settings.enabled) return '';
     const selectedItems = settings.selected
@@ -259,7 +267,7 @@
   }
 
   function bindAdminMascots() {
-    if (state.user?.role !== 'ธุรการ') return;
+    if (!isClericalUser()) return;
     document.querySelectorAll('.admin-mascot-character').forEach((character) => {
       character.addEventListener('click', (event) => {
         event.preventDefault();
@@ -431,7 +439,7 @@
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
     state.appSettings = appSettings || state.appSettings;
-    if (state.user?.role === 'ธุรการ' && !state.mascotSettings) {
+    if (isClericalUser() && !state.mascotSettings) {
       state.mascotSettings = loadMascotSettings(state.user.username);
     }
     renderDashboard();
@@ -443,7 +451,14 @@
       <div class="app-shell">
         <header class="topbar">
           <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
-            <div class="brand-mark"><img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"><div><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div></div>
+            <div class="brand-mark">
+              <img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน">
+              <div class="brand-copy"><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div>
+              <button id="role-guide-btn" class="header-guide-btn" type="button" aria-label="เปิดคู่มือการใช้งาน" title="คู่มือการใช้งาน">
+                <span class="guide-book-animation" aria-hidden="true"><i class="guide-book-cover"></i><i class="guide-book-page guide-page-left"></i><i class="guide-book-page guide-page-right"></i></span>
+                <span>คู่มือการใช้งาน</span>
+              </button>
+            </div>
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
@@ -453,13 +468,9 @@
           </div>
         </header>
         ${mascotLayerMarkup()}
-        <main class="max-w-7xl mx-auto px-4 py-6 ${state.user?.role === 'ธุรการ' && (state.mascotSettings || loadMascotSettings()).enabled && (state.mascotSettings || loadMascotSettings()).position === 'top' ? 'admin-mascot-top-space' : ''}">
+        <main class="max-w-7xl mx-auto px-4 py-6 ${isClericalUser() && (state.mascotSettings || loadMascotSettings()).enabled && (state.mascotSettings || loadMascotSettings()).position === 'top' ? 'admin-mascot-top-space' : ''}">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
-              <button id="role-guide-btn" class="guide-tool-btn" type="button" aria-label="เปิดคู่มือการใช้งาน">
-                <span class="guide-book-animation" aria-hidden="true"><i class="guide-book-cover"></i><i class="guide-book-page guide-page-left"></i><i class="guide-book-page guide-page-right"></i></span>
-                <span>คู่มือการใช้งาน</span>
-              </button>
               ${!isTeacher ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
             </div>
@@ -493,7 +504,7 @@
     };
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
     document.getElementById('settings-btn').onclick = openSettingsPanel;
-    document.getElementById('role-guide-btn').onclick = openRoleGuide;
+    document.getElementById('role-guide-btn')?.addEventListener('click', openRoleGuide);
     bindAdminMascots();
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
@@ -1280,7 +1291,7 @@
   }
 
   function openSettingsPanel() {
-    const isAdmin = state.user?.role === 'ธุรการ';
+    const isAdmin = isClericalUser();
     let activeSection = 'account';
     let originalDisplay = { ...(state.displaySettings || DEFAULT_DISPLAY_SETTINGS) };
     let displayDraft = { ...originalDisplay };
