@@ -157,6 +157,7 @@
     allDocs: [],
     tab: 'action',
     currentDoc: null,
+    currentPermissions: null,
     originalPdfBase64: '',
     currentPdf: null,
     currentPageNumber: 1,
@@ -176,7 +177,7 @@
   applyDisplaySettings(loadDisplaySettings());
 
   function normalizedUserRole() {
-    return String(state.user?.role || '').normalize('NFKC').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+    return String(state.user?.role || '').normalize('NFC').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
   }
 
   function isClericalUser() {
@@ -318,7 +319,7 @@
       ? 'admin-mascot-layer mascot-position-page'
       : 'admin-mascot-runway mascot-position-top';
     return `
-      <div id="admin-mascot-layer" class="${containerClass}" data-mascot-version="1.4.4" aria-label="มาสคอตสำหรับธุรการ">
+      <div id="admin-mascot-layer" class="${containerClass}" data-mascot-version="2.0.0" aria-label="มาสคอตสำหรับธุรการ">
         ${selectedItems.map((item, index) => mascotCharacterMarkup(item, index, settings.speed)).join('')}
       </div>`;
   }
@@ -475,7 +476,7 @@
         applyDisplaySettings(loadDisplaySettings(state.user.username));
         state.mascotSettings = loadMascotSettings(state.user.username);
         sessionStorage.setItem('officialDocToken', state.token);
-        state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
+        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
         await loadDashboard();
         Swal.close();
       } catch (error) { showError(error); }
@@ -493,7 +494,7 @@
       state.user = result.user;
       applyDisplaySettings(loadDisplaySettings(state.user.username));
       state.mascotSettings = loadMascotSettings(state.user.username);
-      state.tab = state.user.role === 'ครู' ? 'inbox' : 'action';
+      state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
       await loadDashboard();
       Swal.close();
     } catch (error) {
@@ -519,7 +520,7 @@
   }
 
   function renderDashboard() {
-    const isTeacher = state.user.role === 'ครู';
+    const isTeacher = guideRoleKey() === 'ครู';
     root.innerHTML = `
       <div class="app-shell">
         <header class="topbar">
@@ -568,7 +569,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '1.4.5';
+    document.documentElement.dataset.frontendVersion = '2.0.0';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -746,47 +747,76 @@
     };
   }
 
-  async function openWorkspace(docId, actionMode) {
+  async function openWorkspace(docId, requestedAction) {
     const doc = findDoc(docId);
     loading('กำลังโหลด PDF...');
     try {
       const result = await gasCall('getDocumentFile', state.token, docId, true);
       state.currentDoc = { ...doc, ...result.document };
+      state.currentPermissions = result.permissions || {
+        role: guideRoleKey(),
+        currentRole: state.currentDoc.currentRole || '',
+        assignedToUserRole: false,
+        canStamp: false,
+        canDispatch: false,
+        readOnly: true,
+        reason: 'ไม่พบข้อมูลสิทธิ์จากระบบ',
+      };
       state.originalPdfBase64 = result.file.base64;
       state.pdfPageViews = [];
       state.stampsInitialized = false;
-      renderWorkspace(actionMode);
+
+      if (requestedAction && !state.currentPermissions.canStamp && !state.currentPermissions.canDispatch) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'warning',
+          title: 'เอกสารไม่อยู่ในคิวดำเนินการ',
+          html: `<div class="text-left leading-7">
+            <div><b>บทบาทของคุณ:</b> ${escapeHtml(state.currentPermissions.role || guideRoleKey())}</div>
+            <div><b>คิวปัจจุบัน:</b> ${escapeHtml(state.currentPermissions.currentRole || state.currentDoc.currentRole || '-')}</div>
+            <div class="mt-2">${escapeHtml(state.currentPermissions.reason || 'เปิดเอกสารได้ในโหมดอ่านอย่างเดียว')}</div>
+          </div>`,
+          confirmButtonText: 'เปิดอ่านเอกสาร',
+        });
+      }
+
+      renderWorkspace();
       await loadPdf(state.originalPdfBase64);
 
-      if (document.querySelector('.draggable-stamp')) {
+      if (state.currentPermissions.canStamp && document.querySelector('.draggable-stamp')) {
         initializeStamps();
         state.stampsInitialized = true;
         document.querySelectorAll('.draggable-stamp').forEach((stamp) => updateStampPageTarget(stamp));
       }
 
-      if (isClericalUser() && state.currentDoc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ' && actionMode) {
+      if (state.currentPermissions.canDispatch) {
         await loadDispatchUsers();
       }
       Swal.close();
     } catch (error) { showError(error); }
   }
 
-  function renderWorkspace(actionMode) {
+  function renderWorkspace() {
     const doc = state.currentDoc;
-    const role = guideRoleKey();
-    const canStamp = actionMode
-      && ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(role)
-      && !(role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ');
-    const showDispatch = actionMode && role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+    const permissions = state.currentPermissions || {};
+    const role = permissions.role || guideRoleKey();
+    const canStamp = permissions.canStamp === true;
+    const showDispatch = permissions.canDispatch === true;
+    const accessLabel = canStamp
+      ? 'โหมดประทับตรา'
+      : showDispatch
+        ? 'โหมดจ่ายเรื่อง'
+        : 'โหมดอ่านอย่างเดียว';
     const workspace = document.createElement('div');
     workspace.id = 'workspace-view';
     workspace.className = 'workspace';
     workspace.innerHTML = `
       <div class="workspace-toolbar">
-        <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-200">${escapeHtml(doc.status)} • แสดงเอกสารครบทุกหน้า</div></div></div>
+        <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-200">${escapeHtml(doc.status)} • ${escapeHtml(accessLabel)} • แสดงเอกสารครบทุกหน้า</div></div></div>
         <div class="flex items-center gap-2 flex-wrap">
           <button id="zoom-out" class="btn btn-muted">−</button><span id="zoom-label" class="text-sm min-w-14 text-center">${Math.round(state.currentScale * 100)}%</span><button id="zoom-in" class="btn btn-muted">＋</button>
           ${canStamp ? '<span class="workspace-hint">ลากตราไปยังหน้าที่ต้องการได้</span><button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>' : ''}
+          ${!canStamp && !showDispatch ? `<span class="workspace-readonly-note">อ่านอย่างเดียว • คิวปัจจุบัน: ${escapeHtml(permissions.currentRole || doc.currentRole || '-')}</span>` : ''}
           <button id="download-current" class="btn btn-success">ดาวน์โหลด PDF</button>
         </div>
       </div>
@@ -1506,6 +1536,7 @@
     const workspace = document.getElementById('workspace-view');
     if (workspace) workspace.remove();
     state.currentDoc = null;
+    state.currentPermissions = null;
     state.originalPdfBase64 = '';
     state.currentPdf = null;
     state.pdfPageViews = [];
@@ -1894,7 +1925,7 @@
   }
 
   function openDownloadCenter() {
-    const docs = state.user.role === 'ครู' ? state.inboxDocs : state.allDocs.length ? state.allDocs : [...state.actionDocs, ...state.inboxDocs];
+    const docs = guideRoleKey() === 'ครู' ? state.inboxDocs : state.allDocs.length ? state.allDocs : [...state.actionDocs, ...state.inboxDocs];
     const unique = [...new Map(docs.map((doc) => [doc.docId, doc])).values()];
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
