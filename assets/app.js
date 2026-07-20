@@ -33,6 +33,7 @@
       cat: ['#fde68a', '#f59e0b', '#fff7ed'],
       bear: ['#d6a46f', '#92400e', '#fef3c7'],
       chick: ['#fde047', '#f59e0b', '#fff7ed'],
+      duck: ['#fde047', '#f97316', '#fff7ed'],
       panda: ['#f8fafc', '#111827', '#ffffff'],
       puppy: ['#fdba74', '#9a3412', '#fff7ed'],
       bird: ['#7dd3fc', '#0369a1', '#fef3c7'],
@@ -66,6 +67,7 @@
     if (type === 'puppy') ears = '<ellipse cx="25" cy="35" rx="11" ry="18" fill="#9a3412" transform="rotate(22 25 35)"/><ellipse cx="75" cy="35" rx="11" ry="18" fill="#9a3412" transform="rotate(-22 75 35)"/>';
     if (type === 'bird') extras = '<path d="M72 42l14 7-14 7z" fill="#f59e0b"/><path d="M29 61q-17 5-13 18 12-1 22-12" fill="#38bdf8"/>';
     if (type === 'chick') extras = '<path d="M71 43l13 6-13 6z" fill="#f97316"/><path d="M32 63q-13 3-11 13 10 0 17-8" fill="#facc15"/>';
+    if (type === 'duck') extras = '<path d="M69 42h16q7 0 7 7t-7 7H69z" fill="#fb923c"/><path d="M31 62q-15 4-13 15 11 0 20-9" fill="#facc15"/><path d="M43 28q7-7 14 0" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round"/>';
     if (type === 'panda') extras += '<ellipse cx="39" cy="39" rx="7" ry="9" fill="#111827" transform="rotate(20 39 39)"/><ellipse cx="61" cy="39" rx="7" ry="9" fill="#111827" transform="rotate(-20 61 39)"/>';
     if (type === 'cat') extras += '<path d="M31 48h-15M31 53H14M69 48h15M69 53h17" stroke="#92400e" stroke-width="1.7" stroke-linecap="round"/>';
 
@@ -105,7 +107,9 @@
       title: 'คู่มือการใช้งานสำหรับธุรการ',
       intro: 'ใช้สำหรับนำเข้าหนังสือ ส่งต่อผู้บริหาร จ่ายเรื่องให้ผู้รับ และดูแลบัญชีผู้ใช้งาน',
       steps: [
-        ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกเลขรับ ผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน จากนั้นแนบไฟล์ PDF'],
+        ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน สามารถเลือก PDF หลายไฟล์เพื่อรวมเป็นฉบับเดียวได้'],
+        ['เปลี่ยนไฟล์หลังลงรับ', 'กด “เปลี่ยน PDF” ที่รายการเอกสาร ระบบจะเก็บไฟล์เดิมไว้ใน Drive และรีเซ็ตงานกลับเข้าคิวธุรการเพื่อประทับตราใหม่'],
+        ['รวม PDF เพิ่มเติม', 'กด “ไฟล์แนบ” แล้วเลือก “รวม PDF เข้ากับเอกสารหลัก” สามารถเลือกหลายไฟล์ตามลำดับที่ต้องการต่อท้าย'],
         ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
         ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
@@ -172,6 +176,8 @@
     adminUsers: [],
     displaySettings: null,
     mascotSettings: null,
+    workflowMascotUntil: 0,
+    workflowMascotTimer: null,
   };
 
   applyDisplaySettings(loadDisplaySettings());
@@ -319,7 +325,7 @@
       ? 'admin-mascot-layer mascot-position-page'
       : 'admin-mascot-runway mascot-position-top';
     return `
-      <div id="admin-mascot-layer" class="${containerClass}" data-mascot-version="2.0.0" aria-label="มาสคอตสำหรับธุรการ">
+      <div id="admin-mascot-layer" class="${containerClass}" data-mascot-version="2.1.0" aria-label="มาสคอตสำหรับธุรการ">
         ${selectedItems.map((item, index) => mascotCharacterMarkup(item, index, settings.speed)).join('')}
       </div>`;
   }
@@ -356,6 +362,74 @@
         window.setTimeout(() => body.classList.remove(reaction), 950);
       });
     });
+  }
+
+
+  function workflowMascotCounts() {
+    if (isClericalUser()) return { pending: 0, unread: 0, action: 0 };
+    const unread = (state.inboxDocs || []).filter((doc) => {
+      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user?.userId);
+      return ownRecipient ? !ownRecipient.acknowledgedAt : false;
+    }).length;
+    const action = (state.actionDocs || []).length;
+    return { pending: unread + action, unread, action };
+  }
+
+  function workflowMascotMarkup() {
+    if (isClericalUser() || !state.user) return '';
+    const counts = workflowMascotCounts();
+    const celebrating = Number(state.workflowMascotUntil || 0) > Date.now();
+
+    if (celebrating) {
+      return `<aside id="workflow-mascot-host" class="workflow-mascot-host workflow-mascot-progress" aria-live="polite">
+        <div class="workflow-mascot-card">
+          <div class="workflow-mascot-art workflow-rabbit">${mascotArt('bunny')}</div>
+          <div class="workflow-mascot-bubble"><b>ฮึบๆ ไปกันต่อ</b><span>บันทึกงานเรียบร้อยแล้ว</span></div>
+        </div>
+      </aside>`;
+    }
+
+    if (counts.pending > 0) {
+      const detail = counts.unread > 0
+        ? `มีเอกสารรอรับทราบ ${counts.unread} งาน`
+        : `มีเอกสารรอดำเนินการ ${counts.action} งาน`;
+      return `<aside id="workflow-mascot-host" class="workflow-mascot-host workflow-mascot-new" aria-live="polite">
+        <div class="workflow-mascot-card">
+          <div class="workflow-mascot-art workflow-duck">${mascotArt('duck')}</div>
+          <div class="workflow-mascot-bubble"><b>ปื๊บๆ มีงานใหม่เข้ามานะ</b><span>${escapeHtml(detail)}</span></div>
+        </div>
+      </aside>`;
+    }
+
+    return `<aside id="workflow-mascot-host" class="workflow-mascot-host workflow-mascot-done" aria-live="polite">
+      <div class="workflow-mascot-card workflow-bear-card">
+        <div class="workflow-mascot-art workflow-bear">${mascotArt('bear')}</div>
+        <div class="workflow-mascot-bubble"><b>งานเสร็จแล้ว</b><span>ไม่มีงานค้างในขณะนี้</span></div>
+      </div>
+      <div class="workflow-mascot-card workflow-panda-card">
+        <div class="workflow-mascot-art workflow-panda">${mascotArt('panda')}</div>
+        <div class="workflow-mascot-bubble"><b>พักสายตาสักนิดนะ</b><span>แพนด้ากำลังกินไม้ไผ่อยู่</span></div>
+      </div>
+    </aside>`;
+  }
+
+  function refreshWorkflowMascot() {
+    if (isClericalUser()) return;
+    const current = document.getElementById('workflow-mascot-host');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = workflowMascotMarkup().trim();
+    const next = wrapper.firstElementChild;
+    if (current && next) current.replaceWith(next);
+  }
+
+  function triggerWorkflowMascotProgress() {
+    if (isClericalUser()) return;
+    state.workflowMascotUntil = Date.now() + 4300;
+    if (state.workflowMascotTimer) window.clearTimeout(state.workflowMascotTimer);
+    state.workflowMascotTimer = window.setTimeout(() => {
+      state.workflowMascotUntil = 0;
+      refreshWorkflowMascot();
+    }, 4400);
   }
 
   function openRoleGuide() {
@@ -541,7 +615,7 @@
             </div>
           </div>
         </header>
-        ${mascotLayerMarkup()}
+        ${mascotLayerMarkup()}${workflowMascotMarkup()}
         <main class="max-w-7xl mx-auto px-4 py-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
@@ -569,7 +643,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.0.0';
+    document.documentElement.dataset.frontendVersion = '2.1.0';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -633,12 +707,15 @@
       const actionButton = state.tab === 'action'
         ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
         : `<button class="btn btn-muted text-xs view-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดูเอกสาร</button>`;
+      const replaceButton = isClericalUser()
+        ? `<button class="btn btn-warning text-xs replace-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">เปลี่ยน PDF</button>`
+        : '';
       return `<tr>
         <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
         <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
         <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}</div><div class="mt-2">${recipientText}</div></td>
-        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ (${(doc.attachments || []).length})</button></div></td>
+        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
 
@@ -647,10 +724,163 @@
     tbody.querySelectorAll('.acknowledge-btn').forEach((button) => button.onclick = () => acknowledge(button.dataset.docId));
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
+    tbody.querySelectorAll('.replace-doc-btn').forEach((button) => button.onclick = () => openReplaceDocumentModal(button.dataset.docId));
   }
 
   function findDoc(docId) {
     return [...state.actionDocs, ...state.inboxDocs, ...state.allDocs].find((doc) => doc.docId === docId);
+  }
+
+
+  const MAX_CLIENT_PDF_BYTES = 15 * 1024 * 1024;
+
+  function selectedFiles(input) {
+    return [...(input?.files || [])];
+  }
+
+  function validatePdfFiles(files, requireAtLeastOne = true) {
+    const list = [...(files || [])];
+    if (requireAtLeastOne && !list.length) throw new Error('กรุณาเลือกไฟล์ PDF อย่างน้อย 1 ไฟล์');
+    list.forEach((file) => {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+      if (!isPdf) throw new Error(`ไฟล์ ${file.name || '-'} ไม่ใช่ PDF`);
+      if (Number(file.size || 0) <= 0) throw new Error(`ไฟล์ ${file.name || '-'} ว่างเปล่า`);
+      if (Number(file.size || 0) > MAX_CLIENT_PDF_BYTES) throw new Error(`ไฟล์ ${file.name || '-'} มีขนาดเกิน 15 MB`);
+    });
+    return list;
+  }
+
+  function renderPdfSelection(input, host, prefixText = '') {
+    if (!host) return;
+    const files = selectedFiles(input);
+    if (!files.length) {
+      host.innerHTML = '<span class="text-slate-400">ยังไม่ได้เลือกไฟล์</span>';
+      return;
+    }
+    host.innerHTML = `${prefixText ? `<div class="merge-prefix-note">${escapeHtml(prefixText)}</div>` : ''}<ol class="pdf-order-list">${files.map((file, index) => `<li><b>${index + 1}.</b><span>${escapeHtml(file.name)}</span><small>${(file.size / (1024 * 1024)).toFixed(2)} MB</small></li>`).join('')}</ol>`;
+  }
+
+  async function mergePdfFiles(files, options = {}) {
+    const list = validatePdfFiles(files);
+    const output = await PDFLib.PDFDocument.create();
+    let pageCount = 0;
+
+    const appendBytes = async (bytes, label) => {
+      let source;
+      try {
+        source = await PDFLib.PDFDocument.load(bytes);
+      } catch (error) {
+        throw new Error(`ไม่สามารถเปิด PDF ${label || ''} ได้ อาจมีรหัสผ่านหรือไฟล์เสีย`);
+      }
+      const indices = source.getPageIndices();
+      if (!indices.length) throw new Error(`PDF ${label || ''} ไม่มีหน้าเอกสาร`);
+      const pages = await output.copyPages(source, indices);
+      pages.forEach((page) => output.addPage(page));
+      pageCount += pages.length;
+    };
+
+    if (options.prependBase64) {
+      await appendBytes(base64ToUint8Array(options.prependBase64), options.prependLabel || 'เอกสารหลัก');
+    }
+
+    for (const file of list) {
+      await appendBytes(new Uint8Array(await file.arrayBuffer()), file.name);
+    }
+
+    const mergedBytes = await output.save({ useObjectStreams: true });
+    if (mergedBytes.length > MAX_CLIENT_PDF_BYTES) {
+      throw new Error(`ไฟล์ที่รวมแล้วมีขนาด ${(mergedBytes.length / (1024 * 1024)).toFixed(2)} MB เกินขีดจำกัด 15 MB กรุณาลดจำนวนหรือบีบอัดไฟล์ก่อน`);
+    }
+    const name = String(options.fileName || `รวมเอกสาร-${Date.now()}.pdf`).replace(/[\\/:*?"<>|]/g, '_');
+    return {
+      file: new File([mergedBytes], name, { type: 'application/pdf', lastModified: Date.now() }),
+      pageCount,
+      size: mergedBytes.length,
+    };
+  }
+
+  function buildFileUploadForm(fileFieldName, file, fields = {}) {
+    if (typeof DataTransfer === 'undefined') {
+      throw new Error('เบราว์เซอร์นี้ไม่รองรับการเตรียมไฟล์ กรุณาเปิดด้วย Google Chrome รุ่นปัจจุบัน');
+    }
+    const form = document.createElement('form');
+    form.className = 'hide';
+    Object.entries(fields).forEach(([name, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value == null ? '' : String(value);
+      form.appendChild(input);
+    });
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.name = fileFieldName;
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    fileInput.files = transfer.files;
+    form.appendChild(fileInput);
+    document.body.appendChild(form);
+    return form;
+  }
+
+  async function uploadFileForm(functionName, fileFieldName, file, fields) {
+    const form = buildFileUploadForm(fileFieldName, file, fields);
+    try {
+      return await gasCall(functionName, form);
+    } finally {
+      form.remove();
+    }
+  }
+
+  async function uploadAttachmentFile(docId, file) {
+    return uploadFileForm('uploadAttachment', 'attachmentFile', file, {
+      sessionToken: state.token,
+      docId,
+    });
+  }
+
+  function openReplaceDocumentModal(docId) {
+    const doc = findDoc(docId);
+    if (!doc || !isClericalUser()) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.innerHTML = `<div class="modal-panel max-w-xl">
+      <div class="flex justify-between items-center mb-4"><div><h2 class="text-xl font-bold">เปลี่ยนไฟล์เอกสาร</h2><p class="text-sm text-slate-500">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</p></div><button class="text-2xl close-modal">×</button></div>
+      <div class="replacement-warning"><b>ข้อมูลที่ระบบจะทำให้อัตโนมัติ</b><ul><li>เก็บไฟล์เดิมไว้ใน Google Drive และ Audit Log</li><li>รวม PDF ที่เลือกตามลำดับเป็นไฟล์ใหม่</li><li>รีเซ็ตสถานะกลับเป็น “รอธุรการประทับตรา”</li><li>ล้างรายชื่อผู้รับเดิมเพื่อให้ดำเนินงานใหม่อย่างถูกต้อง</li><li>ไฟล์แนบเดิมยังคงอยู่ครบ</li></ul></div>
+      <form id="replace-document-form" class="space-y-4">
+        <div><label class="font-semibold text-sm">เลือก PDF ใหม่ได้หลายไฟล์</label><input id="replacement-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required><p class="text-xs text-slate-500 mt-1">ระบบจะรวมตามลำดับที่เลือก ไฟล์รวมต้องไม่เกิน 15 MB</p></div>
+        <div id="replacement-pdf-order" class="pdf-selection-summary"></div>
+        <label class="confirm-reset-check"><input id="confirm-replace-reset" type="checkbox" required><span>ฉันตรวจสอบแล้วและยืนยันให้เอกสารกลับไปเริ่มขั้นตอนประทับตราใหม่</span></label>
+        <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-warning" type="submit">เปลี่ยนไฟล์และเริ่มดำเนินงานใหม่</button></div>
+      </form>
+    </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('#replacement-pdf-files');
+    const summary = overlay.querySelector('#replacement-pdf-order');
+    renderPdfSelection(input, summary);
+    input.onchange = () => renderPdfSelection(input, summary);
+    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
+    overlay.querySelector('#replace-document-form').onsubmit = async (event) => {
+      event.preventDefault();
+      if (!overlay.querySelector('#confirm-replace-reset').checked) return;
+      loading('กำลังรวมและเปลี่ยน PDF...', 'ไฟล์เดิมจะถูกเก็บไว้เป็นประวัติ');
+      try {
+        const files = validatePdfFiles(selectedFiles(input));
+        const merged = await mergePdfFiles(files, {
+          fileName: `${doc.recvNo.replace('/', '-')}-${doc.subject}-replacement.pdf`,
+        });
+        const result = await uploadFileForm('replaceDocumentFile', 'replacementPdfFile', merged.file, {
+          sessionToken: state.token,
+          docId,
+          sourceNames: JSON.stringify(files.map((file) => file.name)),
+        });
+        overlay.remove();
+        await loadDashboard();
+        Swal.fire('เปลี่ยนไฟล์สำเร็จ', `เอกสาร ${doc.recvNo} ถูกรีเซ็ตกลับเข้าคิวธุรการแล้ว (${result.pageCount || merged.pageCount} หน้า)`, 'success');
+      } catch (error) {
+        showError(error);
+      }
+    };
   }
 
   function openUploadModal() {
@@ -662,7 +892,8 @@
       <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2><button class="text-2xl close-modal">×</button></div>
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
-        <div><label class="font-semibold text-sm">ไฟล์ PDF ไม่เกิน 15 MB</label><input class="input mt-1" type="file" name="pdfFile" accept="application/pdf" required></div>
+        <div><label class="font-semibold text-sm">ไฟล์ PDF (เลือกได้หลายไฟล์)</label><input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required><p class="text-xs text-slate-500 mt-1">ระบบจะรวมไฟล์ตามลำดับที่เลือกเป็นเอกสารฉบับเดียว ขนาดรวมไม่เกิน 15 MB</p></div>
+        <div id="new-document-pdf-order" class="pdf-selection-summary"></div>
         <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="${escapeHtml(defaultSender)}" required></div>
         <div><label class="font-semibold text-sm">เรื่อง</label><input class="input mt-1" name="subject" required></div>
         <fieldset class="operation-picker">
@@ -674,6 +905,10 @@
         <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-primary" type="submit">อัปโหลด</button></div>
       </form></div>`;
     document.body.appendChild(overlay);
+    const pdfInput = overlay.querySelector('#new-document-pdf-files');
+    const pdfSummary = overlay.querySelector('#new-document-pdf-order');
+    renderPdfSelection(pdfInput, pdfSummary);
+    pdfInput.onchange = () => renderPdfSelection(pdfInput, pdfSummary);
     overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
     overlay.querySelector('#upload-form').onsubmit = async (event) => {
       event.preventDefault();
@@ -694,12 +929,22 @@
         });
         if (!confirmation.isConfirmed) return;
       }
-      loading('กำลังอัปโหลด...', 'บันทึกไฟล์ลง Google Drive');
+      loading('กำลังรวมและอัปโหลด PDF...', 'บันทึกไฟล์ลง Google Drive');
       try {
-        const result = await gasCall('uploadNewDocument', form);
+        const files = validatePdfFiles(selectedFiles(pdfInput));
+        const merged = await mergePdfFiles(files, {
+          fileName: `${form.elements.subject.value || 'หนังสือรับ'}-${Date.now()}.pdf`,
+        });
+        const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, {
+          sessionToken: state.token,
+          fromSender: form.elements.fromSender.value,
+          subject: form.elements.subject.value,
+          operationMode: selectedMode,
+          sourceNames: JSON.stringify(files.map((file) => file.name)),
+        });
         overlay.remove();
         await loadDashboard();
-        Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo}`, 'success');
+        Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo} รวมทั้งหมด ${merged.pageCount} หน้า`, 'success');
       } catch (error) { showError(error); }
     };
   }
@@ -708,6 +953,7 @@
     loading('กำลังบันทึกรับทราบ...');
     try {
       await gasCall('acknowledgeDocument', state.token, docId);
+      triggerWorkflowMascotProgress();
       await loadDashboard();
       Swal.fire('สำเร็จ', 'บันทึกรับทราบเรียบร้อยแล้ว', 'success');
     } catch (error) { showError(error); }
@@ -721,20 +967,112 @@
 
   function openAttachments(docId) {
     const doc = findDoc(docId);
+    if (!doc) return;
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
-    const list = (doc.attachments || []).map((item) => `<button class="download-attachment w-full text-left border rounded-lg p-3 hover:bg-slate-50" data-id="${escapeHtml(item.attachmentId)}"><div class="font-semibold">${escapeHtml(item.filename)}</div><div class="text-xs text-slate-500">โดย ${escapeHtml(item.uploadedBy)}</div></button>`).join('') || '<p class="text-slate-500 text-center py-5">ยังไม่มีไฟล์แนบ</p>';
-    overlay.innerHTML = `<div class="modal-panel max-w-lg"><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">ไฟล์แนบ</h2><button class="text-2xl close-modal">×</button></div><div class="space-y-2">${list}</div><hr class="my-5"><form id="attachment-form" class="space-y-3"><input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}"><input type="hidden" name="docId" value="${escapeHtml(docId)}"><input class="input" name="attachmentFile" type="file" required><button class="btn btn-success w-full" type="submit">แนบไฟล์ตอบกลับ</button></form></div>`;
+    const attachmentList = (doc.attachments || []).map((item) => `<button class="download-attachment attachment-file-row" data-id="${escapeHtml(item.attachmentId)}"><span class="attachment-file-icon">📎</span><span><b>${escapeHtml(item.filename)}</b><small>โดย ${escapeHtml(item.uploadedBy)} • ${escapeHtml(item.mimeType || 'ไฟล์แนบ')}</small></span><span class="attachment-download-label">เปิด / ดาวน์โหลด</span></button>`).join('') || '<p class="text-slate-500 text-center py-5">ยังไม่มีไฟล์แนบแยก</p>';
+
+    const mergeSection = isClericalUser() ? `
+      <section class="merge-pdf-section">
+        <div class="merge-section-heading"><div><h3>รวม PDF เข้ากับเอกสารหลัก</h3><p>เอกสารหลักฉบับปัจจุบันจะอยู่หน้าแรก แล้วต่อ PDF ที่เลือกตามลำดับ</p></div><span class="merge-admin-badge">สำหรับธุรการ</span></div>
+        <form id="merge-pdf-form" class="space-y-3">
+          <input id="merge-pdf-files" class="input" type="file" accept="application/pdf,.pdf" multiple required>
+          <div id="merge-pdf-order" class="pdf-selection-summary"></div>
+          <label class="confirm-reset-check merge-confirm"><input id="confirm-merge-pdf" type="checkbox" required><span>ยืนยันว่าต้องการต่อไฟล์เหล่านี้เข้ากับเอกสารฉบับปัจจุบัน</span></label>
+          <button class="btn btn-primary w-full" type="submit">รวม PDF และบันทึกเป็นเอกสารฉบับปัจจุบัน</button>
+        </form>
+      </section>` : '';
+
+    overlay.innerHTML = `<div class="modal-panel max-w-2xl">
+      <div class="flex justify-between items-center mb-4"><div><h2 class="text-xl font-bold">ไฟล์เอกสารและไฟล์แนบ</h2><p class="text-sm text-slate-500">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</p></div><button class="text-2xl close-modal">×</button></div>
+      <button id="download-main-document" class="main-document-row"><span class="main-document-icon">📄</span><span><b>เอกสารหลักฉบับปัจจุบัน</b><small>รวมตราประทับและ PDF ที่ถูกรวมเพิ่มเติมล่าสุด</small></span><span class="attachment-download-label">เปิด / ดาวน์โหลด</span></button>
+      <section class="attachment-list-section"><h3>ไฟล์แนบแยก (${(doc.attachments || []).length})</h3><div class="space-y-2">${attachmentList}</div></section>
+      ${mergeSection}
+      <section class="attachment-upload-section">
+        <h3>แนบไฟล์เพิ่มเติม</h3>
+        <form id="attachment-form" class="space-y-3"><input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}"><input type="hidden" name="docId" value="${escapeHtml(docId)}"><input class="input" name="attachmentFile" type="file" required><button class="btn btn-success w-full" type="submit">แนบไฟล์ตอบกลับ</button></form>
+      </section>
+    </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('.close-modal').onclick = () => overlay.remove();
+
+    overlay.querySelector('#download-main-document').onclick = async () => {
+      const previewWindow = window.open('about:blank', '_blank');
+      loading('กำลังเตรียมเอกสารหลัก...');
+      try {
+        const result = await gasCall('getDocumentFile', state.token, docId, false);
+        previewOrDownloadFile(result.file, previewWindow);
+        Swal.close();
+      } catch (error) {
+        if (previewWindow && !previewWindow.closed) previewWindow.close();
+        showError(error);
+      }
+    };
+
     overlay.querySelectorAll('.download-attachment').forEach((button) => button.onclick = async () => {
+      const previewWindow = window.open('about:blank', '_blank');
       loading('กำลังเตรียมไฟล์...');
       try {
         const result = await gasCall('getAttachmentFile', state.token, button.dataset.id);
-        downloadBase64(result.file.base64, result.file.name, result.file.mimeType);
+        previewOrDownloadFile(result.file, previewWindow);
         Swal.close();
-      } catch (error) { showError(error); }
+      } catch (error) {
+        if (previewWindow && !previewWindow.closed) previewWindow.close();
+        showError(error);
+      }
     });
+
+    const mergeForm = overlay.querySelector('#merge-pdf-form');
+    if (mergeForm) {
+      const mergeInput = overlay.querySelector('#merge-pdf-files');
+      const mergeSummary = overlay.querySelector('#merge-pdf-order');
+      renderPdfSelection(mergeInput, mergeSummary, 'เอกสารหลักฉบับปัจจุบันจะเป็นลำดับที่ 1');
+      mergeInput.onchange = () => renderPdfSelection(mergeInput, mergeSummary, 'เอกสารหลักฉบับปัจจุบันจะเป็นลำดับที่ 1');
+      mergeForm.onsubmit = async (event) => {
+        event.preventDefault();
+        if (!overlay.querySelector('#confirm-merge-pdf').checked) return;
+        loading('กำลังรวม PDF...', 'อ่านเอกสารหลักและต่อไฟล์ที่เลือก');
+        try {
+          const files = validatePdfFiles(selectedFiles(mergeInput));
+          const current = await gasCall('getDocumentFile', state.token, docId, false);
+          const merged = await mergePdfFiles(files, {
+            prependBase64: current.file.base64,
+            prependLabel: 'เอกสารหลักฉบับปัจจุบัน',
+            fileName: `${doc.recvNo.replace('/', '-')}-${doc.subject}-merged.pdf`,
+          });
+          await uploadFileForm('saveMergedDocument', 'mergedPdfFile', merged.file, {
+            sessionToken: state.token,
+            docId,
+            sourceNames: JSON.stringify(files.map((file) => file.name)),
+            pageCount: merged.pageCount,
+          });
+
+          const failedAttachments = [];
+          for (const file of files) {
+            try {
+              await uploadAttachmentFile(docId, file);
+            } catch (error) {
+              failedAttachments.push(file.name);
+            }
+          }
+
+          overlay.remove();
+          await loadDashboard();
+          if (failedAttachments.length) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'รวม PDF สำเร็จ',
+              html: `<p>เอกสารหลักถูกอัปเดตเป็น ${merged.pageCount} หน้าแล้ว</p><p class="mt-2">แต่บันทึกไฟล์แนบแยกไม่สำเร็จ: ${escapeHtml(failedAttachments.join(', '))}</p>`,
+            });
+          } else {
+            Swal.fire('รวม PDF สำเร็จ', `เอกสารหลักฉบับใหม่มีทั้งหมด ${merged.pageCount} หน้า และเก็บไฟล์ที่เลือกไว้ในรายการไฟล์แนบแล้ว`, 'success');
+          }
+        } catch (error) {
+          showError(error);
+        }
+      };
+    }
+
     overlay.querySelector('#attachment-form').onsubmit = async (event) => {
       event.preventDefault();
       loading('กำลังอัปโหลดไฟล์แนบ...');
@@ -1467,6 +1805,7 @@
         base64,
         stampMeta,
       });
+      triggerWorkflowMascotProgress();
       closeWorkspace();
       await loadDashboard();
       Swal.fire('สำเร็จ', 'ประทับตราในหน้าที่เลือกและส่งต่อเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวของคุณแล้ว', 'success');
@@ -1994,6 +2333,23 @@
   function downloadBase64(base64, name, mimeType) {
     const bytes = base64ToUint8Array(base64);
     downloadBlob(new Blob([bytes], { type: mimeType || 'application/octet-stream' }), name);
+  }
+
+  function previewOrDownloadFile(file, previewWindow) {
+    const mimeType = String(file?.mimeType || '').toLowerCase();
+    if (mimeType === 'application/pdf' || /\.pdf$/i.test(file?.name || '')) {
+      const bytes = base64ToUint8Array(file.base64);
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.location.replace(url);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+      return;
+    }
+    if (previewWindow && !previewWindow.closed) previewWindow.close();
+    downloadBase64(file.base64, file.name, file.mimeType);
   }
 
   function downloadBlob(blob, name) {
