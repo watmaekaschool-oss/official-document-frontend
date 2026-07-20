@@ -1226,3 +1226,302 @@ html.reduced-motion .admin-mascot-runway .admin-mascot-character {
   font-size:.78rem;
   font-weight:600;
 }
+
+
+/* =========================================================
+   Version 2.1.0: replace PDF, merge PDF, workflow animals
+   ========================================================= */
+.btn-warning {
+  background:#f59e0b;
+  color:#451a03;
+  border:1px solid #d97706;
+  font-weight:800;
+}
+.btn-warning:hover { background:#fbbf24; }
+
+.pdf-selection-summary {
+  min-height:48px;
+  padding:.7rem;
+  border:1px dashed #cbd5e1;
+  border-radius:.8rem;
+  background:#f8fafc;
+  font-size:.82rem;
+}
+.pdf-order-list { display:grid; gap:.45rem; margin:0; padding:0; list-style:none; }
+.pdf-order-list li {
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr) auto;
+  gap:.45rem;
+  align-items:center;
+  padding:.45rem .55rem;
+  border-radius:.65rem;
+  background:#fff;
+  border:1px solid #e2e8f0;
+}
+.pdf-order-list li b { color:var(--app-primary); }
+.pdf-order-list li span { overflow-wrap:anywhere; font-weight:700; color:#334155; }
+.pdf-order-list li small { white-space:nowrap; color:#64748b; }
+.merge-prefix-note {
+  margin-bottom:.55rem;
+  padding:.45rem .6rem;
+  border-radius:.6rem;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-weight:700;
+}
+
+.replacement-warning {
+  margin-bottom:1rem;
+  padding:.85rem 1rem;
+  border:1px solid #f59e0b;
+  border-radius:.85rem;
+  background:#fffbeb;
+  color:#78350f;
+}
+.replacement-warning ul { margin:.45rem 0 0 1.15rem; list-style:disc; line-height:1.7; }
+.confirm-reset-check {
+  display:flex;
+  gap:.65rem;
+  align-items:flex-start;
+  padding:.75rem;
+  border:1px solid #fbbf24;
+  border-radius:.75rem;
+  background:#fff7ed;
+  color:#7c2d12;
+  font-size:.86rem;
+  font-weight:700;
+}
+.confirm-reset-check input { margin-top:.2rem; accent-color:var(--app-primary); }
+
+.main-document-row,
+.attachment-file-row {
+  width:100%;
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  gap:.7rem;
+  align-items:center;
+  padding:.8rem;
+  border:1px solid #e2e8f0;
+  border-radius:.8rem;
+  background:#fff;
+  text-align:left;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.main-document-row {
+  border-color:#93c5fd;
+  background:linear-gradient(135deg,#eff6ff,#fff);
+}
+.main-document-row:hover,
+.attachment-file-row:hover {
+  transform:translateY(-1px);
+  border-color:var(--app-secondary);
+  box-shadow:0 8px 22px rgba(15,23,42,.08);
+}
+.main-document-icon,
+.attachment-file-icon {
+  width:40px;
+  height:40px;
+  display:grid;
+  place-items:center;
+  border-radius:.7rem;
+  background:#dbeafe;
+  font-size:1.25rem;
+}
+.attachment-file-icon { background:#fef3c7; }
+.main-document-row b,
+.attachment-file-row b { display:block; color:#1e293b; overflow-wrap:anywhere; }
+.main-document-row small,
+.attachment-file-row small { display:block; margin-top:.15rem; color:#64748b; }
+.attachment-download-label {
+  padding:.35rem .55rem;
+  border-radius:999px;
+  background:var(--app-primary-soft);
+  color:var(--app-primary-dark);
+  font-size:.72rem;
+  font-weight:800;
+}
+.attachment-list-section,
+.attachment-upload-section,
+.merge-pdf-section {
+  margin-top:1rem;
+  padding-top:1rem;
+  border-top:1px solid #e2e8f0;
+}
+.attachment-list-section h3,
+.attachment-upload-section h3,
+.merge-pdf-section h3 { margin:0 0 .65rem; color:#334155; font-weight:800; }
+.merge-pdf-section {
+  padding:1rem;
+  border:1px solid #bfdbfe;
+  border-radius:.9rem;
+  background:linear-gradient(160deg,#eff6ff,#f8fafc);
+}
+.merge-section-heading {
+  display:flex;
+  justify-content:space-between;
+  gap:1rem;
+  align-items:flex-start;
+  margin-bottom:.8rem;
+}
+.merge-section-heading h3 { margin:0; color:#1e3a8a; }
+.merge-section-heading p { margin:.2rem 0 0; color:#64748b; font-size:.8rem; }
+.merge-admin-badge {
+  flex:0 0 auto;
+  padding:.3rem .5rem;
+  border-radius:999px;
+  background:#1d4ed8;
+  color:#fff;
+  font-size:.7rem;
+  font-weight:800;
+}
+.merge-confirm { border-color:#93c5fd; background:#eff6ff; color:#1e3a8a; }
+
+/* Persistent work-status animals for every role except clerk/admin. */
+.workflow-mascot-host {
+  position:fixed;
+  z-index:42;
+  right:18px;
+  bottom:18px;
+  display:flex;
+  flex-direction:column;
+  gap:.55rem;
+  width:min(330px,calc(100vw - 28px));
+  pointer-events:none;
+}
+.workflow-mascot-card {
+  display:grid;
+  grid-template-columns:78px minmax(0,1fr);
+  gap:.65rem;
+  align-items:center;
+  padding:.6rem .75rem .6rem .45rem;
+  border:1px solid rgba(255,255,255,.88);
+  border-radius:1.15rem;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 16px 38px rgba(15,23,42,.2);
+  backdrop-filter:blur(10px);
+  pointer-events:auto;
+  animation:workflowMascotEnter .5s cubic-bezier(.2,.9,.3,1);
+}
+.workflow-mascot-art {
+  width:76px;
+  height:76px;
+  display:grid;
+  place-items:center;
+  transform-origin:center bottom;
+}
+.workflow-mascot-art .mascot-svg { width:74px; height:74px; }
+.workflow-mascot-bubble {
+  position:relative;
+  min-width:0;
+  padding:.65rem .75rem;
+  border-radius:.9rem;
+  background:#fff7ed;
+  border:1px solid #fed7aa;
+}
+.workflow-mascot-bubble::before {
+  content:'';
+  position:absolute;
+  left:-9px;
+  top:24px;
+  width:16px;
+  height:16px;
+  background:inherit;
+  border-left:1px solid #fed7aa;
+  border-bottom:1px solid #fed7aa;
+  transform:rotate(45deg);
+}
+.workflow-mascot-bubble b { display:block; color:#9a3412; font-size:.92rem; }
+.workflow-mascot-bubble span { display:block; margin-top:.18rem; color:#64748b; font-size:.74rem; }
+
+.workflow-mascot-new .workflow-duck { animation:workflowDuckAlert .75s ease-in-out infinite alternate; }
+.workflow-mascot-new .workflow-mascot-card { border-color:#facc15; }
+.workflow-mascot-new .workflow-mascot-bubble { background:#fefce8; border-color:#fde047; }
+.workflow-mascot-new .workflow-mascot-bubble::before { border-color:#fde047; }
+.workflow-mascot-new .workflow-mascot-bubble b { color:#a16207; }
+
+.workflow-mascot-progress .workflow-rabbit { animation:workflowRabbitHop .7s cubic-bezier(.2,.85,.3,1) infinite; }
+.workflow-mascot-progress .workflow-mascot-card { border-color:#f9a8d4; }
+.workflow-mascot-progress .workflow-mascot-bubble { background:#fdf2f8; border-color:#f9a8d4; }
+.workflow-mascot-progress .workflow-mascot-bubble::before { border-color:#f9a8d4; }
+.workflow-mascot-progress .workflow-mascot-bubble b { color:#be185d; }
+
+.workflow-mascot-done .workflow-mascot-card { grid-template-columns:68px minmax(0,1fr); }
+.workflow-mascot-done .workflow-mascot-art { width:66px; height:66px; }
+.workflow-mascot-done .workflow-mascot-art .mascot-svg { width:64px; height:64px; }
+.workflow-bear { animation:workflowBearBreathe 1.8s ease-in-out infinite alternate; }
+.workflow-panda { position:relative; animation:workflowPandaChew .85s ease-in-out infinite alternate; }
+.workflow-panda::after {
+  content:'🎋';
+  position:absolute;
+  right:-5px;
+  bottom:3px;
+  font-size:1.45rem;
+  transform:rotate(-16deg);
+  filter:drop-shadow(0 2px 2px rgba(15,23,42,.14));
+}
+.workflow-panda-card { animation-delay:.12s; }
+.workflow-panda-card .workflow-mascot-bubble { background:#f0fdf4; border-color:#86efac; }
+.workflow-panda-card .workflow-mascot-bubble::before { border-color:#86efac; }
+.workflow-panda-card .workflow-mascot-bubble b { color:#15803d; }
+
+@keyframes workflowMascotEnter {
+  from { opacity:0; transform:translateY(18px) scale(.92); }
+  to { opacity:1; transform:translateY(0) scale(1); }
+}
+@keyframes workflowDuckAlert {
+  from { transform:translateY(1px) rotate(-3deg); }
+  to { transform:translateY(-6px) rotate(4deg); }
+}
+@keyframes workflowRabbitHop {
+  0%,100% { transform:translateY(0) scale(1); }
+  45% { transform:translateY(-10px) scale(1.03,.97); }
+  70% { transform:translateY(0) scale(.98,1.02); }
+}
+@keyframes workflowBearBreathe {
+  from { transform:scale(1) rotate(-1deg); }
+  to { transform:scale(1.035) rotate(1deg); }
+}
+@keyframes workflowPandaChew {
+  from { transform:rotate(-1deg) translateY(0); }
+  to { transform:rotate(2deg) translateY(-2px); }
+}
+
+html.reduced-motion .workflow-mascot-art,
+html.reduced-motion .workflow-mascot-card { animation:none !important; }
+
+@media (prefers-reduced-motion:reduce) {
+  .workflow-mascot-art,
+  .workflow-mascot-card { animation:none !important; }
+}
+
+html[data-theme-preset="dark"] .pdf-selection-summary,
+html[data-theme-preset="dark"] .pdf-order-list li,
+html[data-theme-preset="dark"] .main-document-row,
+html[data-theme-preset="dark"] .attachment-file-row,
+html[data-theme-preset="dark"] .workflow-mascot-card { background:#111827; border-color:#374151; }
+html[data-theme-preset="dark"] .pdf-order-list li span,
+html[data-theme-preset="dark"] .main-document-row b,
+html[data-theme-preset="dark"] .attachment-file-row b,
+html[data-theme-preset="dark"] .attachment-list-section h3,
+html[data-theme-preset="dark"] .attachment-upload-section h3 { color:#e5e7eb; }
+html[data-theme-preset="dark"] .workflow-mascot-bubble { background:#1f2937; border-color:#4b5563; }
+html[data-theme-preset="dark"] .workflow-mascot-bubble::before { border-color:#4b5563; }
+html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
+
+@media (max-width:640px) {
+  .workflow-mascot-host { right:10px; bottom:10px; width:min(300px,calc(100vw - 20px)); }
+  .workflow-mascot-card { grid-template-columns:62px minmax(0,1fr); padding:.45rem .55rem .45rem .35rem; }
+  .workflow-mascot-art { width:60px; height:60px; }
+  .workflow-mascot-art .mascot-svg { width:58px; height:58px; }
+  .workflow-mascot-done .workflow-mascot-card { grid-template-columns:56px minmax(0,1fr); }
+  .workflow-mascot-done .workflow-mascot-art,
+  .workflow-mascot-done .workflow-mascot-art .mascot-svg { width:54px; height:54px; }
+  .workflow-mascot-bubble { padding:.5rem .6rem; }
+  .workflow-mascot-bubble b { font-size:.82rem; }
+  .workflow-mascot-bubble span { font-size:.68rem; }
+  .main-document-row,
+  .attachment-file-row { grid-template-columns:36px minmax(0,1fr); }
+  .attachment-download-label { grid-column:2; justify-self:start; }
+  .merge-section-heading { display:block; }
+  .merge-admin-badge { display:inline-block; margin-top:.45rem; }
+}
