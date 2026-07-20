@@ -540,7 +540,7 @@
         <main class="max-w-7xl mx-auto px-4 py-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
-              ${!isTeacher ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
+              ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
             </div>
             <div class="flex gap-2 items-center">
@@ -564,7 +564,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '1.4.4';
+    document.documentElement.dataset.frontendVersion = '1.4.5';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
