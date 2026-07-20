@@ -1212,3 +1212,17 @@ html.reduced-motion .admin-mascot-runway .admin-mascot-character {
   .admin-mascot-runway .admin-mascot-icon,
   .admin-mascot-runway .mascot-svg { width:54px; height:54px; }
 }
+
+/* Version 2.0.0: server-resolved document permissions */
+.workspace-readonly-note {
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:.55rem .75rem;
+  border:1px solid rgba(255,255,255,.3);
+  border-radius:.75rem;
+  background:rgba(15,23,42,.22);
+  color:#fff7ed;
+  font-size:.78rem;
+  font-weight:600;
+}
