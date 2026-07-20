@@ -1093,3 +1093,107 @@ html.reduced-motion .admin-mascot-character:nth-child(n+6) { display:none; }
   }
   .admin-mascot-character:nth-child(n+6) { display:none; }
 }
+
+/* =========================================================
+   Version 1.4.4: guide only in header + guaranteed mascot runway
+   ========================================================= */
+/* The old guide tile near the import button must never appear. */
+.guide-tool-btn,
+#guide-tool-btn { display:none !important; }
+
+/* Header guide remains available for every user role. */
+.header-guide-btn { display:flex !important; }
+
+/* Top mascots are placed in normal document flow, so they cannot hide
+   behind the header, table, or browser iframe. */
+.admin-mascot-runway {
+  position:relative;
+  z-index:5;
+  width:100%;
+  height:88px;
+  overflow:hidden;
+  pointer-events:none;
+  background:linear-gradient(90deg,rgba(255,255,255,.48),rgba(255,247,237,.82),rgba(255,255,255,.48));
+  border-bottom:1px solid color-mix(in srgb,var(--app-secondary) 22%,transparent);
+  box-shadow:inset 0 -10px 22px rgba(127,29,29,.035);
+}
+.admin-mascot-runway .admin-mascot-character {
+  top:10px;
+  pointer-events:auto;
+}
+
+/* Free-running characters inside the page continue to use a fixed overlay. */
+.admin-mascot-layer.mascot-position-page {
+  position:fixed;
+  z-index:38;
+  inset:76px 0 0;
+  overflow:hidden;
+  pointer-events:none;
+}
+.admin-mascot-layer.mascot-position-page .admin-mascot-character { pointer-events:auto; }
+
+.admin-mascot-icon {
+  width:64px;
+  height:64px;
+  padding:0;
+  overflow:visible;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+}
+.mascot-svg {
+  display:block;
+  width:64px;
+  height:64px;
+  overflow:visible;
+  filter:drop-shadow(0 4px 5px rgba(15,23,42,.18));
+}
+.mascot-choice-icon .mascot-svg,
+.mascot-settings-preview .mascot-svg {
+  width:44px;
+  height:44px;
+}
+.mascot-choice-icon { display:grid; place-items:center; }
+.mascot-settings-preview span { overflow:hidden; }
+
+/* When reduced motion is enabled, characters remain clearly visible. */
+html.reduced-motion .admin-mascot-runway {
+  display:flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:.5rem;
+  padding:.45rem;
+}
+html.reduced-motion .admin-mascot-runway .admin-mascot-character {
+  position:relative;
+  left:auto;
+  top:auto;
+  transform:none !important;
+  animation:none !important;
+  flex:0 0 auto;
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .admin-mascot-runway {
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    gap:.5rem;
+    padding:.45rem;
+  }
+  .admin-mascot-runway .admin-mascot-character {
+    position:relative;
+    left:auto;
+    top:auto;
+    transform:none !important;
+    animation:none !important;
+    flex:0 0 auto;
+  }
+}
+
+@media (max-width:760px) {
+  .admin-mascot-runway { height:72px; }
+  .admin-mascot-runway .admin-mascot-character { top:7px; width:54px; height:54px; }
+  .admin-mascot-runway .admin-mascot-icon,
+  .admin-mascot-runway .mascot-svg { width:54px; height:54px; }
+}
