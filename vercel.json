@@ -3,7 +3,7 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "https://script.google.com/macros/s/ใส่รหัส_DEPLOYMENT_ของคุณ/exec",
+      "destination": "https://script.google.com/macros/s/AKfycbwuvFnnax-kwjEv55Xkww5FYOW4OpDTvCOPP8GouaLtTghEk0cX7WX506L-jnExOhNf/exec",
       "permanent": false
     }
   ]
