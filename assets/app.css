@@ -38,12 +38,18 @@ button, input, select, textarea { font: inherit; }
 
 .workspace { position:fixed; inset:0; z-index:70; background:#4a0f0f; display:flex; flex-direction:column; }
 .workspace-toolbar { flex:0 0 auto; background:linear-gradient(135deg,var(--brand-red-dark), var(--brand-red)); color:#fff; padding:.75rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
-.pdf-scroll-area { flex:1 1 auto; min-height:0; overflow:auto; padding:2rem; display:block; position:relative; }
+.pdf-scroll-area { flex:1 1 auto; min-height:0; overflow:auto; padding:2rem; display:block; position:relative; scroll-behavior:smooth; }
 .pdf-stage-wrap { width:max-content; min-width:100%; min-height:100%; display:flex; justify-content:flex-start; align-items:flex-start; }
-.pdf-container { position:relative; flex:0 0 auto; background:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); overflow:visible; margin:auto; }
-#pdf-render-canvas { display:block; background:#fff; }
+.pdf-container { position:relative; flex:0 0 auto; background:transparent; overflow:visible; margin:auto; }
+.pdf-pages { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:26px; width:100%; }
+.pdf-page-shell { position:relative; flex:0 0 auto; background:#fff; box-shadow:0 18px 50px rgba(0,0,0,.45); outline:3px solid transparent; outline-offset:5px; transition:outline-color .15s, box-shadow .15s; }
+.pdf-page-shell.stamp-target-page { outline-color:#f59e0b; box-shadow:0 20px 58px rgba(245,158,11,.38); }
+.pdf-page-canvas { display:block; background:#fff; }
+.pdf-page-label { position:absolute; top:10px; right:10px; z-index:3; padding:.28rem .58rem; border-radius:999px; background:rgba(15,23,42,.78); color:#fff; font-size:.72rem; font-weight:800; pointer-events:none; backdrop-filter:blur(4px); }
+.workspace-hint { display:inline-flex; align-items:center; min-height:2.35rem; padding:.45rem .7rem; border-radius:.65rem; background:rgba(255,255,255,.15); font-size:.78rem; font-weight:700; }
 
 .draggable-stamp { position:absolute; z-index:20; color:#1254c0; touch-action:none; user-select:none; transform-origin:top left; border:1px dashed transparent; overflow:visible; }
+.draggable-stamp.stamp-snapping { transition:transform .16s ease-out; }
 .draggable-stamp.selected { border-color:var(--brand-red); background:rgba(255,248,230,.55); }
 .stamp-content { transform-origin:top left; width:100%; height:auto; color:#1254c0; }
 .stamp-resize-handle { position:absolute; right:-10px; bottom:-10px; width:22px; height:22px; border-radius:999px; background:var(--brand-red); border:3px solid #fff7ed; box-shadow:0 2px 9px rgba(0,0,0,.35); cursor:nwse-resize; touch-action:none; }
@@ -52,6 +58,12 @@ button, input, select, textarea { font: inherit; }
 .draggable-stamp:not(.selected) .stamp-scale-label { display:none; }
 .stamp-textarea { width:100%; border:0; resize:none; outline:none; background:transparent; color:#1254c0; font-family:'Sarabun',sans-serif; line-height:1.55; overflow:hidden; }
 .temp-text-div { color:#1254c0; font-family:'Sarabun',sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+.clerk-forward-stamp { width:245px; padding:5px; color:#1254c0; font-size:11px; line-height:1.5; }
+.clerk-forward-signature-block { text-align:center; margin-top:5px; min-height:52px; }
+.clerk-forward-signature-image { display:block; height:34px; max-width:150px; object-fit:contain; margin:0 auto 1px; }
+.clerk-forward-signature-space { height:34px; }
+.clerk-forward-name { line-height:1.25; }
 
 .dispatch-panel { margin:1.5rem auto 3rem; width:min(920px,100%); background:#fffdf8; border-radius:1rem; padding:1.25rem; box-shadow:0 16px 45px rgba(0,0,0,.25); border:1px solid #f5d28a; }
 .user-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:.65rem; }
@@ -97,6 +109,9 @@ button, input, select, textarea { font: inherit; }
 @media (max-width: 640px) {
   .pdf-scroll-area { padding:1rem; }
   .workspace-toolbar { align-items:flex-start; }
+  .workspace-hint { width:100%; justify-content:center; }
+  .pdf-pages { gap:18px; }
+  .pdf-page-label { top:6px; right:6px; font-size:.66rem; }
   .data-table { min-width:760px; }
 }
 
