@@ -106,6 +106,7 @@
       intro: 'ใช้สำหรับนำเข้าหนังสือ ส่งต่อผู้บริหาร จ่ายเรื่องให้ผู้รับ และดูแลบัญชีผู้ใช้งาน',
       steps: [
         ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกเลขรับ ผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน จากนั้นแนบไฟล์ PDF'],
+        ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
         ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
         ['ตั้งรหัสผ่านใหม่', 'ไปที่ ⚙ การตั้งค่า → จัดการผู้ใช้งาน แล้วเลือก “ตั้งรหัสใหม่” กรณีผู้ใช้ลืมรหัสเดิม'],
@@ -119,7 +120,7 @@
         ['เปิดงานรอดำเนินการ', 'เลือกเอกสารจากแท็บ “งานรอดำเนินการ” แล้วกด “ประทับตรา / จัดการ”'],
         ['เลือกข้อความในตรา', 'เลือก ทราบ พิจารณา เห็นควรมอบ ยุติเรื่อง และเลือกฝ่ายที่เกี่ยวข้อง พร้อมพิมพ์ข้อสั่งการ'],
         ['กรณีรักษาการ', 'ตราจะแสดงตำแหน่งรองผู้อำนวยการโรงเรียนวัดแม่กะ และรักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ'],
-        ['จัดวางตรา', 'ลากตราไปยังตำแหน่งที่ต้องการ และใช้เครื่องมือย่อ–ขยายก่อนบันทึก'],
+        ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ แล้วใช้เครื่องมือย่อ–ขยายก่อนบันทึก'],
         ['ส่งต่อ', 'ตรวจความถูกต้องของตราและลายเซ็น แล้วกดยืนยันเพื่อส่งเอกสารตามเส้นทางงาน'],
       ],
     },
@@ -130,7 +131,7 @@
         ['เปิดเอกสาร', 'เลือกเอกสารในแท็บ “งานรอดำเนินการ” และเปิดหน้าเอกสาร'],
         ['ระบุคำสั่ง', 'เลือกตัวเลือกในตราและพิมพ์ข้อสั่งการให้ครบถ้วน'],
         ['ตรวจลายเซ็น', 'ตรวจว่าลายเซ็นและชื่อผู้ลงนามแสดงถูกต้องก่อนบันทึก'],
-        ['จัดวางตรา', 'ลากและย่อ–ขยายตราให้ไม่ทับเนื้อหาสำคัญของหนังสือ'],
+        ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ และย่อ–ขยายไม่ให้ทับเนื้อหาสำคัญ'],
         ['ส่งกลับธุรการ', 'กดยืนยันเพื่อส่งเอกสารกลับให้ธุรการดำเนินการจ่ายเรื่อง'],
       ],
     },
@@ -160,6 +161,9 @@
     currentPdf: null,
     currentPageNumber: 1,
     currentScale: 1.3,
+    stampReferenceScale: 1.3,
+    pdfPageViews: [],
+    stampsInitialized: false,
     selectedStamp: null,
     stampInteractionMode: 'move',
     allUsers: [],
@@ -749,9 +753,18 @@
       const result = await gasCall('getDocumentFile', state.token, docId, true);
       state.currentDoc = { ...doc, ...result.document };
       state.originalPdfBase64 = result.file.base64;
+      state.pdfPageViews = [];
+      state.stampsInitialized = false;
       renderWorkspace(actionMode);
       await loadPdf(state.originalPdfBase64);
-      if (state.user.role === 'ธุรการ' && state.currentDoc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ' && actionMode) {
+
+      if (document.querySelector('.draggable-stamp')) {
+        initializeStamps();
+        state.stampsInitialized = true;
+        document.querySelectorAll('.draggable-stamp').forEach((stamp) => updateStampPageTarget(stamp));
+      }
+
+      if (isClericalUser() && state.currentDoc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ' && actionMode) {
         await loadDispatchUsers();
       }
       Swal.close();
@@ -760,32 +773,45 @@
 
   function renderWorkspace(actionMode) {
     const doc = state.currentDoc;
-    const canStamp = actionMode && ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(state.user.role) && !(state.user.role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ');
-    const showDispatch = actionMode && state.user.role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+    const role = guideRoleKey();
+    const canStamp = actionMode
+      && ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(role)
+      && !(role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ');
+    const showDispatch = actionMode && role === 'ธุรการ' && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ';
     const workspace = document.createElement('div');
     workspace.id = 'workspace-view';
     workspace.className = 'workspace';
     workspace.innerHTML = `
       <div class="workspace-toolbar">
-        <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400">${escapeHtml(doc.status)}</div></div></div>
+        <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-200">${escapeHtml(doc.status)} • แสดงเอกสารครบทุกหน้า</div></div></div>
         <div class="flex items-center gap-2 flex-wrap">
-          <button id="zoom-out" class="btn btn-muted">−</button><span id="zoom-label" class="text-sm min-w-14 text-center">130%</span><button id="zoom-in" class="btn btn-muted">＋</button>
-          ${canStamp ? '<button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>' : ''}
+          <button id="zoom-out" class="btn btn-muted">−</button><span id="zoom-label" class="text-sm min-w-14 text-center">${Math.round(state.currentScale * 100)}%</span><button id="zoom-in" class="btn btn-muted">＋</button>
+          ${canStamp ? '<span class="workspace-hint">ลากตราไปยังหน้าที่ต้องการได้</span><button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>' : ''}
           <button id="download-current" class="btn btn-success">ดาวน์โหลด PDF</button>
         </div>
       </div>
       <div id="pdf-scroll-area" class="pdf-scroll-area">
-        <div class="pdf-stage-wrap"><div id="pdf-container" class="pdf-container"><canvas id="pdf-render-canvas"></canvas>${canStamp ? stampMarkup(state.user.role, doc.recvNo) : ''}</div></div>
+        <div class="pdf-stage-wrap">
+          <div id="pdf-container" class="pdf-container">
+            <div id="pdf-pages" class="pdf-pages" aria-label="เอกสาร PDF ทุกหน้า"></div>
+            ${canStamp ? stampMarkup(role, doc.recvNo) : ''}
+          </div>
+        </div>
         ${showDispatch ? dispatchMarkup() : ''}
       </div>`;
     document.body.appendChild(workspace);
     document.getElementById('workspace-close').onclick = closeWorkspace;
     document.getElementById('download-current').onclick = () => downloadBase64(state.originalPdfBase64, `${doc.recvNo.replace('/', '-')}-${doc.subject}.pdf`, 'application/pdf');
-    document.getElementById('zoom-in').onclick = async () => { state.currentScale = Math.min(2.2, state.currentScale + .15); await renderPdfPage(); };
-    document.getElementById('zoom-out').onclick = async () => { state.currentScale = Math.max(.7, state.currentScale - .15); await renderPdfPage(); };
+    document.getElementById('zoom-in').onclick = async () => {
+      state.currentScale = Math.min(2.2, state.currentScale + .15);
+      await renderAllPdfPages();
+    };
+    document.getElementById('zoom-out').onclick = async () => {
+      state.currentScale = Math.max(.7, state.currentScale - .15);
+      await renderAllPdfPages();
+    };
     const saveButton = document.getElementById('save-stamp');
     if (saveButton) saveButton.onclick = saveAndStamp;
-    if (canStamp) initializeStamps();
     if (showDispatch) initializeDispatch();
   }
 
@@ -842,7 +868,16 @@
     return stampWrapper('stamp-clerk-1', 180, `
       <div style="width:180px;padding:5px;color:#1254c0;font-size:12px;line-height:1.55"><div style="text-align:center;font-weight:700;font-size:14px">โรงเรียนวัดแม่กะ</div><div>เลขรับที่: <b>${escapeHtml(recvNo)}</b></div><div>วันที่: <b>${new Date().toLocaleDateString('th-TH')}</b></div></div>`) +
       stampWrapper('stamp-clerk-2', 245, `
-      <div style="width:245px;padding:5px;color:#1254c0;font-size:11px;line-height:1.5"><div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div><textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea><div style="text-align:center">${signature ? `<img src="${signature}" style="height:30px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div></div></div>`);
+      <div class="clerk-forward-stamp">
+        <div>เรียน <b>ผู้อำนวยการโรงเรียนวัดแม่กะ</b></div>
+        <textarea class="stamp-textarea" rows="4" placeholder="บันทึกเสนอ"></textarea>
+        <div class="clerk-forward-signature-block">
+          ${signature
+            ? `<img class="clerk-forward-signature-image" src="${signature}" alt="ลายเซ็น ${escapeHtml(state.user.name)}">`
+            : '<div class="clerk-forward-signature-space" aria-hidden="true"></div>'}
+          <div class="clerk-forward-name">(${escapeHtml(state.user.name)})</div>
+        </div>
+      </div>`);
   }
 
   function stampWrapper(id, width, content) {
@@ -852,21 +887,20 @@
 
   function initializeStamps() {
     const stamps = document.querySelectorAll('.draggable-stamp');
+    if (!stamps.length) return;
+
     stamps.forEach((stamp) => {
       const content = stamp.querySelector('.stamp-content');
-      const baseWidth = Number(stamp.dataset.baseWidth || stamp.offsetWidth);
       stamp.dataset.interactionMode = stamp.dataset.interactionMode || 'move';
       refreshStampBounds(stamp);
       setStampScale(stamp, Number(stamp.dataset.scale || 1));
 
-      // The signature image can finish decoding after the stamp is displayed.
-      // Recalculate the real unscaled height so the selection frame stays
-      // attached to the text and signature on phones, tablets, and desktops.
       const images = [...content.querySelectorAll('img')];
       images.forEach((image) => {
         const update = () => {
           refreshStampBounds(stamp);
           setStampScale(stamp, Number(stamp.dataset.scale || 1));
+          snapStampIntoPage(stamp, false);
         };
         if (image.complete) {
           if (image.decode) image.decode().catch(() => {}).finally(update);
@@ -905,6 +939,7 @@
       initResizeHandle(stamp);
     });
 
+    try { interact('.draggable-stamp').unset(); } catch (_) {}
     interact('.draggable-stamp').draggable({
       ignoreFrom: '.stamp-resize-handle, input, textarea, label',
       listeners: {
@@ -915,9 +950,11 @@
           if (mode === 'resize') {
             const currentScale = Number(target.dataset.scale || 1);
             const baseWidth = Number(target.dataset.baseWidth || 200);
+            const viewerFactor = getStampViewerFactor();
             const delta = (event.dx + event.dy) / 2;
-            const nextScale = Math.min(2, Math.max(.5, currentScale + delta / baseWidth));
+            const nextScale = Math.min(2, Math.max(.5, currentScale + delta / (baseWidth * viewerFactor)));
             setStampScale(target, nextScale);
+            updateStampPageTarget(target);
             return;
           }
           const x = (parseFloat(target.dataset.x) || 0) + event.dx;
@@ -925,19 +962,140 @@
           target.dataset.x = x;
           target.dataset.y = y;
           applyStampTransform(target);
+          updateStampPageTarget(target);
+        },
+        end(event) {
+          snapStampIntoPage(event.target, true);
+          updateStampPageTarget(event.target);
         }
       },
       modifiers: [interact.modifiers.restrictRect({ restriction: '#pdf-container', endOnly: true })]
     });
-    if (stamps[0]) selectStamp(stamps[0]);
-    document.getElementById('pdf-container').addEventListener('pointerdown', (event) => {
-      if (!event.target.closest('.draggable-stamp')) selectStamp(null);
+
+    if (stamps[0]) {
+      selectStamp(stamps[0]);
+      snapStampIntoPage(stamps[0], false);
+    }
+    const container = document.getElementById('pdf-container');
+    if (container) {
+      container.addEventListener('pointerdown', (event) => {
+        if (!event.target.closest('.draggable-stamp')) selectStamp(null);
+      });
+    }
+  }
+
+  function getPdfPageElements() {
+    return [...document.querySelectorAll('.pdf-page-shell')];
+  }
+
+  function findClosestPageForStamp(stamp) {
+    const pages = getPdfPageElements();
+    if (!pages.length || !stamp) return null;
+    const stampRect = stamp.getBoundingClientRect();
+    const centerX = stampRect.left + stampRect.width / 2;
+    const centerY = stampRect.top + stampRect.height / 2;
+    let closest = pages[0];
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    pages.forEach((page) => {
+      const rect = page.getBoundingClientRect();
+      if (centerX >= rect.left && centerX <= rect.right && centerY >= rect.top && centerY <= rect.bottom) {
+        closest = page;
+        closestDistance = -1;
+        return;
+      }
+      if (closestDistance === -1) return;
+      const dx = centerX < rect.left ? rect.left - centerX : centerX > rect.right ? centerX - rect.right : 0;
+      const dy = centerY < rect.top ? rect.top - centerY : centerY > rect.bottom ? centerY - rect.bottom : 0;
+      const distance = Math.hypot(dx, dy);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closest = page;
+      }
+    });
+    return closest;
+  }
+
+  function updateStampPageTarget(stamp) {
+    if (!stamp) return null;
+    const page = findClosestPageForStamp(stamp);
+    const selected = state.selectedStamp === stamp;
+    getPdfPageElements().forEach((item) => item.classList.toggle('stamp-target-page', selected && item === page));
+    if (page) {
+      stamp.dataset.pageIndex = page.dataset.pageIndex || '0';
+      const label = stamp.querySelector('.stamp-mode-label');
+      if (label) {
+        const mode = (stamp.dataset.interactionMode || 'move') === 'resize' ? 'ย่อ/ขยาย' : 'ย้าย';
+        label.textContent = `โหมด: ${mode} • หน้า ${Number(stamp.dataset.pageIndex) + 1}`;
+      }
+    }
+    return page;
+  }
+
+  function snapStampIntoPage(stamp, animate) {
+    const page = findClosestPageForStamp(stamp);
+    const container = document.getElementById('pdf-container');
+    if (!page || !container || !stamp) return;
+    const pageRect = page.getBoundingClientRect();
+    const stampRect = stamp.getBoundingClientRect();
+
+    const maxLeft = Math.max(pageRect.left, pageRect.right - stampRect.width);
+    const maxTop = Math.max(pageRect.top, pageRect.bottom - stampRect.height);
+    const desiredLeft = Math.min(Math.max(stampRect.left, pageRect.left), maxLeft);
+    const desiredTop = Math.min(Math.max(stampRect.top, pageRect.top), maxTop);
+    const dx = desiredLeft - stampRect.left;
+    const dy = desiredTop - stampRect.top;
+
+    if (animate) stamp.classList.add('stamp-snapping');
+    stamp.dataset.x = (parseFloat(stamp.dataset.x) || 0) + dx;
+    stamp.dataset.y = (parseFloat(stamp.dataset.y) || 0) + dy;
+    applyStampTransform(stamp);
+    stamp.dataset.pageIndex = page.dataset.pageIndex || '0';
+    if (animate) window.setTimeout(() => stamp.classList.remove('stamp-snapping'), 180);
+  }
+
+  function captureStampPlacements() {
+    const pages = getPdfPageElements();
+    if (!pages.length) return [];
+    return [...document.querySelectorAll('.draggable-stamp')].map((stamp) => {
+      const page = findClosestPageForStamp(stamp);
+      if (!page) return null;
+      const pageRect = page.getBoundingClientRect();
+      const stampRect = stamp.getBoundingClientRect();
+      return {
+        id: stamp.id,
+        pageIndex: Number(page.dataset.pageIndex || 0),
+        xRatio: pageRect.width ? (stampRect.left - pageRect.left) / pageRect.width : 0,
+        yRatio: pageRect.height ? (stampRect.top - pageRect.top) / pageRect.height : 0,
+      };
+    }).filter(Boolean);
+  }
+
+  function restoreStampPlacements(placements) {
+    if (!placements?.length) return;
+    const container = document.getElementById('pdf-container');
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
+
+    placements.forEach((placement) => {
+      const stamp = document.getElementById(placement.id);
+      const page = document.querySelector(`.pdf-page-shell[data-page-index="${placement.pageIndex}"]`);
+      if (!stamp || !page) return;
+      const pageRect = page.getBoundingClientRect();
+      stamp.style.left = `${pageRect.left - containerRect.left + placement.xRatio * pageRect.width}px`;
+      stamp.style.top = `${pageRect.top - containerRect.top + placement.yRatio * pageRect.height}px`;
+      stamp.dataset.x = '0';
+      stamp.dataset.y = '0';
+      applyStampTransform(stamp);
+      snapStampIntoPage(stamp, false);
     });
   }
 
   function selectStamp(stamp) {
     document.querySelectorAll('.draggable-stamp').forEach((item) => item.classList.toggle('selected', item === stamp));
     state.selectedStamp = stamp;
+    if (stamp) updateStampPageTarget(stamp);
+    else getPdfPageElements().forEach((item) => item.classList.remove('stamp-target-page'));
   }
 
   function setStampInteractionMode(stamp, mode) {
@@ -1017,8 +1175,10 @@
       const onMove = (moveEvent) => {
         const delta = moveEvent.clientX - startX;
         const baseWidth = Number(stamp.dataset.baseWidth || 200);
-        const scale = Math.min(2, Math.max(.5, startScale + delta / baseWidth));
+        const viewerFactor = getStampViewerFactor();
+        const scale = Math.min(2, Math.max(.5, startScale + delta / (baseWidth * viewerFactor)));
         setStampScale(stamp, scale);
+        updateStampPageTarget(stamp);
       };
       const onUp = () => {
         window.removeEventListener('pointermove', onMove);
@@ -1040,14 +1200,22 @@
     stamp.dataset.baseHeight = String(baseHeight);
   }
 
+  function getStampViewerFactor() {
+    const reference = Number(state.stampReferenceScale || 1.3);
+    return Math.max(.35, Number(state.currentScale || reference) / reference);
+  }
+
   function setStampScale(stamp, scale) {
-    stamp.dataset.scale = String(scale);
+    const userScale = Math.min(2, Math.max(.5, Number(scale) || 1));
+    const viewerFactor = getStampViewerFactor();
+    const visualScale = userScale * viewerFactor;
+    stamp.dataset.scale = String(userScale);
     const baseWidth = Number(stamp.dataset.baseWidth || 200);
     const baseHeight = Number(stamp.dataset.baseHeight || stamp.querySelector('.stamp-content').scrollHeight || 100);
-    stamp.style.width = `${baseWidth * scale}px`;
-    stamp.style.height = `${baseHeight * scale}px`;
-    stamp.querySelector('.stamp-content').style.transform = `scale(${scale})`;
-    stamp.querySelector('.stamp-scale-label').textContent = `${Math.round(scale * 100)}%`;
+    stamp.style.width = `${baseWidth * visualScale}px`;
+    stamp.style.height = `${baseHeight * visualScale}px`;
+    stamp.querySelector('.stamp-content').style.transform = `scale(${visualScale})`;
+    stamp.querySelector('.stamp-scale-label').textContent = `${Math.round(userScale * 100)}%`;
     applyStampTransform(stamp);
   }
 
@@ -1061,22 +1229,73 @@
     const bytes = base64ToUint8Array(base64);
     state.currentPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
     state.currentPageNumber = 1;
-    await renderPdfPage();
+    await renderAllPdfPages();
   }
 
-  async function renderPdfPage() {
-    const page = await state.currentPdf.getPage(state.currentPageNumber);
-    const viewport = page.getViewport({ scale: state.currentScale });
-    const canvas = document.getElementById('pdf-render-canvas');
-    const context = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+  async function renderAllPdfPages() {
+    if (!state.currentPdf) return;
+    const placements = captureStampPlacements();
+    const pagesHost = document.getElementById('pdf-pages');
     const container = document.getElementById('pdf-container');
-    container.style.width = `${viewport.width}px`;
-    container.style.height = `${viewport.height}px`;
-    await page.render({ canvasContext: context, viewport }).promise;
+    if (!pagesHost || !container) return;
+
+    pagesHost.innerHTML = '';
+    state.pdfPageViews = [];
+    let maxWidth = 0;
+
+    for (let pageNumber = 1; pageNumber <= state.currentPdf.numPages; pageNumber += 1) {
+      const page = await state.currentPdf.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: state.currentScale });
+      const shell = document.createElement('section');
+      shell.className = 'pdf-page-shell';
+      shell.dataset.pageIndex = String(pageNumber - 1);
+      shell.style.width = `${viewport.width}px`;
+      shell.style.height = `${viewport.height}px`;
+      shell.setAttribute('aria-label', `หน้า ${pageNumber} จาก ${state.currentPdf.numPages}`);
+
+      const label = document.createElement('div');
+      label.className = 'pdf-page-label';
+      label.textContent = `หน้า ${pageNumber} / ${state.currentPdf.numPages}`;
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'pdf-page-canvas';
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+
+      shell.append(label, canvas);
+      pagesHost.appendChild(shell);
+      maxWidth = Math.max(maxWidth, viewport.width);
+
+      await page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport,
+      }).promise;
+
+      state.pdfPageViews.push({
+        pageIndex: pageNumber - 1,
+        pageNumber,
+        shell,
+        canvas,
+        viewport,
+      });
+    }
+
+    container.style.width = `${maxWidth}px`;
     const label = document.getElementById('zoom-label');
     if (label) label.textContent = `${Math.round(state.currentScale * 100)}%`;
+
+    document.querySelectorAll('.draggable-stamp').forEach((stamp) => {
+      refreshStampBounds(stamp);
+      setStampScale(stamp, Number(stamp.dataset.scale || 1));
+    });
+
+    restoreStampPlacements(placements);
+    if (!placements.length) {
+      document.querySelectorAll('.draggable-stamp').forEach((stamp) => snapStampIntoPage(stamp, false));
+    }
+    if (state.selectedStamp) updateStampPageTarget(state.selectedStamp);
   }
 
   async function captureStampAtNativeResolution(stamp, captureScale) {
@@ -1166,52 +1385,88 @@
   }
 
   async function saveAndStamp() {
-    loading('กำลังประทับตราและส่งต่อ...');
+    loading('กำลังประทับตราทุกหน้าที่เลือกและส่งต่อ...');
     try {
       const pdfDoc = await PDFLib.PDFDocument.load(state.originalPdfBase64);
-      const page = pdfDoc.getPages()[0];
-      const container = document.getElementById('pdf-container');
-      const containerRect = container.getBoundingClientRect();
-      const scaleX = page.getWidth() / container.offsetWidth;
-      const scaleY = page.getHeight() / container.offsetHeight;
+      const pdfPages = pdfDoc.getPages();
       const stamps = [...document.querySelectorAll('.draggable-stamp')];
+      if (!stamps.length) throw new Error('ไม่พบตราประทับในเอกสาร');
+
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
       const stampCaptureScale = Math.min(8, Math.max(6, (window.devicePixelRatio || 1) * 3));
 
       for (const stamp of stamps) {
-        const rect = stamp.getBoundingClientRect();
-        const x = rect.left - containerRect.left;
-        const y = rect.top - containerRect.top;
+        snapStampIntoPage(stamp, false);
+        const pageShell = findClosestPageForStamp(stamp);
+        if (!pageShell) throw new Error('ไม่พบหน้าสำหรับวางตราประทับ');
 
-        // Capture an untransformed clone. Capturing the on-screen element
-        // after CSS scaling softens Thai glyphs and can shift the frame.
-        // The clone stays at its native layout size and is rasterized at
-        // high resolution, then placed into the PDF at the user's chosen size.
+        const pageIndex = Number(pageShell.dataset.pageIndex || 0);
+        const page = pdfPages[pageIndex];
+        const canvas = pageShell.querySelector('.pdf-page-canvas');
+        if (!page || !canvas) throw new Error(`ไม่สามารถอ่านหน้า ${pageIndex + 1} ได้`);
+
+        const pageRect = canvas.getBoundingClientRect();
+        const stampRect = stamp.getBoundingClientRect();
+        const scaleX = page.getWidth() / pageRect.width;
+        const scaleY = page.getHeight() / pageRect.height;
+
+        const localX = Math.min(
+          Math.max(0, stampRect.left - pageRect.left),
+          Math.max(0, pageRect.width - stampRect.width)
+        );
+        const localY = Math.min(
+          Math.max(0, stampRect.top - pageRect.top),
+          Math.max(0, pageRect.height - stampRect.height)
+        );
+
         const capture = await captureStampAtNativeResolution(stamp, stampCaptureScale);
         const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
         page.drawImage(image, {
-          x: x * scaleX,
-          y: page.getHeight() - y * scaleY - rect.height * scaleY,
-          width: rect.width * scaleX,
-          height: rect.height * scaleY,
+          x: localX * scaleX,
+          y: page.getHeight() - localY * scaleY - stampRect.height * scaleY,
+          width: stampRect.width * scaleX,
+          height: stampRect.height * scaleY,
         });
+        stamp.dataset.pageIndex = String(pageIndex);
       }
+
       const base64 = await pdfDoc.saveAsBase64();
       const stampMeta = collectStampMeta();
-      await gasCall('saveStampedDocument', state.token, { docId: state.currentDoc.docId, base64, stampMeta });
+      await gasCall('saveStampedDocument', state.token, {
+        docId: state.currentDoc.docId,
+        base64,
+        stampMeta,
+      });
       closeWorkspace();
       await loadDashboard();
-      Swal.fire('สำเร็จ', 'ประทับตราและส่งต่อเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวของคุณแล้ว', 'success');
+      Swal.fire('สำเร็จ', 'ประทับตราในหน้าที่เลือกและส่งต่อเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวของคุณแล้ว', 'success');
     } catch (error) { showError(error); }
   }
 
   function collectStampMeta() {
-    const meta = { role: state.user.role, operationMode: state.currentDoc?.operationMode || '', options: [], department: '', text: '', scales: [] };
+    const meta = {
+      role: state.user.role,
+      operationMode: state.currentDoc?.operationMode || '',
+      options: [],
+      department: '',
+      text: '',
+      scales: [],
+      placements: [],
+      pageCount: Number(state.currentPdf?.numPages || 0),
+    };
     document.querySelectorAll('.draggable-stamp input[type="checkbox"]:checked').forEach((input) => meta.options.push(input.dataset.meta || input.value || 'checked'));
     const department = document.querySelector('.draggable-stamp input[type="radio"]:checked');
     if (department) meta.department = department.value;
     meta.text = [...document.querySelectorAll('.draggable-stamp textarea')].map((textarea) => textarea.value).filter(Boolean).join('\n');
-    meta.scales = [...document.querySelectorAll('.draggable-stamp')].map((stamp) => ({ id: stamp.id, scale: Number(stamp.dataset.scale || 1) }));
+    meta.scales = [...document.querySelectorAll('.draggable-stamp')].map((stamp) => ({
+      id: stamp.id,
+      scale: Number(stamp.dataset.scale || 1),
+    }));
+    meta.placements = [...document.querySelectorAll('.draggable-stamp')].map((stamp) => ({
+      id: stamp.id,
+      page: Number(stamp.dataset.pageIndex || 0) + 1,
+      scale: Number(stamp.dataset.scale || 1),
+    }));
     return meta;
   }
 
@@ -1244,11 +1499,18 @@
   }
 
   function closeWorkspace() {
+    document.querySelectorAll('.draggable-stamp').forEach((stamp) => {
+      if (stamp._stampResizeObserver) stamp._stampResizeObserver.disconnect();
+    });
+    try { interact('.draggable-stamp').unset(); } catch (_) {}
     const workspace = document.getElementById('workspace-view');
     if (workspace) workspace.remove();
     state.currentDoc = null;
     state.originalPdfBase64 = '';
     state.currentPdf = null;
+    state.pdfPageViews = [];
+    state.stampsInitialized = false;
+    state.selectedStamp = null;
   }
 
 
