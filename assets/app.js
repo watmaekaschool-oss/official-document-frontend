@@ -23,17 +23,74 @@
   };
 
 
+
+  function mascotArt(type) {
+    const colors = {
+      girl: ['#f9a8d4', '#7c3aed', '#fff7ed'],
+      boy: ['#93c5fd', '#2563eb', '#fff7ed'],
+      teacher: ['#c4b5fd', '#6d28d9', '#fff7ed'],
+      bunny: ['#ffffff', '#f9a8d4', '#ffe4e6'],
+      cat: ['#fde68a', '#f59e0b', '#fff7ed'],
+      bear: ['#d6a46f', '#92400e', '#fef3c7'],
+      chick: ['#fde047', '#f59e0b', '#fff7ed'],
+      panda: ['#f8fafc', '#111827', '#ffffff'],
+      puppy: ['#fdba74', '#9a3412', '#fff7ed'],
+      bird: ['#7dd3fc', '#0369a1', '#fef3c7'],
+    };
+    const c = colors[type] || colors.bunny;
+    const eye = '<circle cx="42" cy="39" r="2.7" fill="#1f2937"/><circle cx="58" cy="39" r="2.7" fill="#1f2937"/><circle cx="43" cy="38" r=".8" fill="#fff"/><circle cx="59" cy="38" r=".8" fill="#fff"/>';
+    const blush = '<ellipse cx="34" cy="47" rx="5" ry="2.5" fill="#fda4af" opacity=".55"/><ellipse cx="66" cy="47" rx="5" ry="2.5" fill="#fda4af" opacity=".55"/>';
+    if (['girl', 'boy', 'teacher'].includes(type)) {
+      const hair = type === 'girl'
+        ? '<path d="M28 34c0-18 10-27 23-27 15 0 24 10 23 28-7-8-14-11-23-11-9 0-16 3-23 10z" fill="#6b3f2a"/><path d="M27 31c-4 9-2 21 4 28" fill="none" stroke="#6b3f2a" stroke-width="8" stroke-linecap="round"/>'
+        : type === 'boy'
+          ? '<path d="M28 31c1-17 11-24 24-24 11 0 20 6 23 18-8-5-13-7-20-7l4-7-11 7-5-8-3 9-12 12z" fill="#4b342b"/>'
+          : '<path d="M28 32c0-17 10-25 23-25 14 0 23 9 23 26-6-7-13-10-23-10-9 0-16 3-23 9z" fill="#3f2d29"/><circle cx="34" cy="35" r="5" fill="none" stroke="#6d28d9" stroke-width="2"/><circle cx="58" cy="35" r="5" fill="none" stroke="#6d28d9" stroke-width="2"/><path d="M39 35h14" stroke="#6d28d9" stroke-width="2"/>';
+      const accessory = type === 'girl' ? '<path d="M23 22l8-6 5 9-10 3z" fill="#f472b6"/>' : type === 'teacher' ? '<rect x="70" y="51" width="13" height="18" rx="2" fill="#fef3c7" stroke="#92400e"/><path d="M74 55h6M74 59h6M74 63h5" stroke="#92400e" stroke-width="1.3"/>' : '';
+      return `<svg class="mascot-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="50" cy="91" rx="25" ry="5" fill="#64748b" opacity=".18"/>
+        <circle cx="50" cy="36" r="24" fill="${c[2]}" stroke="#fff" stroke-width="2"/>${hair}${eye}${blush}
+        <path d="M45 49q5 5 10 0" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round"/>
+        <rect x="31" y="58" width="38" height="28" rx="13" fill="${c[0]}" stroke="#fff" stroke-width="2"/>
+        <path d="M42 61l8 7 8-7" fill="none" stroke="${c[1]}" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="28" cy="70" r="7" fill="${c[2]}"/><circle cx="72" cy="70" r="7" fill="${c[2]}"/>
+        <rect x="37" y="82" width="9" height="12" rx="4" fill="${c[1]}"/><rect x="54" y="82" width="9" height="12" rx="4" fill="${c[1]}"/>${accessory}
+      </svg>`;
+    }
+
+    let ears = '';
+    let extras = '';
+    if (type === 'bunny') ears = '<ellipse cx="35" cy="18" rx="9" ry="19" fill="#fff" stroke="#f9a8d4" stroke-width="2"/><ellipse cx="65" cy="18" rx="9" ry="19" fill="#fff" stroke="#f9a8d4" stroke-width="2"/><ellipse cx="35" cy="18" rx="3" ry="12" fill="#fbcfe8"/><ellipse cx="65" cy="18" rx="3" ry="12" fill="#fbcfe8"/>';
+    if (type === 'cat') ears = '<path d="M27 27L31 7l17 15z" fill="#fbbf24" stroke="#d97706" stroke-width="2"/><path d="M73 27L69 7 52 22z" fill="#fbbf24" stroke="#d97706" stroke-width="2"/>';
+    if (type === 'bear' || type === 'panda') ears = `<circle cx="29" cy="23" r="10" fill="${c[1]}"/><circle cx="71" cy="23" r="10" fill="${c[1]}"/>`;
+    if (type === 'puppy') ears = '<ellipse cx="25" cy="35" rx="11" ry="18" fill="#9a3412" transform="rotate(22 25 35)"/><ellipse cx="75" cy="35" rx="11" ry="18" fill="#9a3412" transform="rotate(-22 75 35)"/>';
+    if (type === 'bird') extras = '<path d="M72 42l14 7-14 7z" fill="#f59e0b"/><path d="M29 61q-17 5-13 18 12-1 22-12" fill="#38bdf8"/>';
+    if (type === 'chick') extras = '<path d="M71 43l13 6-13 6z" fill="#f97316"/><path d="M32 63q-13 3-11 13 10 0 17-8" fill="#facc15"/>';
+    if (type === 'panda') extras += '<ellipse cx="39" cy="39" rx="7" ry="9" fill="#111827" transform="rotate(20 39 39)"/><ellipse cx="61" cy="39" rx="7" ry="9" fill="#111827" transform="rotate(-20 61 39)"/>';
+    if (type === 'cat') extras += '<path d="M31 48h-15M31 53H14M69 48h15M69 53h17" stroke="#92400e" stroke-width="1.7" stroke-linecap="round"/>';
+
+    return `<svg class="mascot-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <ellipse cx="50" cy="91" rx="27" ry="5" fill="#64748b" opacity=".18"/>${ears}
+      <ellipse cx="50" cy="70" rx="25" ry="22" fill="${c[0]}" stroke="#fff" stroke-width="2"/>
+      <circle cx="50" cy="41" r="27" fill="${c[0]}" stroke="#fff" stroke-width="2"/>${extras}${eye}${blush}
+      <ellipse cx="50" cy="49" rx="9" ry="7" fill="${c[2]}"/>
+      <circle cx="50" cy="47" r="2.7" fill="${c[1]}"/>
+      <path d="M45 52q5 5 10 0" fill="none" stroke="${c[1]}" stroke-width="2" stroke-linecap="round"/>
+      <ellipse cx="31" cy="72" rx="8" ry="11" fill="${c[0]}"/><ellipse cx="69" cy="72" rx="8" ry="11" fill="${c[0]}"/>
+    </svg>`;
+  }
+
   const ADMIN_MASCOT_CATALOG = [
-    { id: 'chibi-girl', name: 'เด็กหญิงจิบิ', icon: '👧🏻', message: 'สู้ ๆ นะคะ ✨' },
-    { id: 'chibi-boy', name: 'เด็กชายจิบิ', icon: '👦🏻', message: 'วันนี้ทำได้แน่นอน!' },
-    { id: 'chibi-teacher', name: 'คุณครูจิบิ', icon: '👩🏻‍🏫', message: 'ตรวจเอกสารเรียบร้อยนะคะ' },
-    { id: 'bunny', name: 'กระต่ายน้อย', icon: '🐰', message: 'ฮึบ ๆ ไปกันต่อ!' },
-    { id: 'cat', name: 'แมวน้อย', icon: '🐱', message: 'เหมียว~ งานใกล้เสร็จแล้ว' },
-    { id: 'bear', name: 'หมีน้อย', icon: '🐻', message: 'พักสายตาสักนิดนะ' },
-    { id: 'chick', name: 'ลูกเจี๊ยบ', icon: '🐥', message: 'ปิ๊บ ๆ มีงานใหม่ไหมนะ' },
-    { id: 'panda', name: 'แพนด้าน้อย', icon: '🐼', message: 'ใจเย็น ๆ แล้วค่อยทำ' },
-    { id: 'puppy', name: 'สุนัขน้อย', icon: '🐶', message: 'พร้อมช่วยตรวจงานแล้ว!' },
-    { id: 'bird', name: 'นกน้อย', icon: '🐦', message: 'มีข่าวสารมาส่งค่ะ' },
+    { id: 'chibi-girl', name: 'เด็กหญิงจิบิ', icon: mascotArt('girl'), message: 'สู้ ๆ นะคะ ✨' },
+    { id: 'chibi-boy', name: 'เด็กชายจิบิ', icon: mascotArt('boy'), message: 'วันนี้ทำได้แน่นอน!' },
+    { id: 'chibi-teacher', name: 'คุณครูจิบิ', icon: mascotArt('teacher'), message: 'ตรวจเอกสารเรียบร้อยนะคะ' },
+    { id: 'bunny', name: 'กระต่ายน้อย', icon: mascotArt('bunny'), message: 'ฮึบ ๆ ไปกันต่อ!' },
+    { id: 'cat', name: 'แมวน้อย', icon: mascotArt('cat'), message: 'เหมียว~ งานใกล้เสร็จแล้ว' },
+    { id: 'bear', name: 'หมีน้อย', icon: mascotArt('bear'), message: 'พักสายตาสักนิดนะ' },
+    { id: 'chick', name: 'ลูกเจี๊ยบ', icon: mascotArt('chick'), message: 'ปิ๊บ ๆ มีงานใหม่ไหมนะ' },
+    { id: 'panda', name: 'แพนด้าน้อย', icon: mascotArt('panda'), message: 'ใจเย็น ๆ แล้วค่อยทำ' },
+    { id: 'puppy', name: 'สุนัขน้อย', icon: mascotArt('puppy'), message: 'พร้อมช่วยตรวจงานแล้ว!' },
+    { id: 'bird', name: 'นกน้อย', icon: mascotArt('bird'), message: 'มีข่าวสารมาส่งค่ะ' },
   ];
 
   const DEFAULT_ADMIN_MASCOT_SETTINGS = {
@@ -115,11 +172,20 @@
   applyDisplaySettings(loadDisplaySettings());
 
   function normalizedUserRole() {
-    return String(state.user?.role || '').trim();
+    return String(state.user?.role || '').normalize('NFKC').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
   }
 
   function isClericalUser() {
-    return normalizedUserRole() === 'ธุรการ';
+    const role = normalizedUserRole();
+    return role === 'ธุรการ' || role.includes('ธุรการ');
+  }
+
+  function guideRoleKey() {
+    const role = normalizedUserRole();
+    if (role.includes('รองผู้อำนวยการ')) return 'รองผู้อำนวยการ';
+    if (role.includes('ผู้อำนวยการ')) return 'ผู้อำนวยการ';
+    if (role.includes('ธุรการ')) return 'ธุรการ';
+    return 'ครู';
   }
 
   function normalizeHexColor(value, fallback) {
@@ -244,8 +310,11 @@
       .filter(Boolean)
       .slice(0, 10);
     if (!selectedItems.length) return '';
+    const containerClass = settings.position === 'page'
+      ? 'admin-mascot-layer mascot-position-page'
+      : 'admin-mascot-runway mascot-position-top';
     return `
-      <div id="admin-mascot-layer" class="admin-mascot-layer mascot-position-${settings.position}" aria-label="มาสคอตสำหรับธุรการ">
+      <div id="admin-mascot-layer" class="${containerClass}" data-mascot-version="1.4.4" aria-label="มาสคอตสำหรับธุรการ">
         ${selectedItems.map((item, index) => mascotCharacterMarkup(item, index, settings.speed)).join('')}
       </div>`;
   }
@@ -285,7 +354,7 @@
   }
 
   function openRoleGuide() {
-    const guide = ROLE_GUIDES[state.user?.role] || ROLE_GUIDES['ครู'];
+    const guide = ROLE_GUIDES[guideRoleKey()] || ROLE_GUIDES['ครู'];
     const steps = guide.steps.map(([title, description], index) => `
       <div class="role-guide-step">
         <span>${index + 1}</span>
@@ -468,7 +537,7 @@
           </div>
         </header>
         ${mascotLayerMarkup()}
-        <main class="max-w-7xl mx-auto px-4 py-6 ${isClericalUser() && (state.mascotSettings || loadMascotSettings()).enabled && (state.mascotSettings || loadMascotSettings()).position === 'top' ? 'admin-mascot-top-space' : ''}">
+        <main class="max-w-7xl mx-auto px-4 py-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${!isTeacher ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
@@ -493,6 +562,9 @@
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
         </main>
       </div>`;
+
+    document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
+    document.documentElement.dataset.frontendVersion = '1.4.4';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
