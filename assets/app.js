@@ -415,11 +415,16 @@
 
   function refreshWorkflowMascot() {
     if (isClericalUser()) return;
+    const slot = document.getElementById('workflow-mascot-slot');
     const current = document.getElementById('workflow-mascot-host');
     const wrapper = document.createElement('div');
     wrapper.innerHTML = workflowMascotMarkup().trim();
     const next = wrapper.firstElementChild;
-    if (current && next) current.replaceWith(next);
+    if (current && next) {
+      current.replaceWith(next);
+    } else if (slot) {
+      slot.replaceChildren(...(next ? [next] : []));
+    }
   }
 
   function triggerWorkflowMascotProgress() {
@@ -615,7 +620,7 @@
             </div>
           </div>
         </header>
-        ${mascotLayerMarkup()}${workflowMascotMarkup()}
+        ${mascotLayerMarkup()}
         <main class="max-w-7xl mx-auto px-4 py-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
@@ -633,17 +638,20 @@
               </select>
             </div>
           </div>
-          <div class="flex gap-2 mb-4 overflow-auto pb-1">
-            ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
-            <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
-            ${!isTeacher ? `<button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>` : ''}
+          <div class="dashboard-tabs-mascot-row">
+            <div class="dashboard-tabs flex gap-2 overflow-auto pb-1">
+              ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
+              <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
+              ${!isTeacher ? `<button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>` : ''}
+            </div>
+            <div id="workflow-mascot-slot" class="workflow-mascot-slot">${workflowMascotMarkup()}</div>
           </div>
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
         </main>
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.1.0';
+    document.documentElement.dataset.frontendVersion = '2.1.1';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
