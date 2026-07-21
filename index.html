@@ -1,14 +1,1738 @@
-<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ไฟล์ส่วนหน้าระบบสารบรรณ โรงเรียนวัดแม่กะ</title>
-  <style>body{font-family:system-ui,sans-serif;max-width:760px;margin:4rem auto;padding:1rem;color:#334155;line-height:1.75}code{background:#f1f5f9;padding:.2rem .4rem;border-radius:.35rem}</style>
-</head>
-<body>
-  <h1>ไฟล์ส่วนหน้าระบบสารบรรณ รุ่น 2.0.0</h1>
-  <p>หน้านี้ใช้เผยแพร่ <code>assets/app.js</code> และ <code>assets/app.css</code> ให้ Google Apps Script โหลดผ่าน HTTPS</p>
-  <p><strong>กรุณาเปิดใช้งานระบบจากลิงก์ Google Apps Script Web App ที่ลงท้ายด้วย <code>/exec</code></strong> ไม่ใช่จาก GitHub Pages โดยตรง</p>
-</body>
-</html>
+/**
+ * ระบบสารบรรณอิเล็กทรอนิกส์ - Google Apps Script Edition
+ * ไฟล์รวมสำหรับผู้เริ่มต้น: วางทั้งหมดใน Code.gs
+ */
+
+
+// ==================== Config.gs ====================
+
+const APP = Object.freeze({
+  NAME: 'ระบบสารบรรณอิเล็กทรอนิกส์ โรงเรียนวัดแม่กะ',
+  VERSION: '2.1.5',
+  SHEETS: {
+    USERS: 'Users',
+    DOCUMENTS: 'Documents',
+    RECIPIENTS: 'Recipients',
+    ATTACHMENTS: 'Attachments',
+    AUDIT: 'AuditLog',
+  },
+  ROLES: {
+    CLERK: 'ธุรการ',
+    DEPUTY: 'รองผู้อำนวยการ',
+    DIRECTOR: 'ผู้อำนวยการ',
+    TEACHER: 'ครู',
+    FINISHED: 'สิ้นสุด',
+  },
+  OPERATION_MODES: {
+    NORMAL: '',
+    ACTING: 'รักษาการ',
+    DIRECTOR_HANDLES: 'ผู้อำนวยการดำเนินงาน',
+  },
+  PROP: {
+    APP_SECRET: 'APP_SECRET',
+    SPREADSHEET_ID: 'SPREADSHEET_ID',
+    ROOT_FOLDER_ID: 'ROOT_FOLDER_ID',
+    ORIGINAL_FOLDER_ID: 'ORIGINAL_FOLDER_ID',
+    STAMPED_FOLDER_ID: 'STAMPED_FOLDER_ID',
+    ATTACH_FOLDER_ID: 'ATTACH_FOLDER_ID',
+    SIGNATURE_FOLDER_ID: 'SIGNATURE_FOLDER_ID',
+    BACKUP_FOLDER_ID: 'BACKUP_FOLDER_ID',
+    FRONTEND_BASE_URL: 'FRONTEND_BASE_URL',
+    FRONTEND_VERSION: 'FRONTEND_VERSION',
+    LAST_RECEIVE_NUMBER: 'LAST_RECEIVE_NUMBER',
+    LAST_RECEIVE_YEAR: 'LAST_RECEIVE_YEAR',
+    DEFAULT_SENDER: 'DEFAULT_SENDER',
+    DEFAULT_OPERATION_MODE: 'DEFAULT_OPERATION_MODE',
+  },
+  SESSION_TTL_SECONDS: 21600,
+  MAX_UPLOAD_BYTES: 15 * 1024 * 1024,
+  MAX_SIMULTANEOUS_USERS: 15,
+  WRITE_LOCK_TIMEOUT_MS: 60000,
+});
+
+function getScriptProps_() {
+  return PropertiesService.getScriptProperties();
+}
+
+function getRequiredProperty_(key) {
+  const value = getScriptProps_().getProperty(key);
+  if (!value) throw new Error('ยังไม่ได้ตั้งค่า ' + key + ' กรุณารันเมนูติดตั้งระบบก่อน');
+  return value;
+}
+
+function getSpreadsheet_() {
+  const props = getScriptProps_();
+  const storedId = props.getProperty(APP.PROP.SPREADSHEET_ID);
+  if (storedId) return SpreadsheetApp.openById(storedId);
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (!active) throw new Error('โปรเจกต์นี้ต้องสร้างจาก Google Sheet ผ่าน Extensions > Apps Script แล้วรัน setupSystem() หนึ่งครั้ง');
+  props.setProperty(APP.PROP.SPREADSHEET_ID, active.getId());
+  return active;
+}
+
+function getSheet_(name) {
+  const sheet = getSpreadsheet_().getSheetByName(name);
+  if (!sheet) throw new Error('ไม่พบชีต ' + name + ' กรุณารัน setupSystem()');
+  return sheet;
+}
+
+function normalizeText_(value) {
+  return String(value == null ? '' : value).trim();
+}
+
+function normalizeRole_(value) {
+  const original = normalizeText_(value);
+  const compact = original
+    .normalize('NFC')
+    .replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+
+  if (compact.includes('รองผู้อำนวยการ')) return APP.ROLES.DEPUTY;
+  if (compact.includes('ผู้อำนวยการ')) return APP.ROLES.DIRECTOR;
+  if (compact.includes('ธุรการ')) return APP.ROLES.CLERK;
+  if (compact.includes('ครู')) return APP.ROLES.TEACHER;
+  if (compact.includes('สิ้นสุด')) return APP.ROLES.FINISHED;
+  return original;
+}
+
+function normalizeEmail_(value) {
+  return normalizeText_(value).toLowerCase();
+}
+
+function isTruthy_(value) {
+  if (value === true) return true;
+  const text = normalizeText_(value).toLowerCase();
+  return ['true', '1', 'yes', 'y', 'ใช่', 'เปิด'].includes(text);
+}
+
+function nowIso_() {
+  return new Date().toISOString();
+}
+
+function serializeDateValue_(value) {
+  if (value instanceof Date) return value.toISOString();
+  return normalizeText_(value);
+}
+
+function thaiYear_() {
+  return new Date().getFullYear() + 543;
+}
+
+function safeJson_(value) {
+  try {
+    return JSON.stringify(value == null ? {} : value);
+  } catch (error) {
+    return JSON.stringify({ message: String(value) });
+  }
+}
+
+
+/**
+ * ล็อกส่วนที่เขียนข้อมูลร่วมกัน เพื่อรองรับผู้ใช้หลายคนในเวลาเดียวกัน
+ * เป็น re-entrant lock ภายใน execution เดียว จึงเรียกซ้อนจาก AuditLog ได้โดยไม่ deadlock
+ */
+var WRITE_LOCK_DEPTH_ = 0;
+
+function withWriteLock_(work, timeoutMs) {
+  if (WRITE_LOCK_DEPTH_ > 0) {
+    WRITE_LOCK_DEPTH_ += 1;
+    try {
+      return work();
+    } finally {
+      WRITE_LOCK_DEPTH_ -= 1;
+    }
+  }
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(Number(timeoutMs) || APP.WRITE_LOCK_TIMEOUT_MS);
+  } catch (error) {
+    throw new Error(
+      'ขณะนี้มีผู้ใช้งานหลายคนกำลังบันทึกข้อมูลพร้อมกัน กรุณารอประมาณ 5 วินาทีแล้วลองอีกครั้ง'
+    );
+  }
+
+  WRITE_LOCK_DEPTH_ = 1;
+  try {
+    const result = work();
+    SpreadsheetApp.flush();
+    return result;
+  } finally {
+    WRITE_LOCK_DEPTH_ = 0;
+    lock.releaseLock();
+  }
+}
+
+function parseSourceNames_(value) {
+  if (Array.isArray(value)) return value.map(normalizeText_).filter(Boolean).slice(0, 30);
+  const text = normalizeText_(value);
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed.map(normalizeText_).filter(Boolean).slice(0, 30) : [];
+  } catch (error) {
+    return text.split(',').map(normalizeText_).filter(Boolean).slice(0, 30);
+  }
+}
+
+function normalizeOperationMode_(value) {
+  const text = normalizeText_(value);
+  if (['acting', 'deputyActing', APP.OPERATION_MODES.ACTING].includes(text)) {
+    return APP.OPERATION_MODES.ACTING;
+  }
+  if (['director', 'deputyAbsent', APP.OPERATION_MODES.DIRECTOR_HANDLES].includes(text)) {
+    return APP.OPERATION_MODES.DIRECTOR_HANDLES;
+  }
+  return APP.OPERATION_MODES.NORMAL;
+}
+
+function formatOperationModeCell_(range, operationMode) {
+  const mode = normalizeOperationMode_(operationMode);
+  range
+    .setValue(mode)
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setFontWeight(mode ? 'bold' : 'normal');
+
+  if (mode === APP.OPERATION_MODES.ACTING) {
+    range
+      .setBackground('#fff2cc')
+      .setFontColor('#7f6000')
+      .setBorder(true, true, true, true, false, false, '#f1c232', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    return;
+  }
+  if (mode === APP.OPERATION_MODES.DIRECTOR_HANDLES) {
+    range
+      .setBackground('#d9eaf7')
+      .setFontColor('#0b5394')
+      .setBorder(true, true, true, true, false, false, '#3d85c6', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    return;
+  }
+
+  range
+    .setBackground('#ffffff')
+    .setFontColor('#000000')
+    .setBorder(false, false, false, false, false, false);
+}
+
+
+// ==================== Setup.gs ====================
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('ระบบสารบรรณ')
+    .addItem('1) ติดตั้ง/ซ่อมโครงสร้างระบบ', 'setupSystem')
+    .addItem('2) ตั้ง URL ของ GitHub Pages', 'setFrontendUrlFromMenu')
+    .addItem('3) ตั้งเลขรับล่าสุด/ซ่อมเลขรับ', 'setLatestReceiveNumberFromMenu')
+    .addItem('4) ซ่อมบทบาทและคิวเอกสาร', 'repairRolesAndDocumentQueues')
+    .addSeparator()
+    .addItem('เพิ่มผู้ใช้ตัวอย่าง', 'addSampleUsers')
+    .addItem('ตั้ง/เปลี่ยนรหัสผ่านผู้ใช้', 'setUserPasswordFromMenu')
+    .addItem('ตรวจความพร้อมระบบ', 'showSystemStatus')
+    .addToUi();
+}
+
+
+function repairRolesAndDocumentQueues() {
+  const ui = SpreadsheetApp.getUi();
+  const answer = ui.alert(
+    'ซ่อมบทบาทและคิวเอกสาร',
+    'ระบบจะปรับชื่อบทบาทในชีต Users และคอลัมน์ currentRole ในชีต Documents ให้เป็นรูปแบบมาตรฐาน โดยไม่ลบเอกสารหรือไฟล์ใน Google Drive\n\nต้องการดำเนินการต่อหรือไม่',
+    ui.ButtonSet.YES_NO
+  );
+  if (answer !== ui.Button.YES) return;
+
+  let userFixes = 0;
+  let documentFixes = 0;
+
+  const usersSheet = getSheet_(APP.SHEETS.USERS);
+  const usersLastRow = usersSheet.getLastRow();
+  if (usersLastRow >= 2) {
+    const range = usersSheet.getRange(2, 4, usersLastRow - 1, 1);
+    const values = range.getValues();
+    values.forEach((row) => {
+      const before = normalizeText_(row[0]);
+      const after = normalizeRole_(before);
+      if (before !== after) {
+        row[0] = after;
+        userFixes += 1;
+      }
+    });
+    range.setValues(values);
+  }
+
+  const docsSheet = getSheet_(APP.SHEETS.DOCUMENTS);
+  const docsLastRow = docsSheet.getLastRow();
+  if (docsLastRow >= 2) {
+    const statusValues = docsSheet.getRange(2, 5, docsLastRow - 1, 2).getValues();
+    statusValues.forEach((row) => {
+      const status = normalizeText_(row[0]);
+      const before = normalizeText_(row[1]);
+      let after = normalizeRole_(before);
+
+      if (status === 'รอธุรการประทับตรา' || status === 'รอธุรการจ่ายเรื่องให้ผู้รับ') {
+        after = APP.ROLES.CLERK;
+      } else if (status === 'รอรองผู้อำนวยการพิจารณา' || status === 'รอรองผู้อำนวยการรักษาการพิจารณา') {
+        after = APP.ROLES.DEPUTY;
+      } else if (status === 'รอผู้อำนวยการสั่งการ') {
+        after = APP.ROLES.DIRECTOR;
+      } else if (status === 'ยุติเรื่อง') {
+        after = APP.ROLES.FINISHED;
+      }
+
+      if (before !== after) {
+        row[1] = after;
+        documentFixes += 1;
+      }
+    });
+    docsSheet.getRange(2, 5, docsLastRow - 1, 2).setValues(statusValues);
+  }
+
+  appendAudit_(
+    { userId: 'SYSTEM', username: 'SYSTEM', role: 'SYSTEM' },
+    'REPAIR_ROLES_AND_QUEUES',
+    '',
+    { userFixes: userFixes, documentFixes: documentFixes }
+  );
+
+  ui.alert(
+    'ซ่อมข้อมูลเรียบร้อยแล้ว',
+    'ปรับบทบาทผู้ใช้ ' + userFixes + ' รายการ\nปรับคิวเอกสาร ' + documentFixes + ' รายการ\n\nกรุณาให้ผู้ใช้ออกจากระบบและเข้าสู่ระบบใหม่',
+    ui.ButtonSet.OK
+  );
+}
+
+function setupSystem() {
+  const ui = SpreadsheetApp.getUi();
+  const activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!activeSpreadsheet) throw new Error('กรุณาเปิด Apps Script จาก Google Sheet แล้วรัน setupSystem()');
+  getScriptProps_().setProperty(APP.PROP.SPREADSHEET_ID, activeSpreadsheet.getId());
+  const spreadsheet = getSpreadsheet_();
+  createOrRepairSheet_(APP.SHEETS.USERS, [
+    'userId', 'username', 'name', 'role', 'email', 'active',
+    'passwordHash', 'signatureFileId', 'department', 'updatedAt'
+  ]);
+  createOrRepairSheet_(APP.SHEETS.DOCUMENTS, [
+    'docId', 'recvNo', 'subject', 'fromSender', 'status', 'currentRole',
+    'originalFileId', 'currentFileId', 'createdAt', 'updatedAt',
+    'createdBy', 'lastActionBy', 'การดำเนินงาน'
+  ]);
+  createOrRepairSheet_(APP.SHEETS.RECIPIENTS, [
+    'recipientId', 'docId', 'userId', 'email', 'name',
+    'assignedAt', 'openedAt', 'acknowledgedAt'
+  ]);
+  createOrRepairSheet_(APP.SHEETS.ATTACHMENTS, [
+    'attachmentId', 'docId', 'userId', 'uploadedBy', 'fileId',
+    'filename', 'mimeType', 'createdAt'
+  ]);
+  createOrRepairSheet_(APP.SHEETS.AUDIT, [
+    'timestamp', 'userId', 'username', 'role', 'action', 'docId', 'details'
+  ]);
+
+  const props = getScriptProps_();
+  if (!props.getProperty(APP.PROP.APP_SECRET)) {
+    props.setProperty(APP.PROP.APP_SECRET, Utilities.getUuid() + Utilities.getUuid());
+  }
+  if (!props.getProperty(APP.PROP.FRONTEND_VERSION)) {
+    props.setProperty(APP.PROP.FRONTEND_VERSION, APP.VERSION);
+  }
+  if (!props.getProperty(APP.PROP.DEFAULT_SENDER)) {
+    props.setProperty(APP.PROP.DEFAULT_SENDER, 'สพป.ชม.2');
+  }
+  if (!props.getProperty(APP.PROP.DEFAULT_OPERATION_MODE)) {
+    props.setProperty(APP.PROP.DEFAULT_OPERATION_MODE, 'normal');
+  }
+
+  ensureDriveFolders_();
+  styleSystemSheets_();
+  spreadsheet.toast('ติดตั้งโครงสร้างระบบเรียบร้อยแล้ว', APP.NAME, 8);
+  ui.alert(
+    'ติดตั้งสำเร็จ',
+    'ระบบสร้างชีตและโฟลเดอร์ Google Drive ครบแล้ว\n\nขั้นต่อไป:\n1. เพิ่มผู้ใช้ในชีต Users\n2. ใช้เมนูตั้งรหัสผ่าน\n3. ตั้ง URL GitHub Pages\n4. Deploy เป็น Web app',
+    ui.ButtonSet.OK
+  );
+}
+
+function setLatestReceiveNumberFromMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const year = thaiYear_();
+  const response = ui.prompt(
+    'ตั้งเลขรับล่าสุดและซ่อมข้อมูล',
+    'กรอกเลขรับล่าสุดก่อนเริ่มใช้งานระบบ\nตัวอย่าง: กรอก 782 แล้วระบบจะออกเลขถัดไปเป็น 783/' + year + '\n\nหากมีแถวที่เลขรับกลายเป็นวันที่ ระบบจะซ่อมเรียงต่อให้อัตโนมัติ',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const baseNumber = Number(normalizeText_(response.getResponseText()));
+  if (!Number.isInteger(baseNumber) || baseNumber < 0) {
+    ui.alert('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกเฉพาะเลขจำนวนเต็ม เช่น 782', ui.ButtonSet.OK);
+    return;
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    const lastRow = sheet.getLastRow();
+    let latest = baseNumber;
+    let repairedCount = 0;
+
+    if (lastRow >= 2) {
+      const range = sheet.getRange(2, 2, lastRow - 1, 1);
+      const displayValues = range.getDisplayValues();
+      const repairedValues = displayValues.map(([displayValue]) => {
+        const text = normalizeText_(displayValue).replace(/^'/, '');
+        const match = text.match(/^(\d+)\/(\d{4})$/);
+
+        if (match && Number(match[2]) === year) {
+          latest = Math.max(latest, Number(match[1]));
+          return [text];
+        }
+
+        latest += 1;
+        repairedCount += 1;
+        return [String(latest) + '/' + year];
+      });
+
+      range.setNumberFormat('@');
+      range.setValues(repairedValues);
+    }
+
+    const props = getScriptProps_();
+    props.setProperty(APP.PROP.LAST_RECEIVE_NUMBER, String(latest));
+    props.setProperty(APP.PROP.LAST_RECEIVE_YEAR, String(year));
+    SpreadsheetApp.flush();
+
+    ui.alert(
+      'ตั้งค่าเรียบร้อย',
+      'เลขรับล่าสุดของระบบ: ' + latest + '/' + year +
+      '\nเลขถัดไปที่จะออก: ' + (latest + 1) + '/' + year +
+      '\nจำนวนแถวที่ซ่อมจากรูปแบบวันที่/ข้อมูลผิด: ' + repairedCount,
+      ui.ButtonSet.OK
+    );
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function normalizeReceiveNumber_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return '';
+  }
+  return normalizeText_(value).replace(/^'/, '');
+}
+
+function rememberReceiveNumber_(recvNo) {
+  const match = normalizeText_(recvNo).replace(/^'/, '').match(/^(\d+)\/(\d{4})$/);
+  if (!match) return;
+  const props = getScriptProps_();
+  props.setProperty(APP.PROP.LAST_RECEIVE_NUMBER, String(Number(match[1])));
+  props.setProperty(APP.PROP.LAST_RECEIVE_YEAR, String(Number(match[2])));
+}
+
+function createOrRepairSheet_(name, headers) {
+  const ss = getSpreadsheet_();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  const range = sheet.getRange(1, 1, 1, headers.length);
+  const existing = range.getValues()[0];
+  const mismatched = headers.some((header, index) => normalizeText_(existing[index]) !== header);
+  if (mismatched) range.setValues([headers]);
+  sheet.setFrozenRows(1);
+  range.setFontWeight('bold').setBackground('#1d4ed8').setFontColor('#ffffff');
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
+}
+
+function styleSystemSheets_() {
+  Object.values(APP.SHEETS).forEach((name) => {
+    const sheet = getSheet_(name);
+    sheet.autoResizeColumns(1, Math.max(1, sheet.getLastColumn()));
+    sheet.getDataRange().setVerticalAlignment('middle');
+  });
+
+  const documentSheet = getSheet_(APP.SHEETS.DOCUMENTS);
+  documentSheet.setColumnWidth(13, 190);
+  if (documentSheet.getLastRow() >= 2) {
+    const values = documentSheet.getRange(2, 13, documentSheet.getLastRow() - 1, 1).getDisplayValues();
+    values.forEach(([value], index) => {
+      formatOperationModeCell_(documentSheet.getRange(index + 2, 13), value);
+    });
+  }
+}
+
+function ensureDriveFolders_() {
+  const props = getScriptProps_();
+  let root;
+  const existingRootId = props.getProperty(APP.PROP.ROOT_FOLDER_ID);
+  if (existingRootId) {
+    try { root = DriveApp.getFolderById(existingRootId); } catch (error) { root = null; }
+  }
+  if (!root) {
+    root = DriveApp.createFolder('ระบบสารบรรณออนไลน์-โรงเรียนวัดแม่กะ');
+    props.setProperty(APP.PROP.ROOT_FOLDER_ID, root.getId());
+  }
+
+  const folders = [
+    [APP.PROP.ORIGINAL_FOLDER_ID, '01-เอกสารต้นฉบับ'],
+    [APP.PROP.STAMPED_FOLDER_ID, '02-เอกสารประทับตรา'],
+    [APP.PROP.ATTACH_FOLDER_ID, '03-ไฟล์แนบตอบกลับ'],
+    [APP.PROP.SIGNATURE_FOLDER_ID, '04-ลายเซ็น'],
+    [APP.PROP.BACKUP_FOLDER_ID, '05-สำรองข้อมูล'],
+  ];
+
+  folders.forEach(([propertyKey, folderName]) => {
+    let folder = null;
+    const folderId = props.getProperty(propertyKey);
+    if (folderId) {
+      try { folder = DriveApp.getFolderById(folderId); } catch (error) { folder = null; }
+    }
+    if (!folder) {
+      folder = root.createFolder(folderName);
+      props.setProperty(propertyKey, folder.getId());
+    }
+  });
+  return root;
+}
+
+function setFrontendUrlFromMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const urlPrompt = ui.prompt(
+    'ตั้งค่า GitHub Pages',
+    'วาง URL โฟลเดอร์หลัก เช่น https://ชื่อผู้ใช้.github.io/ชื่อ-repository',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (urlPrompt.getSelectedButton() !== ui.Button.OK) return;
+  const baseUrl = normalizeText_(urlPrompt.getResponseText()).replace(/\/+$/, '');
+  if (!/^https:\/\//i.test(baseUrl)) {
+    ui.alert('URL ต้องขึ้นต้นด้วย https://');
+    return;
+  }
+  const versionPrompt = ui.prompt(
+    'เลขเวอร์ชันหน้าเว็บ',
+    'ใส่เลขเวอร์ชัน เช่น 1.0.0 เมื่อแก้หน้าเว็บให้เปลี่ยนเลขนี้เพื่อเคลียร์แคช',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (versionPrompt.getSelectedButton() !== ui.Button.OK) return;
+  const props = getScriptProps_();
+  props.setProperty(APP.PROP.FRONTEND_BASE_URL, baseUrl);
+  props.setProperty(APP.PROP.FRONTEND_VERSION, normalizeText_(versionPrompt.getResponseText()) || APP.VERSION);
+  ui.alert('บันทึก GitHub Pages URL เรียบร้อยแล้ว');
+}
+
+function showSystemStatus() {
+  const props = getScriptProps_().getProperties();
+  const lines = [
+    'Spreadsheet: ' + getSpreadsheet_().getName(),
+    'Frontend URL: ' + (props[APP.PROP.FRONTEND_BASE_URL] || 'ยังไม่ตั้งค่า'),
+    'Root folder: ' + (props[APP.PROP.ROOT_FOLDER_ID] ? 'พร้อม' : 'ไม่พบ'),
+    'Original folder: ' + (props[APP.PROP.ORIGINAL_FOLDER_ID] ? 'พร้อม' : 'ไม่พบ'),
+    'Stamped folder: ' + (props[APP.PROP.STAMPED_FOLDER_ID] ? 'พร้อม' : 'ไม่พบ'),
+    'Signature folder: ' + (props[APP.PROP.SIGNATURE_FOLDER_ID] ? 'พร้อม' : 'ไม่พบ'),
+    'Users: ' + Math.max(0, getSheet_(APP.SHEETS.USERS).getLastRow() - 1),
+    'Documents: ' + Math.max(0, getSheet_(APP.SHEETS.DOCUMENTS).getLastRow() - 1),
+  ];
+  SpreadsheetApp.getUi().alert('สถานะระบบ', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+
+// ==================== DriveFiles.gs ====================
+
+function getFolderByProperty_(propertyKey) {
+  return DriveApp.getFolderById(getRequiredProperty_(propertyKey));
+}
+
+function validateUploadBlob_(blob, allowedMimeTypes) {
+  if (!blob || typeof blob.getBytes !== 'function') throw new Error('ไม่พบไฟล์ที่อัปโหลด');
+  const bytes = blob.getBytes();
+  if (!bytes || bytes.length === 0) throw new Error('ไฟล์ว่างเปล่า');
+  if (bytes.length > APP.MAX_UPLOAD_BYTES) {
+    throw new Error('ไฟล์มีขนาดเกิน 15 MB กรุณาบีบอัดไฟล์ก่อนอัปโหลด');
+  }
+  const mimeType = normalizeText_(blob.getContentType()).toLowerCase();
+  if (allowedMimeTypes && allowedMimeTypes.length && !allowedMimeTypes.includes(mimeType)) {
+    throw new Error('ชนิดไฟล์ไม่ถูกต้อง: ' + mimeType);
+  }
+  return bytes.length;
+}
+
+function createRestrictedFile_(folderProperty, blob, fileName) {
+  const folder = getFolderByProperty_(folderProperty);
+  const safeName = sanitizeDriveFileName_(fileName || blob.getName() || 'document');
+  blob.setName(safeName);
+  const file = folder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+  } catch (error) {
+    // บัญชีบางประเภทไม่อนุญาตเปลี่ยน sharing แต่ไฟล์ที่สร้างใหม่จะไม่เปิดแบบ Anyone by default
+  }
+  return file;
+}
+
+function sanitizeDriveFileName_(name) {
+  const cleaned = normalizeText_(name)
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+    .replace(/\s+/g, ' ')
+    .slice(0, 180);
+  return cleaned || 'document';
+}
+
+function fileToBase64_(fileId) {
+  const file = DriveApp.getFileById(fileId);
+  const blob = file.getBlob();
+  return {
+    fileId: file.getId(),
+    name: file.getName(),
+    mimeType: blob.getContentType(),
+    size: blob.getBytes().length,
+    base64: Utilities.base64Encode(blob.getBytes()),
+  };
+}
+
+function getSignatureDataUrl_(fileId) {
+  if (!fileId) return '';
+  try {
+    const file = DriveApp.getFileById(fileId);
+    const blob = file.getBlob();
+    return 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes());
+  } catch (error) {
+    return '';
+  }
+}
+
+
+// ==================== Users.gs ====================
+
+function addSampleUsers() {
+  const sheet = getSheet_(APP.SHEETS.USERS);
+  const existing = readUsers_();
+  if (existing.length > 0) {
+    SpreadsheetApp.getUi().alert('ชีต Users มีข้อมูลแล้ว ระบบจะไม่เพิ่มตัวอย่างซ้ำ');
+    return;
+  }
+  const now = new Date();
+  const rows = [
+    ['USR-ADMIN', 'admin', 'เจ้าหน้าที่ธุรการ', APP.ROLES.CLERK, '', true, '', '', 'งานธุรการ', now],
+    ['USR-DEPUTY', 'deputy', 'รองผู้อำนวยการ', APP.ROLES.DEPUTY, '', true, '', '', 'ฝ่ายบริหาร', now],
+    ['USR-DIRECTOR', 'director', 'ผู้อำนวยการ', APP.ROLES.DIRECTOR, '', true, '', '', 'ฝ่ายบริหาร', now],
+    ['USR-TEACHER', 'teacher01', 'ครูตัวอย่าง', APP.ROLES.TEACHER, '', true, '', '', 'วิชาการ', now],
+  ];
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  sheet.autoResizeColumns(1, rows[0].length);
+  SpreadsheetApp.getUi().alert('เพิ่มผู้ใช้ตัวอย่างแล้ว กรุณาใช้เมนู “ตั้ง/เปลี่ยนรหัสผ่านผู้ใช้”');
+}
+
+function setUserPasswordFromMenu() {
+  const ui = SpreadsheetApp.getUi();
+  const userPrompt = ui.prompt('ตั้งรหัสผ่าน', 'กรอก username ที่อยู่ในชีต Users', ui.ButtonSet.OK_CANCEL);
+  if (userPrompt.getSelectedButton() !== ui.Button.OK) return;
+  const username = normalizeText_(userPrompt.getResponseText()).toLowerCase();
+  const user = findUserByUsername_(username);
+  if (!user) {
+    ui.alert('ไม่พบ username: ' + username);
+    return;
+  }
+  const passwordPrompt = ui.prompt(
+    'ตั้งรหัสผ่านให้ ' + user.name,
+    'กรอกรหัสผ่านอย่างน้อย 8 ตัวอักษร (ระบบจะเก็บเฉพาะค่า Hash)',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (passwordPrompt.getSelectedButton() !== ui.Button.OK) return;
+  const password = String(passwordPrompt.getResponseText() || '');
+  if (password.length < 8) {
+    ui.alert('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+    return;
+  }
+  updateUserPasswordHash_(user.rowNumber, hashPassword_(username, password));
+  ui.alert('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว');
+}
+
+function readUsers_() {
+  const sheet = getSheet_(APP.SHEETS.USERS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 10).getValues().map((row, index) => ({
+    rowNumber: index + 2,
+    userId: normalizeText_(row[0]),
+    username: normalizeText_(row[1]).toLowerCase(),
+    name: normalizeText_(row[2]),
+    role: normalizeRole_(row[3]),
+    email: normalizeEmail_(row[4]),
+    active: isTruthy_(row[5]),
+    passwordHash: normalizeText_(row[6]),
+    signatureFileId: normalizeText_(row[7]),
+    department: normalizeText_(row[8]),
+    updatedAt: row[9],
+  }));
+}
+
+function findUserByUsername_(username) {
+  const key = normalizeText_(username).toLowerCase();
+  return readUsers_().find((user) => user.username === key) || null;
+}
+
+function findUserById_(userId) {
+  const key = normalizeText_(userId);
+  return readUsers_().find((user) => user.userId === key) || null;
+}
+
+function findUserByEmail_(email) {
+  const key = normalizeEmail_(email);
+  return readUsers_().find((user) => user.email === key) || null;
+}
+
+function updateUserPasswordHash_(rowNumber, passwordHash) {
+  const sheet = getSheet_(APP.SHEETS.USERS);
+  sheet.getRange(rowNumber, 7).setValue(passwordHash);
+  sheet.getRange(rowNumber, 10).setValue(new Date());
+}
+
+function hashPassword_(username, password) {
+  const secret = getRequiredProperty_(APP.PROP.APP_SECRET);
+  const input = normalizeText_(username).toLowerCase() + '|' + password + '|' + secret;
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input, Utilities.Charset.UTF_8);
+  return bytes.map((value) => ('0' + ((value + 256) % 256).toString(16)).slice(-2)).join('');
+}
+
+function publicUser_(user) {
+  return {
+    userId: user.userId,
+    username: user.username,
+    name: user.name,
+    role: normalizeRole_(user.role),
+    email: user.email,
+    department: user.department,
+    signatureConfigured: !!user.signatureFileId,
+    signatureDataUrl: getSignatureDataUrl_(user.signatureFileId),
+  };
+}
+
+function listActiveUsers(sessionToken) {
+  const session = requireSession_(sessionToken);
+  if (![APP.ROLES.CLERK, APP.ROLES.DEPUTY, APP.ROLES.DIRECTOR].includes(session.role)) {
+    throw new Error('ไม่มีสิทธิ์เรียกดูรายชื่อผู้ใช้');
+  }
+  return readUsers_()
+    .filter((user) => user.active)
+    .map((user) => ({
+      userId: user.userId,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      email: user.email,
+      department: user.department,
+    }));
+}
+
+
+// ==================== Auth.gs ====================
+
+function login(username, password) {
+  const normalizedUsername = normalizeText_(username).toLowerCase();
+  const user = findUserByUsername_(normalizedUsername);
+  if (!user || !user.active || !user.passwordHash) {
+    Utilities.sleep(300);
+    return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  }
+  const candidate = hashPassword_(normalizedUsername, String(password || ''));
+  if (candidate !== user.passwordHash) {
+    Utilities.sleep(300);
+    return { success: false, message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
+  }
+  const token = createSession_(user);
+  appendAudit_(user, 'LOGIN', '', { method: 'sheet-user' });
+  return { success: true, token: token, user: publicUser_(user) };
+}
+
+function logout(sessionToken) {
+  const session = getSession_(sessionToken);
+  if (session) appendAudit_(session, 'LOGOUT', '', {});
+  CacheService.getScriptCache().remove('session:' + normalizeText_(sessionToken));
+  return { success: true };
+}
+
+function getSessionInfo(sessionToken) {
+  const session = requireSession_(sessionToken);
+  const user = findUserById_(session.userId);
+  if (!user || !user.active) throw new Error('บัญชีนี้ถูกปิดใช้งาน');
+  return { success: true, user: publicUser_(user) };
+}
+
+function createSession_(user) {
+  const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  const session = {
+    userId: user.userId,
+    username: user.username,
+    name: user.name,
+    role: normalizeRole_(user.role),
+    email: user.email,
+    createdAt: nowIso_(),
+  };
+  CacheService.getScriptCache().put(
+    'session:' + token,
+    JSON.stringify(session),
+    APP.SESSION_TTL_SECONDS
+  );
+  return token;
+}
+
+function getSession_(sessionToken) {
+  const token = normalizeText_(sessionToken);
+  if (!token) return null;
+  const raw = CacheService.getScriptCache().get('session:' + token);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (error) { return null; }
+}
+
+function requireSession_(sessionToken, allowedRoles) {
+  const session = getSession_(sessionToken);
+  if (!session) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+  const user = findUserById_(session.userId);
+  if (!user || !user.active) throw new Error('บัญชีนี้ถูกปิดใช้งาน');
+  const normalizedUserRole = normalizeRole_(user.role);
+  if (allowedRoles && allowedRoles.length && !allowedRoles.map(normalizeRole_).includes(normalizedUserRole)) {
+    throw new Error('บัญชีนี้ไม่มีสิทธิ์ดำเนินการ');
+  }
+  return {
+    userId: user.userId,
+    username: user.username,
+    name: user.name,
+    role: normalizedUserRole,
+    email: user.email,
+    signatureFileId: user.signatureFileId,
+    department: user.department,
+  };
+}
+
+
+// ==================== Audit.gs ====================
+
+
+function appendAudit_(userOrSession, action, docId, details) {
+  return withWriteLock_(function () {
+    const sheet = getSheet_(APP.SHEETS.AUDIT);
+    sheet.appendRow([
+      new Date(),
+      normalizeText_(userOrSession.userId),
+      normalizeText_(userOrSession.username),
+      normalizeText_(userOrSession.role),
+      normalizeText_(action),
+      normalizeText_(docId),
+      safeJson_(details),
+    ]);
+    return true;
+  });
+}
+
+function tryAppendAudit_(userOrSession, action, docId, details) {
+  try {
+    appendAudit_(userOrSession, action, docId, details);
+    return true;
+  } catch (error) {
+    console.error('บันทึก AuditLog ไม่สำเร็จ: ' + (error && error.message ? error.message : String(error)));
+    return false;
+  }
+}
+
+
+/**
+ * อ่านรูปแบบการจ่ายเรื่องล่าสุดจาก AuditLog โดยไม่เพิ่มคอลัมน์ในชีต Documents
+ * ช่วยแยกให้หน้าสร้างข้อความ LINE ทราบว่าเดิมกด “ส่งให้ทุกคน” หรือ “ส่งให้บางคน”
+ */
+function buildDispatchTypeMap_() {
+  const sheet = getSheet_(APP.SHEETS.AUDIT);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return {};
+
+  const rows = sheet.getRange(2, 5, lastRow - 1, 3).getDisplayValues();
+  const map = {};
+  rows.forEach((row) => {
+    const action = normalizeText_(row[0]);
+    const docId = normalizeText_(row[1]);
+    if (action !== 'DISPATCH_DOCUMENT' || !docId) return;
+    try {
+      const details = JSON.parse(normalizeText_(row[2]) || '{}');
+      const type = normalizeText_(details.type);
+      if (['ทุกคน', 'บางคน', 'ยุติเรื่อง'].includes(type)) map[docId] = type;
+    } catch (error) {
+      // ข้าม AuditLog เก่าที่ details ไม่ใช่ JSON โดยไม่กระทบการเปิดระบบ
+    }
+  });
+  return map;
+}
+
+
+// ==================== Documents.gs ====================
+
+
+function uploadNewDocument(formObject) {
+  const session = requireSession_(formObject.sessionToken, [APP.ROLES.CLERK]);
+  const blob = formObject.pdfFile;
+  validateUploadBlob_(blob, ['application/pdf']);
+  const subject = normalizeText_(formObject.subject);
+  const fromSender = normalizeText_(formObject.fromSender);
+  const operationMode = normalizeOperationMode_(formObject.operationMode);
+  if (!subject || !fromSender) throw new Error('กรุณากรอกเรื่องและหน่วยงานผู้ส่งให้ครบ');
+
+  return withWriteLock_(function () {
+    const recvNo = nextReceiveNumber_();
+    const docId = 'DOC-' + new Date().getTime() + '-' + Utilities.getUuid().slice(0, 8);
+    const originalName = sanitizeDriveFileName_(recvNo.replace('/', '-') + '-' + blob.getName());
+    const file = createRestrictedFile_(APP.PROP.ORIGINAL_FOLDER_ID, blob, originalName);
+    const now = new Date();
+    const documentSheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    const nextRow = documentSheet.getLastRow() + 1;
+    const rowValues = [
+      docId,
+      recvNo,
+      subject,
+      fromSender,
+      'รอธุรการประทับตรา',
+      APP.ROLES.CLERK,
+      file.getId(),
+      file.getId(),
+      now,
+      now,
+      session.userId,
+      session.userId,
+      operationMode,
+    ];
+
+    documentSheet.getRange(nextRow, 2).setNumberFormat('@');
+    documentSheet.getRange(nextRow, 1, 1, rowValues.length).setValues([rowValues]);
+    formatOperationModeCell_(documentSheet.getRange(nextRow, 13), operationMode);
+    rememberReceiveNumber_(recvNo);
+    appendAudit_(session, 'UPLOAD_DOCUMENT', docId, {
+      recvNo,
+      subject,
+      fromSender,
+      operationMode,
+      fileId: file.getId(),
+      sourceNames: parseSourceNames_(formObject.sourceNames),
+    });
+    return { success: true, docId, recvNo };
+  });
+}
+
+
+
+function replaceDocumentFile(formObject) {
+  const session = requireSession_(formObject.sessionToken, [APP.ROLES.CLERK]);
+  const blob = formObject.replacementPdfFile;
+  const fileSize = validateUploadBlob_(blob, ['application/pdf']);
+  const sourceNames = parseSourceNames_(formObject.sourceNames);
+  const docId = normalizeText_(formObject.docId);
+
+  return withWriteLock_(function () {
+    const freshDoc = findDocument_(docId);
+    if (!freshDoc) throw new Error('ไม่พบเอกสาร กรุณารีเฟรชหน้าแล้วลองใหม่');
+
+    const fileName = sanitizeDriveFileName_(
+      freshDoc.recvNo.replace('/', '-') + '-' + freshDoc.docId + '-replacement-' + new Date().getTime() + '.pdf'
+    );
+    const file = createRestrictedFile_(APP.PROP.ORIGINAL_FOLDER_ID, blob, fileName);
+    const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    const now = new Date();
+
+    sheet.getRange(freshDoc.rowNumber, 5, 1, 4).setValues([[
+      'รอธุรการประทับตรา',
+      APP.ROLES.CLERK,
+      file.getId(),
+      file.getId(),
+    ]]);
+    sheet.getRange(freshDoc.rowNumber, 10).setValue(now);
+    sheet.getRange(freshDoc.rowNumber, 12).setValue(session.userId);
+    replaceRecipients_(freshDoc.docId, []);
+
+    const auditSaved = tryAppendAudit_(session, 'REPLACE_DOCUMENT_FILE', freshDoc.docId, {
+      recvNo: freshDoc.recvNo,
+      oldOriginalFileId: freshDoc.originalFileId,
+      oldCurrentFileId: freshDoc.currentFileId,
+      newFileId: file.getId(),
+      newFilename: file.getName(),
+      fileSize: fileSize,
+      sourceNames: sourceNames,
+      resetStatus: 'รอธุรการประทับตรา',
+      resetRole: APP.ROLES.CLERK,
+      attachmentsPreserved: true,
+    });
+
+    return {
+      success: true,
+      docId: freshDoc.docId,
+      recvNo: freshDoc.recvNo,
+      status: 'รอธุรการประทับตรา',
+      currentRole: APP.ROLES.CLERK,
+      filename: file.getName(),
+      fileSize: fileSize,
+      auditSaved: auditSaved,
+    };
+  });
+}
+
+
+function saveMergedDocument(formObject) {
+  const session = requireSession_(formObject.sessionToken, [APP.ROLES.CLERK]);
+  const blob = formObject.mergedPdfFile;
+  const fileSize = validateUploadBlob_(blob, ['application/pdf']);
+  const sourceNames = parseSourceNames_(formObject.sourceNames);
+  const pageCount = Number(formObject.pageCount) || 0;
+  const docId = normalizeText_(formObject.docId);
+
+  return withWriteLock_(function () {
+    const freshDoc = findDocument_(docId);
+    if (!freshDoc) throw new Error('ไม่พบเอกสาร กรุณารีเฟรชหน้าแล้วลองใหม่');
+
+    const fileName = sanitizeDriveFileName_(
+      freshDoc.recvNo.replace('/', '-') + '-' + freshDoc.docId + '-merged-' + new Date().getTime() + '.pdf'
+    );
+    const file = createRestrictedFile_(APP.PROP.STAMPED_FOLDER_ID, blob, fileName);
+    const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    sheet.getRange(freshDoc.rowNumber, 8).setValue(file.getId());
+    sheet.getRange(freshDoc.rowNumber, 10).setValue(new Date());
+    sheet.getRange(freshDoc.rowNumber, 12).setValue(session.userId);
+
+    const auditSaved = tryAppendAudit_(session, 'MERGE_DOCUMENT_PDF', freshDoc.docId, {
+      recvNo: freshDoc.recvNo,
+      oldCurrentFileId: freshDoc.currentFileId,
+      originalFileId: freshDoc.originalFileId,
+      newCurrentFileId: file.getId(),
+      newFilename: file.getName(),
+      fileSize: fileSize,
+      pageCount: pageCount,
+      sourceNames: sourceNames,
+      workflowPreserved: true,
+      status: freshDoc.status,
+      currentRole: freshDoc.currentRole,
+    });
+
+    return {
+      success: true,
+      docId: freshDoc.docId,
+      recvNo: freshDoc.recvNo,
+      filename: file.getName(),
+      fileSize: fileSize,
+      pageCount: pageCount,
+      status: freshDoc.status,
+      currentRole: freshDoc.currentRole,
+      auditSaved: auditSaved,
+    };
+  });
+}
+
+
+function nextReceiveNumber_() {
+  const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+  const lastRow = sheet.getLastRow();
+  const year = thaiYear_();
+  const props = getScriptProps_();
+  const storedYear = Number(props.getProperty(APP.PROP.LAST_RECEIVE_YEAR));
+  const storedNumber = Number(props.getProperty(APP.PROP.LAST_RECEIVE_NUMBER));
+  let maxNumber = storedYear === year && Number.isFinite(storedNumber) ? storedNumber : 0;
+
+  if (lastRow >= 2) {
+    const values = sheet.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+    values.forEach(([value]) => {
+      const match = normalizeText_(value).replace(/^'/, '').match(/^(\d+)\/(\d{4})$/);
+      if (match && Number(match[2]) === year) {
+        maxNumber = Math.max(maxNumber, Number(match[1]));
+      }
+    });
+  }
+
+  // ค่าเริ่มต้นตามทะเบียนเดิมของโรงเรียน: เลขล่าสุด 782 ในปี 2569
+  if (year === 2569) maxNumber = Math.max(maxNumber, 782);
+  return String(maxNumber + 1) + '/' + year;
+}
+
+function readDocuments_() {
+  const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 13).getValues().map((row, index) => ({
+    rowNumber: index + 2,
+    docId: normalizeText_(row[0]),
+    recvNo: normalizeReceiveNumber_(row[1]),
+    subject: normalizeText_(row[2]),
+    fromSender: normalizeText_(row[3]),
+    status: normalizeText_(row[4]),
+    currentRole: normalizeRole_(row[5]),
+    originalFileId: normalizeText_(row[6]),
+    currentFileId: normalizeText_(row[7]) || normalizeText_(row[6]),
+    createdAt: row[8],
+    updatedAt: row[9],
+    createdBy: normalizeText_(row[10]),
+    lastActionBy: normalizeText_(row[11]),
+    operationMode: normalizeOperationMode_(row[12]),
+  }));
+}
+
+function findDocument_(docId) {
+  return readDocuments_().find((doc) => doc.docId === normalizeText_(docId)) || null;
+}
+
+function clientDate_(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? '' : value.toISOString();
+  }
+  return String(value);
+}
+
+function documentForClient_(doc) {
+  if (!doc) return null;
+  return {
+    docId: doc.docId,
+    recvNo: doc.recvNo,
+    subject: doc.subject,
+    fromSender: doc.fromSender,
+    status: doc.status,
+    currentRole: doc.currentRole,
+    originalFileId: doc.originalFileId,
+    currentFileId: doc.currentFileId,
+    createdAt: clientDate_(doc.createdAt),
+    updatedAt: clientDate_(doc.updatedAt),
+    createdBy: doc.createdBy,
+    lastActionBy: doc.lastActionBy,
+    operationMode: doc.operationMode || APP.OPERATION_MODES.NORMAL,
+  };
+}
+
+function recipientForClient_(item) {
+  return {
+    recipientId: item.recipientId,
+    docId: item.docId,
+    userId: item.userId,
+    email: item.email,
+    name: item.name,
+    assignedAt: clientDate_(item.assignedAt),
+    openedAt: clientDate_(item.openedAt),
+    acknowledgedAt: clientDate_(item.acknowledgedAt),
+  };
+}
+
+function attachmentForClient_(item) {
+  return {
+    attachmentId: item.attachmentId,
+    docId: item.docId,
+    userId: item.userId,
+    uploadedBy: item.uploadedBy,
+    fileId: item.fileId,
+    filename: item.filename,
+    mimeType: item.mimeType,
+    createdAt: clientDate_(item.createdAt),
+  };
+}
+
+function getDashboardDocuments(sessionToken) {
+  const session = requireSession_(sessionToken);
+  const documents = readDocuments_().sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  const recipientMap = buildRecipientMap_();
+  const attachmentMap = buildAttachmentMap_();
+  const needsDispatchType = session.role === APP.ROLES.CLERK;
+  const dispatchTypeMap = needsDispatchType ? buildDispatchTypeMap_() : {};
+  const activeUserIds = needsDispatchType
+    ? new Set(readUsers_().filter((user) => user.active).map((user) => user.userId))
+    : new Set();
+
+  const enrich = (doc) => {
+    const rawRecipients = recipientMap[doc.docId] || [];
+    const recipients = rawRecipients.map(recipientForClient_);
+    const inferredAllRecipients = rawRecipients.length > 0
+      && activeUserIds.size > 0
+      && rawRecipients.length === activeUserIds.size
+      && rawRecipients.every((item) => activeUserIds.has(item.userId));
+    return {
+      ...documentForClient_(doc),
+      recipients,
+      ackCount: rawRecipients.filter((item) => item.acknowledgedAt).length,
+      recipientCount: rawRecipients.length,
+      dispatchType: dispatchTypeMap[doc.docId] || (rawRecipients.length ? (inferredAllRecipients ? 'ทุกคน' : 'บางคน') : ''),
+      attachments: (attachmentMap[doc.docId] || []).map(attachmentForClient_),
+    };
+  };
+
+  let actionDocs = [];
+  let inboxDocs = [];
+  let allDocs = [];
+
+  if (session.role === APP.ROLES.TEACHER) {
+    inboxDocs = documents
+      .filter((doc) => (recipientMap[doc.docId] || []).some((item) => item.userId === session.userId))
+      .map(enrich);
+  } else {
+    actionDocs = documents.filter((doc) => normalizeRole_(doc.currentRole) === normalizeRole_(session.role)).map(enrich);
+    allDocs = documents.map(enrich);
+    inboxDocs = documents
+      .filter((doc) => (recipientMap[doc.docId] || []).some((item) => item.userId === session.userId))
+      .map(enrich);
+  }
+
+  return {
+    success: true,
+    actionDocs: actionDocs,
+    inboxDocs: inboxDocs,
+    allDocs: allDocs,
+    user: publicUser_(findUserById_(session.userId)),
+  };
+}
+
+function documentPermissionsForSession_(session, doc) {
+  const role = normalizeRole_(session.role);
+  const currentRole = normalizeRole_(doc.currentRole);
+  const assignedToUserRole = currentRole === role;
+  const isDecisionRole = [APP.ROLES.CLERK, APP.ROLES.DEPUTY, APP.ROLES.DIRECTOR].includes(role);
+  const isDispatchStep = role === APP.ROLES.CLERK
+    && doc.status === 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+
+  return {
+    role: role,
+    currentRole: currentRole,
+    assignedToUserRole: assignedToUserRole,
+    canStamp: assignedToUserRole && isDecisionRole && !isDispatchStep,
+    canDispatch: assignedToUserRole && isDispatchStep,
+    readOnly: !(assignedToUserRole && isDecisionRole),
+    reason: assignedToUserRole
+      ? (isDispatchStep ? 'เอกสารอยู่ในขั้นตอนจ่ายเรื่อง' : '')
+      : 'เอกสารไม่ได้อยู่ในคิวของบทบาทนี้',
+  };
+}
+
+function getDocumentFile(sessionToken, docId, markOpened) {
+  const session = requireSession_(sessionToken);
+  const doc = requireDocumentAccess_(session, docId);
+  if (markOpened && normalizeRole_(session.role) === APP.ROLES.TEACHER) {
+    markRecipientOpened_(doc.docId, session.userId);
+  }
+  const permissions = documentPermissionsForSession_(session, doc);
+  appendAudit_(session, 'OPEN_DOCUMENT', doc.docId, {
+    fileId: doc.currentFileId,
+    permissions: permissions,
+  });
+  return {
+    success: true,
+    document: documentForClient_(doc),
+    permissions: permissions,
+    file: fileToBase64_(doc.currentFileId),
+  };
+}
+
+
+
+function saveStampedDocument(sessionToken, payload) {
+  const session = requireSession_(sessionToken, [APP.ROLES.CLERK, APP.ROLES.DEPUTY, APP.ROLES.DIRECTOR]);
+  const data = payload || {};
+  const base64 = normalizeText_(data.base64);
+  if (!base64) throw new Error('ไม่พบข้อมูล PDF ที่ประทับตรา');
+  const bytes = Utilities.base64Decode(base64);
+  if (bytes.length > APP.MAX_UPLOAD_BYTES * 1.8) throw new Error('PDF หลังประทับตรามีขนาดใหญ่เกินไป');
+
+  return withWriteLock_(function () {
+    const doc = findDocument_(data.docId);
+    if (!doc) throw new Error('ไม่พบเอกสาร');
+    if (normalizeRole_(doc.currentRole) !== normalizeRole_(session.role)) {
+      throw new Error('เอกสารนี้ไม่ได้อยู่ในคิวของบทบาท ' + session.role + ' แล้ว กรุณารีเฟรชหน้า');
+    }
+
+    const fileName = sanitizeDriveFileName_(doc.recvNo.replace('/', '-') + '-' + doc.docId + '-stamped.pdf');
+    const blob = Utilities.newBlob(bytes, 'application/pdf', fileName);
+    const file = createRestrictedFile_(APP.PROP.STAMPED_FOLDER_ID, blob, fileName);
+
+    let newStatus = '';
+    let nextRole = '';
+    const operationMode = normalizeOperationMode_(doc.operationMode);
+
+    if (normalizeRole_(session.role) === APP.ROLES.CLERK) {
+      if (operationMode === APP.OPERATION_MODES.DIRECTOR_HANDLES) {
+        newStatus = 'รอผู้อำนวยการสั่งการ';
+        nextRole = APP.ROLES.DIRECTOR;
+      } else if (operationMode === APP.OPERATION_MODES.ACTING) {
+        newStatus = 'รอรองผู้อำนวยการรักษาการพิจารณา';
+        nextRole = APP.ROLES.DEPUTY;
+      } else {
+        newStatus = 'รอรองผู้อำนวยการพิจารณา';
+        nextRole = APP.ROLES.DEPUTY;
+      }
+    } else if (normalizeRole_(session.role) === APP.ROLES.DEPUTY) {
+      if (operationMode === APP.OPERATION_MODES.ACTING) {
+        newStatus = 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+        nextRole = APP.ROLES.CLERK;
+      } else {
+        newStatus = 'รอผู้อำนวยการสั่งการ';
+        nextRole = APP.ROLES.DIRECTOR;
+      }
+    } else {
+      newStatus = 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+      nextRole = APP.ROLES.CLERK;
+    }
+
+    const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    sheet.getRange(doc.rowNumber, 5, 1, 8).setValues([[
+      newStatus,
+      nextRole,
+      doc.originalFileId,
+      file.getId(),
+      doc.createdAt,
+      new Date(),
+      doc.createdBy,
+      session.userId,
+    ]]);
+    appendAudit_(session, 'STAMP_AND_FORWARD', doc.docId, {
+      fromRole: session.role,
+      toRole: nextRole,
+      newStatus,
+      operationMode,
+      stampMeta: data.stampMeta || {},
+      fileId: file.getId(),
+    });
+    return { success: true, newStatus, nextRole };
+  });
+}
+
+
+function dispatchDocument(sessionToken, payload) {
+  const session = requireSession_(sessionToken, [APP.ROLES.CLERK]);
+  const data = payload || {};
+
+  return withWriteLock_(function () {
+    const doc = findDocument_(data.docId);
+    if (!doc) throw new Error('ไม่พบเอกสาร');
+    if (doc.currentRole !== APP.ROLES.CLERK || doc.status !== 'รอธุรการจ่ายเรื่องให้ผู้รับ') {
+      throw new Error('เอกสารนี้ถูกดำเนินการโดยผู้ใช้อื่นแล้ว กรุณารีเฟรชหน้า');
+    }
+
+    const type = normalizeText_(data.type);
+    let targetUsers = [];
+    let newStatus = '';
+    let nextRole = '';
+    if (type === 'ยุติเรื่อง') {
+      newStatus = 'ยุติเรื่อง (เก็บเข้าแฟ้ม)';
+      nextRole = APP.ROLES.FINISHED;
+    } else {
+      const activeUsers = readUsers_().filter((user) => user.active);
+      if (type === 'ทุกคน') {
+        targetUsers = activeUsers;
+      } else if (type === 'บางคน') {
+        const ids = Array.isArray(data.userIds) ? data.userIds.map(normalizeText_) : [];
+        targetUsers = activeUsers.filter((user) => ids.includes(user.userId));
+        if (targetUsers.length === 0) throw new Error('กรุณาเลือกผู้รับอย่างน้อย 1 คน');
+      } else {
+        throw new Error('รูปแบบการจ่ายเรื่องไม่ถูกต้อง');
+      }
+      replaceRecipients_(doc.docId, targetUsers);
+      newStatus = 'แจ้งให้ทราบ / ดำเนินการ';
+      nextRole = APP.ROLES.TEACHER;
+    }
+
+    const sheet = getSheet_(APP.SHEETS.DOCUMENTS);
+    sheet.getRange(doc.rowNumber, 5, 1, 2).setValues([[newStatus, nextRole]]);
+    sheet.getRange(doc.rowNumber, 10).setValue(new Date());
+    sheet.getRange(doc.rowNumber, 12).setValue(session.userId);
+
+    appendAudit_(session, 'DISPATCH_DOCUMENT', doc.docId, {
+      type,
+      newStatus,
+      recipients: targetUsers.map((user) => user.userId),
+    });
+    return { success: true, newStatus, recipientCount: targetUsers.length };
+  });
+}
+
+
+/** บันทึกว่าธุรการคัดลอกข้อความแจ้งเอกสารสำหรับนำไปส่งใน LINE */
+function recordLineNotificationCopy(sessionToken, docId) {
+  const session = requireSession_(sessionToken, [APP.ROLES.CLERK]);
+  const doc = findDocument_(docId);
+  if (!doc) throw new Error('ไม่พบเอกสาร');
+  const recipients = buildRecipientMap_()[doc.docId] || [];
+  appendAudit_(session, 'COPY_LINE_NOTIFICATION', doc.docId, {
+    recipientCount: recipients.length,
+    acknowledgedCount: recipients.filter((item) => item.acknowledgedAt).length,
+  });
+  return { success: true };
+}
+
+function requireDocumentAccess_(session, docId) {
+  const doc = findDocument_(docId);
+  if (!doc) throw new Error('ไม่พบเอกสาร');
+  if (session.role !== APP.ROLES.TEACHER) return doc;
+  const recipients = buildRecipientMap_()[doc.docId] || [];
+  if (!recipients.some((item) => item.userId === session.userId)) {
+    throw new Error('คุณไม่มีสิทธิ์เปิดเอกสารฉบับนี้');
+  }
+  return doc;
+}
+
+
+// ==================== Workflow.gs ====================
+
+function readRecipients_() {
+  const sheet = getSheet_(APP.SHEETS.RECIPIENTS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 8).getValues().map((row, index) => ({
+    rowNumber: index + 2,
+    recipientId: normalizeText_(row[0]),
+    docId: normalizeText_(row[1]),
+    userId: normalizeText_(row[2]),
+    email: normalizeEmail_(row[3]),
+    name: normalizeText_(row[4]),
+    assignedAt: row[5],
+    openedAt: row[6],
+    acknowledgedAt: row[7],
+  }));
+}
+
+function buildRecipientMap_() {
+  const map = {};
+  readRecipients_().forEach((item) => {
+    if (!map[item.docId]) map[item.docId] = [];
+    map[item.docId].push(item);
+  });
+  return map;
+}
+
+function replaceRecipients_(docId, users) {
+  const sheet = getSheet_(APP.SHEETS.RECIPIENTS);
+  const rows = readRecipients_().filter((item) => item.docId === docId).sort((a, b) => b.rowNumber - a.rowNumber);
+  rows.forEach((item) => sheet.deleteRow(item.rowNumber));
+  if (!users.length) return;
+  const now = new Date();
+  const values = users.map((user) => [
+    'RCPT-' + new Date().getTime() + '-' + Utilities.getUuid().slice(0, 8),
+    docId,
+    user.userId,
+    user.email,
+    user.name,
+    now,
+    '',
+    '',
+  ]);
+  sheet.getRange(sheet.getLastRow() + 1, 1, values.length, values[0].length).setValues(values);
+}
+
+
+function markRecipientOpened_(docId, userId) {
+  return withWriteLock_(function () {
+    const recipient = readRecipients_().find(
+      (item) => item.docId === normalizeText_(docId) && item.userId === normalizeText_(userId)
+    );
+    if (!recipient || recipient.openedAt) return false;
+    getSheet_(APP.SHEETS.RECIPIENTS).getRange(recipient.rowNumber, 7).setValue(new Date());
+    return true;
+  });
+}
+
+
+function acknowledgeDocument(sessionToken, docId) {
+  const session = requireSession_(sessionToken);
+  const normalizedDocId = normalizeText_(docId);
+
+  return withWriteLock_(function () {
+    const recipient = readRecipients_().find(
+      (item) => item.docId === normalizedDocId && item.userId === session.userId
+    );
+    if (!recipient) throw new Error('คุณไม่ได้รับเอกสารฉบับนี้');
+
+    const now = new Date();
+    const openedAt = recipient.openedAt || now;
+    const acknowledgedAt = recipient.acknowledgedAt || now;
+    getSheet_(APP.SHEETS.RECIPIENTS)
+      .getRange(recipient.rowNumber, 7, 1, 2)
+      .setValues([[openedAt, acknowledgedAt]]);
+
+    appendAudit_(session, 'ACKNOWLEDGE_DOCUMENT', normalizedDocId, {
+      alreadyAcknowledged: !!recipient.acknowledgedAt,
+    });
+    return { success: true, alreadyAcknowledged: !!recipient.acknowledgedAt };
+  });
+}
+
+
+function uploadAttachment(formObject) {
+  const session = requireSession_(formObject.sessionToken);
+  const docId = normalizeText_(formObject.docId);
+  const preliminaryDoc = requireDocumentAccess_(session, docId);
+  const blob = formObject.attachmentFile;
+  validateUploadBlob_(blob, null);
+  const fileName = sanitizeDriveFileName_(
+    preliminaryDoc.recvNo.replace('/', '-') + '-' + session.username + '-' + blob.getName()
+  );
+
+  const file = createRestrictedFile_(APP.PROP.ATTACH_FOLDER_ID, blob, fileName);
+  try {
+    return withWriteLock_(function () {
+      const freshDoc = requireDocumentAccess_(session, docId);
+      const sheet = getSheet_(APP.SHEETS.ATTACHMENTS);
+      sheet.appendRow([
+        'ATT-' + new Date().getTime() + '-' + Utilities.getUuid().slice(0, 8),
+        freshDoc.docId,
+        session.userId,
+        session.name,
+        file.getId(),
+        file.getName(),
+        file.getMimeType(),
+        new Date(),
+      ]);
+      appendAudit_(session, 'UPLOAD_ATTACHMENT', freshDoc.docId, {
+        fileId: file.getId(),
+        filename: file.getName(),
+      });
+      return { success: true, filename: file.getName() };
+    });
+  } catch (error) {
+    try { file.setTrashed(true); } catch (trashError) {}
+    throw error;
+  }
+}
+
+function readAttachments_() {
+  const sheet = getSheet_(APP.SHEETS.ATTACHMENTS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 8).getValues().map((row, index) => ({
+    rowNumber: index + 2,
+    attachmentId: normalizeText_(row[0]),
+    docId: normalizeText_(row[1]),
+    userId: normalizeText_(row[2]),
+    uploadedBy: normalizeText_(row[3]),
+    fileId: normalizeText_(row[4]),
+    filename: normalizeText_(row[5]),
+    mimeType: normalizeText_(row[6]),
+    createdAt: row[7],
+  }));
+}
+
+function buildAttachmentMap_() {
+  const map = {};
+  readAttachments_().forEach((item) => {
+    if (!map[item.docId]) map[item.docId] = [];
+    map[item.docId].push(item);
+  });
+  return map;
+}
+
+function getAttachmentFile(sessionToken, attachmentId) {
+  const session = requireSession_(sessionToken);
+  const attachment = readAttachments_().find((item) => item.attachmentId === normalizeText_(attachmentId));
+  if (!attachment) throw new Error('ไม่พบไฟล์แนบ');
+  requireDocumentAccess_(session, attachment.docId);
+  appendAudit_(session, 'DOWNLOAD_ATTACHMENT', attachment.docId, { attachmentId });
+  return { success: true, file: fileToBase64_(attachment.fileId) };
+}
+
+
+
+
+// ==================== WebSettings.gs ====================
+
+function requireAdminSession_(sessionToken) {
+  return requireSession_(sessionToken, [APP.ROLES.CLERK]);
+}
+
+function operationModeCode_(value) {
+  const mode = normalizeOperationMode_(value);
+  if (mode === APP.OPERATION_MODES.ACTING) return 'acting';
+  if (mode === APP.OPERATION_MODES.DIRECTOR_HANDLES) return 'director';
+  return 'normal';
+}
+
+function safeDriveFolderUrl_(propertyKey) {
+  const id = normalizeText_(getScriptProps_().getProperty(propertyKey));
+  return id ? 'https://drive.google.com/drive/folders/' + encodeURIComponent(id) : '';
+}
+
+function getAdminSettingsSnapshot_() {
+  const props = getScriptProps_();
+  const spreadsheet = getSpreadsheet_();
+  const documents = getSheet_(APP.SHEETS.DOCUMENTS);
+  const users = getSheet_(APP.SHEETS.USERS);
+  const recipients = getSheet_(APP.SHEETS.RECIPIENTS);
+  const attachments = getSheet_(APP.SHEETS.ATTACHMENTS);
+  const audit = getSheet_(APP.SHEETS.AUDIT);
+  const year = Number(props.getProperty(APP.PROP.LAST_RECEIVE_YEAR)) || thaiYear_();
+  const latest = Number(props.getProperty(APP.PROP.LAST_RECEIVE_NUMBER)) || 0;
+
+  return {
+    spreadsheetName: spreadsheet.getName(),
+    spreadsheetUrl: spreadsheet.getUrl(),
+    usersSheetUrl: spreadsheet.getUrl() + '#gid=' + users.getSheetId(),
+    documentsSheetUrl: spreadsheet.getUrl() + '#gid=' + documents.getSheetId(),
+    auditSheetUrl: spreadsheet.getUrl() + '#gid=' + audit.getSheetId(),
+    folders: {
+      root: safeDriveFolderUrl_(APP.PROP.ROOT_FOLDER_ID),
+      original: safeDriveFolderUrl_(APP.PROP.ORIGINAL_FOLDER_ID),
+      stamped: safeDriveFolderUrl_(APP.PROP.STAMPED_FOLDER_ID),
+      attachments: safeDriveFolderUrl_(APP.PROP.ATTACH_FOLDER_ID),
+      signatures: safeDriveFolderUrl_(APP.PROP.SIGNATURE_FOLDER_ID),
+      backups: safeDriveFolderUrl_(APP.PROP.BACKUP_FOLDER_ID),
+    },
+    counts: {
+      users: Math.max(0, users.getLastRow() - 1),
+      documents: Math.max(0, documents.getLastRow() - 1),
+      recipients: Math.max(0, recipients.getLastRow() - 1),
+      attachments: Math.max(0, attachments.getLastRow() - 1),
+      audit: Math.max(0, audit.getLastRow() - 1),
+    },
+    receive: {
+      lastNumber: latest,
+      year: year,
+      nextNumber: (latest + 1) + '/' + year,
+    },
+    system: {
+      webAppUrl: normalizeText_(ScriptApp.getService().getUrl()),
+      frontendUrl: normalizeText_(props.getProperty(APP.PROP.FRONTEND_BASE_URL)),
+      frontendVersion: normalizeText_(props.getProperty(APP.PROP.FRONTEND_VERSION)) || APP.VERSION,
+      rootFolderReady: !!props.getProperty(APP.PROP.ROOT_FOLDER_ID),
+      originalFolderReady: !!props.getProperty(APP.PROP.ORIGINAL_FOLDER_ID),
+      stampedFolderReady: !!props.getProperty(APP.PROP.STAMPED_FOLDER_ID),
+      signatureFolderReady: !!props.getProperty(APP.PROP.SIGNATURE_FOLDER_ID),
+      designedConcurrentUsers: APP.MAX_SIMULTANEOUS_USERS,
+      writeLockTimeoutSeconds: Math.round(APP.WRITE_LOCK_TIMEOUT_MS / 1000),
+    },
+  };
+}
+
+function getApplicationSettings(sessionToken) {
+  const session = requireSession_(sessionToken);
+  const props = getScriptProps_();
+  const isAdmin = session.role === APP.ROLES.CLERK;
+  return {
+    success: true,
+    isAdmin: isAdmin,
+    defaults: {
+      fromSender: normalizeText_(props.getProperty(APP.PROP.DEFAULT_SENDER)) || 'สพป.ชม.2',
+      operationMode: operationModeCode_(props.getProperty(APP.PROP.DEFAULT_OPERATION_MODE)),
+    },
+    admin: isAdmin ? getAdminSettingsSnapshot_() : null,
+  };
+}
+
+function changeOwnPassword(sessionToken, currentPassword, newPassword) {
+  const session = requireSession_(sessionToken);
+  const user = findUserById_(session.userId);
+  if (!user || !user.active) throw new Error('ไม่พบบัญชีผู้ใช้งาน');
+  const currentCandidate = hashPassword_(user.username, String(currentPassword || ''));
+  if (currentCandidate !== user.passwordHash) {
+    throw new Error('รหัสผ่านเดิมไม่ถูกต้อง');
+  }
+  const next = String(newPassword || '');
+  if (next.length < 8) throw new Error('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
+  if (next === String(currentPassword || '')) throw new Error('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม');
+
+  updateUserPasswordHash_(user.rowNumber, hashPassword_(user.username, next));
+
+  // การเปลี่ยนรหัสผ่านสำเร็จแล้ว แม้ AuditLog จะมีปัญหา
+  // จึงไม่ควรส่ง Error กลับไปทำให้ผู้ใช้เข้าใจว่าเปลี่ยนไม่สำเร็จ
+  const auditSaved = tryAppendAudit_(session, 'CHANGE_OWN_PASSWORD', '', {});
+  return {
+    success: true,
+    auditSaved: auditSaved,
+    message: auditSaved
+      ? 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว'
+      : 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว แต่ระบบบันทึกประวัติไม่สำเร็จ กรุณาให้ธุรการตรวจชีต AuditLog',
+  };
+}
+
+function listUsersForAdmin(sessionToken) {
+  requireAdminSession_(sessionToken);
+  return {
+    success: true,
+    users: readUsers_().map((user) => ({
+      userId: user.userId,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      email: user.email,
+      department: user.department,
+      active: user.active,
+      signatureConfigured: !!user.signatureFileId,
+      updatedAt: serializeDateValue_(user.updatedAt),
+    })),
+  };
+}
+
+function adminResetUserPassword(sessionToken, userId, newPassword) {
+  const session = requireAdminSession_(sessionToken);
+  const target = findUserById_(userId);
+  if (!target) throw new Error('ไม่พบบัญชีผู้ใช้ที่เลือก');
+  if (!target.active) throw new Error('บัญชีนี้ถูกปิดใช้งาน กรุณาเปิดสถานะ active ในชีต Users ก่อน');
+  const next = String(newPassword || '');
+  if (next.length < 8) throw new Error('รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร');
+  updateUserPasswordHash_(target.rowNumber, hashPassword_(target.username, next));
+  const auditSaved = tryAppendAudit_(session, 'ADMIN_RESET_PASSWORD', '', {
+    targetUserId: target.userId,
+    targetUsername: target.username,
+    targetRole: target.role,
+  });
+  return {
+    success: true,
+    auditSaved: auditSaved,
+    user: {
+      userId: target.userId,
+      username: target.username,
+      name: target.name,
+      role: target.role,
+    },
+    message: auditSaved
+      ? 'ตั้งรหัสผ่านใหม่ให้ผู้ใช้เรียบร้อยแล้ว'
+      : 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว แต่ระบบบันทึกประวัติไม่สำเร็จ',
+  };
+}
+
+
+function saveImportDefaults(sessionToken, payload) {
+  const session = requireAdminSession_(sessionToken);
+  const data = payload || {};
+  const fromSender = normalizeText_(data.fromSender);
+  if (!fromSender) throw new Error('กรุณากรอกหน่วยงานผู้ส่งเริ่มต้น');
+  if (fromSender.length > 120) throw new Error('ชื่อหน่วยงานผู้ส่งยาวเกินไป');
+  const operationMode = operationModeCode_(data.operationMode);
+  getScriptProps_().setProperties({
+    [APP.PROP.DEFAULT_SENDER]: fromSender,
+    [APP.PROP.DEFAULT_OPERATION_MODE]: operationMode,
+  });
+  appendAudit_(session, 'UPDATE_IMPORT_DEFAULTS', '', { fromSender: fromSender, operationMode: operationMode });
+  return { success: true, defaults: { fromSender: fromSender, operationMode: operationMode } };
+}
+
+
+function saveReceiveSettings(sessionToken, payload) {
+  const session = requireAdminSession_(sessionToken);
+  const data = payload || {};
+  const lastNumber = Number(data.lastNumber);
+  const year = Number(data.year);
+  if (!Number.isInteger(lastNumber) || lastNumber < 0) throw new Error('เลขรับล่าสุดต้องเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป');
+  if (!Number.isInteger(year) || year < 2500 || year > 3000) throw new Error('ปีทะเบียนต้องเป็นปี พ.ศ. ที่ถูกต้อง');
+
+  return withWriteLock_(function () {
+    getScriptProps_().setProperties({
+      [APP.PROP.LAST_RECEIVE_NUMBER]: String(lastNumber),
+      [APP.PROP.LAST_RECEIVE_YEAR]: String(year),
+    });
+    appendAudit_(session, 'UPDATE_RECEIVE_SETTINGS', '', { lastNumber: lastNumber, year: year });
+    return { success: true, receive: { lastNumber: lastNumber, year: year, nextNumber: (lastNumber + 1) + '/' + year } };
+  });
+}
+
+function refreshAdminSystemStatus(sessionToken) {
+  requireAdminSession_(sessionToken);
+  return { success: true, admin: getAdminSettingsSnapshot_() };
+}
+
+
+// ==================== WebApp.gs ====================
+
+function doGet(e) {
+  const props = getScriptProps_();
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.frontendBaseUrl = normalizeText_(props.getProperty(APP.PROP.FRONTEND_BASE_URL)).replace(/\/+$/, '');
+  template.frontendVersion = normalizeText_(props.getProperty(APP.PROP.FRONTEND_VERSION)) || APP.VERSION;
+  template.appName = APP.NAME;
+  template.appVersion = APP.VERSION;
+  template.webAppUrl = normalizeText_(ScriptApp.getService().getUrl());
+  return template.evaluate()
+    .setTitle(APP.NAME)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
