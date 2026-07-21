@@ -122,7 +122,7 @@
       intro: 'ใช้สำหรับเปิดหนังสือที่รอดำเนินการ ประทับตรา ลงลายเซ็น และส่งต่อ',
       steps: [
         ['เปิดงานรอดำเนินการ', 'เลือกเอกสารจากแท็บ “งานรอดำเนินการ” แล้วกด “ประทับตรา / จัดการ”'],
-        ['เลือกข้อความในตรา', 'เลือก ทราบ พิจารณา เห็นควรมอบ ยุติเรื่อง และเลือกฝ่ายที่เกี่ยวข้อง พร้อมพิมพ์ข้อสั่งการ'],
+        ['เลือกข้อความในตรา', 'เลือก ทราบ พิจารณา เห็นควรมอบ ยุติเรื่อง และเลือกฝ่ายที่เกี่ยวข้อง พร้อมพิมพ์ข้อสั่งการ หรือกด “ใช้งานผ่าน iPad” เพื่อเขียนด้วยปากกา'],
         ['กรณีรักษาการ', 'ตราจะแสดงตำแหน่งรองผู้อำนวยการโรงเรียนวัดแม่กะ และรักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ'],
         ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ แล้วใช้เครื่องมือย่อ–ขยายก่อนบันทึก'],
         ['ส่งต่อ', 'ตรวจความถูกต้องของตราและลายเซ็น แล้วกดยืนยันเพื่อส่งเอกสารตามเส้นทางงาน'],
@@ -133,7 +133,7 @@
       intro: 'ใช้สำหรับพิจารณาหนังสือ ประทับตรา ลงลายเซ็น และส่งกลับธุรการ',
       steps: [
         ['เปิดเอกสาร', 'เลือกเอกสารในแท็บ “งานรอดำเนินการ” และเปิดหน้าเอกสาร'],
-        ['ระบุคำสั่ง', 'เลือกตัวเลือกในตราและพิมพ์ข้อสั่งการให้ครบถ้วน'],
+        ['ระบุคำสั่ง', 'เลือกตัวเลือกในตรา แล้วพิมพ์ข้อสั่งการ หรือกด “ใช้งานผ่าน iPad” เพื่อเขียนด้วย Apple Pencil'],
         ['ตรวจลายเซ็น', 'ตรวจว่าลายเซ็นและชื่อผู้ลงนามแสดงถูกต้องก่อนบันทึก'],
         ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ และย่อ–ขยายไม่ให้ทับเนื้อหาสำคัญ'],
         ['ส่งกลับธุรการ', 'กดยืนยันเพื่อส่งเอกสารกลับให้ธุรการดำเนินการจ่ายเรื่อง'],
@@ -171,6 +171,10 @@
     stampsInitialized: false,
     selectedStamp: null,
     stampInteractionMode: 'move',
+    handwritingDataUrl: '',
+    handwritingTarget: null,
+    handwritingHistory: [],
+    handwritingHasInk: false,
     allUsers: [],
     appSettings: null,
     adminUsers: [],
@@ -651,7 +655,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.1.1';
+    document.documentElement.dataset.frontendVersion = '2.1.3';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -1161,7 +1165,7 @@
         <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-200">${escapeHtml(doc.status)} • ${escapeHtml(accessLabel)} • แสดงเอกสารครบทุกหน้า</div></div></div>
         <div class="flex items-center gap-2 flex-wrap">
           <button id="zoom-out" class="btn btn-muted">−</button><span id="zoom-label" class="text-sm min-w-14 text-center">${Math.round(state.currentScale * 100)}%</span><button id="zoom-in" class="btn btn-muted">＋</button>
-          ${canStamp ? '<span class="workspace-hint">ลากตราไปยังหน้าที่ต้องการได้</span><button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>' : ''}
+          ${canStamp ? `${role === 'ผู้อำนวยการ' ? '<button id="ipad-handwriting" class="btn btn-ipad" type="button">✍ ใช้งานผ่าน iPad</button>' : ''}<button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>` : ''}
           ${!canStamp && !showDispatch ? `<span class="workspace-readonly-note">อ่านอย่างเดียว • คิวปัจจุบัน: ${escapeHtml(permissions.currentRole || doc.currentRole || '-')}</span>` : ''}
           <button id="download-current" class="btn btn-success">ดาวน์โหลด PDF</button>
         </div>
@@ -1186,6 +1190,8 @@
       state.currentScale = Math.max(.7, state.currentScale - .15);
       await renderAllPdfPages();
     };
+    const ipadButton = document.getElementById('ipad-handwriting');
+    if (ipadButton) ipadButton.onclick = () => openHandwritingPad();
     const saveButton = document.getElementById('save-stamp');
     if (saveButton) saveButton.onclick = saveAndStamp;
     if (showDispatch) initializeDispatch();
@@ -1237,7 +1243,12 @@
         <div style="width:220px;padding:5px;color:#1254c0;font-size:11px;line-height:1.45">
           <div style="display:flex;justify-content:space-around;font-weight:700"><label><input type="checkbox" data-meta="ทราบ"> ทราบ</label><label><input type="checkbox" data-meta="ยุติเรื่อง"> ยุติเรื่อง</label></div>
           <div style="text-align:center;font-weight:700;margin:5px 0"><label><input type="checkbox" data-meta="ดำเนินการตามเสนอ"> ดำเนินการตามเสนอ</label></div>
-          <div style="font-weight:700">ข้อสั่งการ</div><textarea class="stamp-textarea" rows="4"></textarea>
+          <div class="stamp-order-title">ข้อสั่งการ <button type="button" class="stamp-ui-only stamp-handwriting-open" data-open-handwriting title="เขียนผ่าน iPad">✍ เขียน</button></div>
+          <div class="stamp-order-area" data-handwriting-area>
+            <textarea class="stamp-textarea stamp-order-textarea" rows="4" placeholder="พิมพ์ข้อสั่งการ หรือกด ใช้งานผ่าน iPad"></textarea>
+            <img class="stamp-handwriting-image hide" alt="ข้อสั่งการลายมือสีน้ำเงิน">
+            <button type="button" class="stamp-ui-only stamp-handwriting-edit hide" data-open-handwriting>แตะเพื่อแก้ไขลายมือ</button>
+          </div>
           <div style="text-align:center;margin-top:5px">${signature ? `<img src="${signature}" style="height:34px;max-width:145px;object-fit:contain;margin:auto">` : ''}<div>(${escapeHtml(state.user.name)})</div><div style="font-size:9px">ผู้อำนวยการโรงเรียนวัดแม่กะ</div></div>
         </div>`);
     }
@@ -1313,6 +1324,14 @@
       });
       stamp.addEventListener('pointercancel', () => { tapStart = null; });
       initResizeHandle(stamp);
+    });
+
+    document.querySelectorAll('[data-open-handwriting]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openHandwritingPad();
+      });
     });
 
     try { interact('.draggable-stamp').unset(); } catch (_) {}
@@ -1542,6 +1561,259 @@
     overlay.querySelector('.stamp-tool-cancel').addEventListener('click', close);
   }
 
+
+  function getHandwritingElements() {
+    const area = document.querySelector('[data-handwriting-area]');
+    return {
+      area,
+      textarea: area?.querySelector('.stamp-order-textarea') || null,
+      image: area?.querySelector('.stamp-handwriting-image') || null,
+      editButton: area?.querySelector('.stamp-handwriting-edit') || null,
+    };
+  }
+
+  function setHandwritingMode(enabled, dataUrl) {
+    const { textarea, image, editButton } = getHandwritingElements();
+    if (!textarea || !image) return;
+    if (enabled && dataUrl) {
+      image.src = dataUrl;
+      image.classList.remove('hide');
+      textarea.classList.add('hide');
+      editButton?.classList.remove('hide');
+      state.handwritingDataUrl = dataUrl;
+      return;
+    }
+    image.classList.add('hide');
+    image.removeAttribute('src');
+    textarea.classList.remove('hide');
+    editButton?.classList.add('hide');
+    state.handwritingDataUrl = '';
+  }
+
+  function openHandwritingPad() {
+    const { textarea, image } = getHandwritingElements();
+    if (!textarea || !image) {
+      Swal.fire({
+        icon: 'info',
+        title: 'ยังไม่พบช่องข้อสั่งการ',
+        text: 'ปุ่มนี้ใช้ในขั้นตอนที่ผู้อำนวยการเขียนข้อสั่งการ',
+        confirmButtonText: 'ตกลง',
+      });
+      return;
+    }
+
+    const existing = image.classList.contains('hide') ? '' : (image.getAttribute('src') || state.handwritingDataUrl || '');
+    const overlay = document.createElement('div');
+    overlay.id = 'ipad-handwriting-pad';
+    overlay.className = 'handwriting-backdrop';
+    overlay.innerHTML = `
+      <section class="handwriting-dialog" role="dialog" aria-modal="true" aria-label="เขียนข้อสั่งการผ่าน iPad">
+        <header class="handwriting-toolbar">
+          <button type="button" class="handwriting-cancel">← ยกเลิก</button>
+          <div class="handwriting-heading">
+            <b>เขียนข้อสั่งการผ่าน iPad</b>
+            <small>ใช้ Apple Pencil หรือนิ้วเขียน หมึกสีน้ำเงิน</small>
+          </div>
+          <div class="handwriting-actions">
+            <button type="button" class="handwriting-undo">↶ ย้อนกลับ</button>
+            <button type="button" class="handwriting-clear">ล้างทั้งหมด</button>
+            <button type="button" class="handwriting-done">เสร็จสิ้น</button>
+          </div>
+        </header>
+        <div class="handwriting-paper-wrap">
+          <div class="handwriting-paper-label">ข้อสั่งการ</div>
+          <canvas class="handwriting-canvas" aria-label="พื้นที่เขียนข้อสั่งการ"></canvas>
+          <div class="handwriting-tip">วางฝ่ามือได้ตามปกติ และเขียนในกรอบด้วย Apple Pencil</div>
+        </div>
+        <footer class="handwriting-footer">
+          <button type="button" class="handwriting-keyboard">⌨ กลับไปพิมพ์ข้อความ</button>
+          <span>ลายมือจะถูกวางลงในตราประทับและบันทึกลง PDF</span>
+        </footer>
+      </section>`;
+    document.body.appendChild(overlay);
+
+    const canvas = overlay.querySelector('.handwriting-canvas');
+    const ctx = canvas.getContext('2d', { alpha: true });
+    state.handwritingTarget = { textarea, image };
+    state.handwritingHistory = [];
+    state.handwritingHasInk = Boolean(existing);
+
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const snapshot = state.handwritingHasInk ? canvas.toDataURL('image/png') : existing;
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#1254c0';
+      if (snapshot) restoreHandwritingSnapshot(ctx, canvas, snapshot);
+    };
+
+    const restoreExisting = () => {
+      if (!existing) return;
+      restoreHandwritingSnapshot(ctx, canvas, existing);
+    };
+
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      restoreExisting();
+    });
+
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+    let activePointerId = null;
+
+    const pointFromEvent = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+
+    canvas.addEventListener('pointerdown', (event) => {
+      if (activePointerId !== null) return;
+      event.preventDefault();
+      canvas.setPointerCapture?.(event.pointerId);
+      activePointerId = event.pointerId;
+      drawing = true;
+      state.handwritingHistory.push(canvas.toDataURL('image/png'));
+      if (state.handwritingHistory.length > 20) state.handwritingHistory.shift();
+      const point = pointFromEvent(event);
+      lastX = point.x;
+      lastY = point.y;
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+    }, { passive: false });
+
+    canvas.addEventListener('pointermove', (event) => {
+      if (!drawing || event.pointerId !== activePointerId) return;
+      event.preventDefault();
+      const point = pointFromEvent(event);
+      const pressure = event.pointerType === 'pen' && event.pressure > 0 ? event.pressure : .45;
+      ctx.lineWidth = 2.1 + pressure * 3.2;
+      ctx.strokeStyle = '#1254c0';
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+      lastX = point.x;
+      lastY = point.y;
+      state.handwritingHasInk = true;
+    }, { passive: false });
+
+    const finishStroke = (event) => {
+      if (activePointerId !== null && event.pointerId !== activePointerId) return;
+      drawing = false;
+      activePointerId = null;
+      ctx.closePath();
+    };
+    canvas.addEventListener('pointerup', finishStroke);
+    canvas.addEventListener('pointercancel', finishStroke);
+    canvas.addEventListener('pointerleave', (event) => {
+      if (event.pointerType !== 'pen') finishStroke(event);
+    });
+
+    const close = () => {
+      state.handwritingTarget = null;
+      overlay.remove();
+    };
+
+    overlay.querySelector('.handwriting-cancel').addEventListener('click', close);
+    overlay.querySelector('.handwriting-clear').addEventListener('click', () => {
+      state.handwritingHistory.push(canvas.toDataURL('image/png'));
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      state.handwritingHasInk = false;
+    });
+    overlay.querySelector('.handwriting-undo').addEventListener('click', () => {
+      const previous = state.handwritingHistory.pop();
+      if (!previous) return;
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      restoreHandwritingSnapshot(ctx, canvas, previous);
+      state.handwritingHasInk = true;
+    });
+    overlay.querySelector('.handwriting-keyboard').addEventListener('click', () => {
+      setHandwritingMode(false, '');
+      close();
+      textarea.focus();
+      Swal.fire({
+        toast: true,
+        position: 'bottom',
+        timer: 1600,
+        showConfirmButton: false,
+        icon: 'info',
+        title: 'กลับสู่โหมดพิมพ์ข้อความแล้ว',
+      });
+    });
+    overlay.querySelector('.handwriting-done').addEventListener('click', () => {
+      if (!state.handwritingHasInk) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ยังไม่ได้เขียนข้อสั่งการ',
+          text: 'กรุณาเขียนในกรอบ หรือกดกลับไปพิมพ์ข้อความ',
+          confirmButtonText: 'เขียนต่อ',
+        });
+        return;
+      }
+      const dataUrl = trimHandwritingCanvas(canvas, '#1254c0');
+      setHandwritingMode(true, dataUrl);
+      close();
+      refreshStampBounds(document.getElementById('stamp-director'));
+      setStampScale(document.getElementById('stamp-director'), Number(document.getElementById('stamp-director')?.dataset.scale || 1));
+      Swal.fire({
+        toast: true,
+        position: 'bottom',
+        timer: 1800,
+        showConfirmButton: false,
+        icon: 'success',
+        title: 'บันทึกลายมือสีน้ำเงินแล้ว',
+      });
+    });
+  }
+
+  function restoreHandwritingSnapshot(ctx, canvas, dataUrl) {
+    if (!dataUrl) return;
+    const image = new Image();
+    image.onload = () => {
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      ctx.drawImage(image, 0, 0, canvas.clientWidth, canvas.clientHeight);
+    };
+    image.src = dataUrl;
+  }
+
+  function trimHandwritingCanvas(canvas) {
+    const sourceCtx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const pixels = sourceCtx.getImageData(0, 0, width, height);
+    const data = pixels.data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const alpha = data[(y * width + x) * 4 + 3];
+        if (alpha < 8) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+
+    if (maxX < minX || maxY < minY) return canvas.toDataURL('image/png');
+    const pad = Math.max(16, Math.round((window.devicePixelRatio || 1) * 10));
+    minX = Math.max(0, minX - pad);
+    minY = Math.max(0, minY - pad);
+    maxX = Math.min(width - 1, maxX + pad);
+    maxY = Math.min(height - 1, maxY + pad);
+    const trimmed = document.createElement('canvas');
+    trimmed.width = maxX - minX + 1;
+    trimmed.height = maxY - minY + 1;
+    trimmed.getContext('2d').drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+    return trimmed.toDataURL('image/png');
+  }
+
   function initResizeHandle(stamp) {
     const handle = stamp.querySelector('.stamp-resize-handle');
     handle.addEventListener('pointerdown', (event) => {
@@ -1691,6 +1963,9 @@
     clone.style.color = '#1254c0';
     clone.style.background = 'transparent';
 
+    clone.querySelectorAll('.stamp-ui-only').forEach((element) => element.remove());
+    clone.querySelectorAll('.stamp-textarea.hide, .stamp-handwriting-image.hide').forEach((element) => element.remove());
+
     const originalInputs = [...originalContent.querySelectorAll('input')];
     const cloneInputs = [...clone.querySelectorAll('input')];
     cloneInputs.forEach((input, index) => {
@@ -1827,6 +2102,7 @@
       options: [],
       department: '',
       text: '',
+      handwriting: false,
       scales: [],
       placements: [],
       pageCount: Number(state.currentPdf?.numPages || 0),
@@ -1834,7 +2110,8 @@
     document.querySelectorAll('.draggable-stamp input[type="checkbox"]:checked').forEach((input) => meta.options.push(input.dataset.meta || input.value || 'checked'));
     const department = document.querySelector('.draggable-stamp input[type="radio"]:checked');
     if (department) meta.department = department.value;
-    meta.text = [...document.querySelectorAll('.draggable-stamp textarea')].map((textarea) => textarea.value).filter(Boolean).join('\n');
+    meta.text = [...document.querySelectorAll('.draggable-stamp textarea:not(.hide)')].map((textarea) => textarea.value).filter(Boolean).join('\n');
+    meta.handwriting = Boolean(document.querySelector('.stamp-handwriting-image:not(.hide)'));
     meta.scales = [...document.querySelectorAll('.draggable-stamp')].map((stamp) => ({
       id: stamp.id,
       scale: Number(stamp.dataset.scale || 1),
@@ -1994,7 +2271,7 @@
       users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
       import: `<section class="settings-content-section"><h2>📥 ค่าเริ่มต้นการนำเข้า</h2><p class="settings-lead">ค่าที่กำหนดจะถูกใส่ให้อัตโนมัติเมื่อเปิดหน้าต่างนำเข้าหนังสือใหม่</p><form id="import-defaults-form" class="settings-form"><label>หน่วยงานผู้ส่งเริ่มต้น<input class="input" name="fromSender" value="${escapeHtml(defaults.fromSender || 'สพป.ชม.2')}" required></label><label>รูปแบบการดำเนินงานเริ่มต้น<select class="input" name="operationMode"><option value="normal" ${defaults.operationMode === 'normal' ? 'selected' : ''}>ปกติ</option><option value="acting" ${defaults.operationMode === 'acting' ? 'selected' : ''}>รองรักษาการ</option><option value="director" ${defaults.operationMode === 'director' ? 'selected' : ''}>รองผู้อำนวยการไม่อยู่</option></select></label><button class="btn btn-primary" type="submit">บันทึกค่าเริ่มต้น</button></form></section>`,
       receive: `<section class="settings-content-section"><h2>🔢 เลขรับและปีทะเบียน</h2><p class="settings-lead">ระบบจะนำเลขรับล่าสุดมาบวก 1 สำหรับเอกสารฉบับถัดไป</p><form id="receive-settings-form" class="settings-form"><label>เลขรับล่าสุด<input class="input" type="number" min="0" step="1" name="lastNumber" value="${Number(admin.receive?.lastNumber || 0)}" required></label><label>ปีทะเบียน พ.ศ.<input class="input" type="number" min="2500" max="3000" step="1" name="year" value="${Number(admin.receive?.year || new Date().getFullYear() + 543)}" required></label><div class="settings-next-number">เลขถัดไป: <b id="next-receive-number">${escapeHtml(admin.receive?.nextNumber || '-')}</b></div><button class="btn btn-primary" type="submit">บันทึกเลขรับ</button></form></section>`,
-      system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="webapp-link-card"><div><b>ลิงก์สำหรับเปิดระบบและส่งให้ผู้ใช้งาน</b><p>ใช้ลิงก์ Google Apps Script Web App ที่ลงท้ายด้วย <code>/exec</code> เท่านั้น</p><div class="mobile-url-box">${escapeHtml(admin.system?.webAppUrl || 'ยังอ่านลิงก์ Web App ไม่ได้')}</div></div><button id="copy-webapp-url" class="btn btn-primary" type="button" ${admin.system?.webAppUrl ? '' : 'disabled'}>คัดลอกลิงก์</button></div><div class="settings-warning-box">หากเปิดใน LINE ได้ แต่เปิดใน Chrome ไม่ได้ ให้ตรวจ Deployment ว่าอนุญาต “ทุกคน” หรือให้ผู้ใช้ลงชื่อเข้า Google ด้วยบัญชีที่ได้รับอนุญาต และตรวจการอนุญาตคุกกี้ของเว็บไซต์ Google</div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
+      system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}${statusPill(Number(admin.system?.designedConcurrentUsers || 0) >= 15, 'รองรับพร้อมกัน 15 คน')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="webapp-link-card"><div><b>ลิงก์สำหรับเปิดระบบและส่งให้ผู้ใช้งาน</b><p>ใช้ลิงก์ Google Apps Script Web App ที่ลงท้ายด้วย <code>/exec</code> เท่านั้น</p><div class="mobile-url-box">${escapeHtml(admin.system?.webAppUrl || 'ยังอ่านลิงก์ Web App ไม่ได้')}</div></div><button id="copy-webapp-url" class="btn btn-primary" type="button" ${admin.system?.webAppUrl ? '' : 'disabled'}>คัดลอกลิงก์</button></div><div class="settings-warning-box">หากเปิดใน LINE ได้ แต่เปิดใน Chrome ไม่ได้ ให้ตรวจ Deployment ว่าอนุญาต “ทุกคน” หรือให้ผู้ใช้ลงชื่อเข้า Google ด้วยบัญชีที่ได้รับอนุญาต และตรวจการอนุญาตคุกกี้ของเว็บไซต์ Google</div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
 
       data: `<section class="settings-content-section"><h2>🗂️ จัดการข้อมูล</h2><p class="settings-lead">เปิดทะเบียนและโฟลเดอร์จัดเก็บข้อมูลของระบบ</p><div class="data-link-grid"><button data-open-url="${escapeHtml(admin.documentsSheetUrl || '')}">📄 ชีต Documents<small>${Number(admin.counts?.documents || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.auditSheetUrl || '')}">🧾 Audit Log<small>${Number(admin.counts?.audit || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.folders?.original || '')}">📥 เอกสารต้นฉบับ</button><button data-open-url="${escapeHtml(admin.folders?.stamped || '')}">✅ เอกสารประทับตรา</button><button data-open-url="${escapeHtml(admin.folders?.attachments || '')}">📎 ไฟล์แนบ</button><button data-open-url="${escapeHtml(admin.folders?.signatures || '')}">✍️ ลายเซ็น</button></div><div class="settings-warning-box">เพื่อป้องกันการลบผิด ระบบยังไม่ใส่ปุ่ม “ล้างข้อมูลทั้งหมด” ในหน้าเว็บ การล้างข้อมูลให้ทำจาก Google Sheet และ Drive หลังสำรองข้อมูลแล้ว</div><button id="settings-open-download-center" class="btn btn-primary mt-4" type="button">เปิดศูนย์ดาวน์โหลดเอกสาร</button></section>`,
     };
