@@ -1229,7 +1229,7 @@ html.reduced-motion .admin-mascot-runway .admin-mascot-character {
 
 
 /* =========================================================
-   Version 2.1.0: replace PDF, merge PDF, workflow animals
+   Version 2.1.2: replace PDF, merge PDF, workflow animals, 15-user concurrency
    ========================================================= */
 .btn-warning {
   background:#f59e0b;
@@ -1549,4 +1549,134 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
   .attachment-download-label { grid-column:2; justify-self:start; }
   .merge-section-heading { display:block; }
   .merge-admin-badge { display:inline-block; margin-top:.45rem; }
+}
+
+
+/* iPad handwriting mode for director's order */
+.btn-ipad {
+  background:linear-gradient(135deg,#f8fafc,#dbeafe);
+  color:#123b87;
+  border:1px solid rgba(191,219,254,.95);
+  box-shadow:0 5px 14px rgba(18,84,192,.2);
+}
+.btn-ipad:hover { background:linear-gradient(135deg,#eff6ff,#bfdbfe); }
+.stamp-order-title { display:flex; align-items:center; justify-content:space-between; gap:5px; font-weight:700; }
+.stamp-handwriting-open,
+.stamp-handwriting-edit {
+  border:1px solid #93c5fd;
+  background:#eff6ff;
+  color:#1254c0 !important;
+  border-radius:7px;
+  padding:2px 6px;
+  font-size:9px;
+  font-weight:700;
+}
+.stamp-order-area { position:relative; min-height:62px; }
+.stamp-handwriting-image {
+  display:block;
+  width:100%;
+  max-height:90px;
+  object-fit:contain;
+  object-position:left center;
+  margin:2px 0;
+  background:transparent;
+}
+.stamp-handwriting-edit { width:100%; margin-top:2px; }
+.stamp-capture-clone .stamp-handwriting-image:not(.hide) { display:block !important; }
+
+.handwriting-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:220;
+  background:rgba(10,20,38,.7);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  backdrop-filter:blur(5px);
+}
+.handwriting-dialog {
+  width:min(980px,96vw);
+  max-height:94vh;
+  overflow:hidden;
+  border-radius:22px;
+  background:#f8fbff;
+  border:1px solid #bfdbfe;
+  box-shadow:0 28px 85px rgba(0,0,0,.42);
+  display:flex;
+  flex-direction:column;
+}
+.handwriting-toolbar {
+  flex:0 0 auto;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  background:linear-gradient(135deg,#0f3f9f,#1254c0);
+  color:#fff;
+}
+.handwriting-heading { text-align:center; min-width:0; }
+.handwriting-heading b { display:block; font-size:1.02rem; }
+.handwriting-heading small { display:block; color:#dbeafe; margin-top:2px; }
+.handwriting-actions { display:flex; gap:8px; align-items:center; }
+.handwriting-toolbar button,
+.handwriting-footer button {
+  border:0;
+  border-radius:11px;
+  padding:10px 13px;
+  font-weight:800;
+}
+.handwriting-cancel,
+.handwriting-undo,
+.handwriting-clear { background:rgba(255,255,255,.92); color:#123b87; }
+.handwriting-done { background:#f59e0b; color:#352006; min-width:92px; }
+.handwriting-paper-wrap {
+  flex:1 1 auto;
+  min-height:0;
+  padding:18px;
+  background:#eaf2ff;
+}
+.handwriting-paper-label {
+  color:#1254c0;
+  font-weight:800;
+  margin:0 0 7px 4px;
+}
+.handwriting-canvas {
+  display:block;
+  width:100%;
+  height:min(48vh,390px);
+  min-height:250px;
+  border:2px solid #7aa7ee;
+  border-radius:16px;
+  background-color:#fff;
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 47px,#d8e7ff 48px);
+  touch-action:none;
+  cursor:crosshair;
+  box-shadow:inset 0 1px 7px rgba(18,84,192,.08);
+}
+.handwriting-tip { margin-top:7px; text-align:center; color:#42659f; font-size:.82rem; }
+.handwriting-footer {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:11px 14px;
+  background:#fff;
+  border-top:1px solid #dbeafe;
+  color:#4b638b;
+  font-size:.84rem;
+}
+.handwriting-keyboard { background:#eff6ff; color:#123b87; border:1px solid #bfdbfe !important; }
+
+@media (max-width:760px) {
+  .handwriting-backdrop { padding:0; }
+  .handwriting-dialog { width:100vw; height:100dvh; max-height:none; border-radius:0; }
+  .handwriting-toolbar { grid-template-columns:auto 1fr; }
+  .handwriting-actions { grid-column:1 / -1; justify-content:stretch; }
+  .handwriting-actions button { flex:1; }
+  .handwriting-paper-wrap { padding:10px; }
+  .handwriting-canvas { height:calc(100dvh - 235px); min-height:280px; }
+  .handwriting-footer { align-items:stretch; flex-direction:column; text-align:center; }
+  .btn-ipad { width:100%; }
 }
