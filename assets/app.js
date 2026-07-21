@@ -102,6 +102,10 @@
     speed: 'normal',
   };
 
+  const DEFAULT_WORKFLOW_MASCOT_SETTINGS = {
+    enabled: true,
+  };
+
   const ROLE_GUIDES = {
     'ธุรการ': {
       title: 'คู่มือการใช้งานสำหรับธุรการ',
@@ -113,6 +117,7 @@
         ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
         ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
+        ['สร้างข้อความ LINE', 'กดปุ่ม LINE ข้างปุ่มรีเฟรช เลือกเอกสาร ตรวจรายชื่อและสถานะ แล้วกดคัดลอกข้อความไปวางใน LINE โดยไม่ใช้ AI หรือโทเคน'],
         ['ตั้งรหัสผ่านใหม่', 'ไปที่ ⚙ การตั้งค่า → จัดการผู้ใช้งาน แล้วเลือก “ตั้งรหัสใหม่” กรณีผู้ใช้ลืมรหัสเดิม'],
         ['ตรวจสอบสถานะ', 'ดูตัวเลขรับทราบในจดหมายเข้าและจดหมายทั้งหมด สีแดงหมายถึงยังไม่ครบ สีเขียวหมายถึงครบแล้ว'],
       ],
@@ -180,6 +185,7 @@
     adminUsers: [],
     displaySettings: null,
     mascotSettings: null,
+    workflowMascotSettings: null,
     workflowMascotUntil: 0,
     workflowMascotTimer: null,
   };
@@ -193,6 +199,11 @@
   function isClericalUser() {
     const role = normalizedUserRole();
     return role === 'ธุรการ' || role.includes('ธุรการ');
+  }
+
+
+  function lineLogoMarkup() {
+    return `<svg class="line-button-logo" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="13" fill="#06c755"/><path d="M38.5 22.6c0-7.1-6.7-12.9-14.9-12.9S8.7 15.5 8.7 22.6c0 6.4 5.7 11.8 13.4 12.8.5.1 1.2.4 1.4.9.2.5.1 1.2.1 1.7l-.2 1.6c-.1.5-.4 2 1.8 1.1 2.2-.9 11.8-7 16.1-12 2.9-3.1 4.2-6.2 4.2-6.2h-7z" fill="#fff" opacity=".98" transform="translate(-5.8 0)"/><path d="M14.7 18.8h2.1v7h3.8v1.9h-5.9v-8.9zm7.1 0h2.1v8.9h-2.1v-8.9zm4 0h2l3.6 5.3v-5.3h2.1v8.9h-2l-3.6-5.3v5.3h-2.1v-8.9zm9.6 0h6v1.9h-3.9v1.5h3.7V24h-3.7v1.7h4.1v1.9h-6.2v-8.8z" fill="#06c755" transform="translate(-5.8 0)"/></svg>`;
   }
 
   function guideRoleKey() {
@@ -295,6 +306,46 @@
     return next;
   }
 
+  function workflowMascotStorageKey(username) {
+    const key = String(username || state.user?.username || 'guest').toLowerCase();
+    return `officialDocWorkflowMascot:${key}`;
+  }
+
+  function loadWorkflowMascotSettings(username) {
+    let stored = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(workflowMascotStorageKey(username)) || 'null');
+    } catch (_) {}
+    return {
+      ...DEFAULT_WORKFLOW_MASCOT_SETTINGS,
+      ...(stored || {}),
+      enabled: stored?.enabled !== false,
+    };
+  }
+
+  function saveWorkflowMascotSettings(settings) {
+    const next = {
+      ...DEFAULT_WORKFLOW_MASCOT_SETTINGS,
+      ...(settings || {}),
+      enabled: settings?.enabled !== false,
+    };
+    localStorage.setItem(workflowMascotStorageKey(), JSON.stringify(next));
+    state.workflowMascotSettings = next;
+    if (!next.enabled) {
+      state.workflowMascotUntil = 0;
+      if (state.workflowMascotTimer) {
+        window.clearTimeout(state.workflowMascotTimer);
+        state.workflowMascotTimer = null;
+      }
+    }
+    return next;
+  }
+
+  function workflowMascotEnabled() {
+    const settings = state.workflowMascotSettings || loadWorkflowMascotSettings();
+    return settings.enabled !== false;
+  }
+
   function mascotCharacterMarkup(item, index, speed) {
     const durationMap = { slow: 24, normal: 17, fast: 11 };
     const duration = durationMap[speed] || durationMap.normal;
@@ -380,7 +431,7 @@
   }
 
   function workflowMascotMarkup() {
-    if (isClericalUser() || !state.user) return '';
+    if (isClericalUser() || !state.user || !workflowMascotEnabled()) return '';
     const counts = workflowMascotCounts();
     const celebrating = Number(state.workflowMascotUntil || 0) > Date.now();
 
@@ -432,7 +483,7 @@
   }
 
   function triggerWorkflowMascotProgress() {
-    if (isClericalUser()) return;
+    if (isClericalUser() || !workflowMascotEnabled()) return;
     state.workflowMascotUntil = Date.now() + 4300;
     if (state.workflowMascotTimer) window.clearTimeout(state.workflowMascotTimer);
     state.workflowMascotTimer = window.setTimeout(() => {
@@ -558,6 +609,7 @@
         state.user = result.user;
         applyDisplaySettings(loadDisplaySettings(state.user.username));
         state.mascotSettings = loadMascotSettings(state.user.username);
+        state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
         sessionStorage.setItem('officialDocToken', state.token);
         state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
         await loadDashboard();
@@ -577,6 +629,7 @@
       state.user = result.user;
       applyDisplaySettings(loadDisplaySettings(state.user.username));
       state.mascotSettings = loadMascotSettings(state.user.username);
+      state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
       state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
       await loadDashboard();
       Swal.close();
@@ -598,6 +651,9 @@
     state.appSettings = appSettings || state.appSettings;
     if (isClericalUser() && !state.mascotSettings) {
       state.mascotSettings = loadMascotSettings(state.user.username);
+    }
+    if (!isClericalUser() && !state.workflowMascotSettings) {
+      state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
     }
     renderDashboard();
   }
@@ -630,6 +686,7 @@
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
+              ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สร้างข้อความแจ้งเอกสารทาง LINE" title="สร้างข้อความแจ้งเอกสารทาง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
             </div>
             <div class="flex gap-2 items-center">
               <input id="search-input" class="input w-64 max-w-full" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง">
@@ -655,7 +712,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.1.3';
+    document.documentElement.dataset.frontendVersion = '2.1.5';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -671,6 +728,8 @@
     bindAdminMascots();
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
+    const lineNotifyBtn = document.getElementById('line-notify-btn');
+    if (lineNotifyBtn) lineNotifyBtn.onclick = openLineNotificationModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { state.tab = button.dataset.tab; renderDashboard(); };
     });
@@ -685,12 +744,32 @@
     return state.allDocs;
   }
 
+
+  function receiveNumberParts(value) {
+    const match = String(value || '').trim().replace(/^'/, '').match(/^(\d+)\s*\/\s*(\d{4})$/);
+    if (!match) return { valid: false, number: -1, year: -1 };
+    return { valid: true, number: Number(match[1]), year: Number(match[2]) };
+  }
+
+  function sortDocumentsByReceiveNumberDesc(documents) {
+    return [...(documents || [])].sort((a, b) => {
+      const left = receiveNumberParts(a.recvNo);
+      const right = receiveNumberParts(b.recvNo);
+      if (left.valid !== right.valid) return right.valid ? 1 : -1;
+      if (left.number !== right.number) return right.number - left.number;
+      if (left.year !== right.year) return right.year - left.year;
+      return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+    });
+  }
+
   function renderDocumentRows() {
     const tbody = document.getElementById('document-tbody');
     if (!tbody) return;
     const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
     const filter = document.getElementById('doc-filter')?.value || 'all';
-    let docs = currentDocuments().filter((doc) => {
+    let sourceDocs = currentDocuments();
+    if (state.tab === 'all') sourceDocs = sortDocumentsByReceiveNumberDesc(sourceDocs);
+    let docs = sourceDocs.filter((doc) => {
       const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''}`.toLowerCase();
       if (query && !text.includes(query)) return false;
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
@@ -969,6 +1048,158 @@
       await loadDashboard();
       Swal.fire('สำเร็จ', 'บันทึกรับทราบเรียบร้อยแล้ว', 'success');
     } catch (error) { showError(error); }
+  }
+
+
+  function lineRecipientStatus(item) {
+    return item && item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่ได้รับทราบ';
+  }
+
+  function buildLineNotificationMessage(doc) {
+    if (!doc || !(doc.recipients || []).length) return '';
+    const header = [
+      '📢 แจ้งหนังสือราชการ',
+      '',
+      `เลขรับ: ${String(doc.recvNo || '-').trim()}`,
+      `เรื่อง: ${String(doc.subject || '-').trim()}`,
+      `จาก: ${String(doc.fromSender || '-').trim()}`,
+      '',
+    ];
+
+    if (doc.dispatchType === 'ทุกคน') {
+      header.push('แจ้งทุกคนรับทราบ กรุณาเข้าสู่ระบบสารบรรณโรงเรียนวัดแม่กะ เพื่อเปิดอ่านและกดรับทราบ');
+      return header.join('\n');
+    }
+
+    const recipientText = (doc.recipients || [])
+      .map((item) => `${String(item.name || item.email || 'ไม่ระบุชื่อ').trim()} (${lineRecipientStatus(item)})`)
+      .join(', ');
+    header.push(`เอกสารฉบับนี้ส่งให้ ${recipientText} กรุณาเข้าสู่ระบบสารบรรณโรงเรียนวัดแม่กะ เพื่อเปิดอ่านและกดรับทราบ`);
+    return header.join('\n');
+  }
+
+  function lineRecipientStatusMarkup(doc) {
+    const recipients = doc?.recipients || [];
+    if (!recipients.length) {
+      return '<div class="line-empty-recipient"><b>ยังไม่ได้ส่งเอกสารให้ผู้รับ</b><span>กรุณาจ่ายเรื่องในระบบก่อนสร้างข้อความแจ้ง LINE</span></div>';
+    }
+    return recipients.map((item) => {
+      const acknowledged = !!item.acknowledgedAt;
+      return `<div class="line-recipient-row ${acknowledged ? 'is-acknowledged' : 'is-pending'}"><span class="line-recipient-name">${acknowledged ? '✅' : '⏳'} ${escapeHtml(item.name || item.email || 'ไม่ระบุชื่อ')}</span><span class="line-recipient-state">${acknowledged ? 'รับทราบแล้ว' : 'ยังไม่ได้รับทราบ'}</span></div>`;
+    }).join('');
+  }
+
+  function openLineNotificationModal() {
+    if (!isClericalUser()) {
+      Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'เมนูสร้างข้อความ LINE ใช้ได้เฉพาะบัญชีธุรการ', 'warning');
+      return;
+    }
+
+    const documents = sortDocumentsByReceiveNumberDesc(state.allDocs || []);
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop line-notification-backdrop';
+    overlay.innerHTML = `<div class="modal-panel line-notification-panel">
+      <div class="line-modal-heading">
+        <div class="line-modal-title-wrap">${lineLogoMarkup()}<div><h2>สร้างข้อความแจ้งเอกสารทาง LINE</h2><p>เลือกเอกสาร ตรวจรายชื่อและสถานะ แล้วคัดลอกข้อความไปวางใน LINE</p></div></div>
+        <button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button>
+      </div>
+      <div class="line-modal-grid">
+        <section class="line-picker-section">
+          <label class="line-field-label" for="line-document-search">ค้นหาเอกสาร</label>
+          <input id="line-document-search" class="input" placeholder="เลขรับ เรื่อง หรือผู้ส่ง">
+          <label class="line-field-label" for="line-document-select">เลือกเอกสาร</label>
+          <select id="line-document-select" class="input"><option value="">— กรุณาเลือกเอกสาร —</option></select>
+          <div id="line-document-summary" class="line-document-summary"><p>เลือกเอกสารเพื่อดูรายละเอียด</p></div>
+          <div class="line-status-heading"><span>รายชื่อผู้รับและสถานะ</span><span id="line-ack-summary" class="line-ack-summary">0/0</span></div>
+          <div id="line-recipient-list" class="line-recipient-list"><p class="text-slate-500">ยังไม่ได้เลือกเอกสาร</p></div>
+        </section>
+        <section class="line-message-section">
+          <div class="line-message-heading"><div><h3>ข้อความสำหรับคัดลอก</h3><p>แก้ไขข้อความในกล่องนี้ได้ก่อนคัดลอก</p></div><span class="line-no-ai-badge">ไม่ใช้ AI / ไม่ใช้โทเคน</span></div>
+          <textarea id="line-message-text" class="input line-message-text" placeholder="เลือกเอกสารเพื่อสร้างข้อความ" disabled></textarea>
+          <div id="line-message-warning" class="line-message-warning hide"></div>
+          <div class="line-message-actions">
+            <button id="reset-line-message" class="btn btn-muted" type="button" disabled>คืนข้อความเดิม</button>
+            <button id="copy-line-message" class="btn line-copy-btn" type="button" disabled>${lineLogoMarkup()}<span>คัดลอกข้อความ</span></button>
+          </div>
+        </section>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    const searchInput = overlay.querySelector('#line-document-search');
+    const select = overlay.querySelector('#line-document-select');
+    const summary = overlay.querySelector('#line-document-summary');
+    const recipientList = overlay.querySelector('#line-recipient-list');
+    const ackSummary = overlay.querySelector('#line-ack-summary');
+    const messageArea = overlay.querySelector('#line-message-text');
+    const warning = overlay.querySelector('#line-message-warning');
+    const resetButton = overlay.querySelector('#reset-line-message');
+    const copyButton = overlay.querySelector('#copy-line-message');
+    let generatedMessage = '';
+    let selectedDoc = null;
+
+    const renderDocumentOptions = () => {
+      const query = String(searchInput.value || '').trim().toLowerCase();
+      const previous = select.value;
+      const filtered = documents.filter((doc) => `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query));
+      select.innerHTML = `<option value="">— กรุณาเลือกเอกสาร —</option>${filtered.map((doc) => `<option value="${escapeHtml(doc.docId)}">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</option>`).join('')}`;
+      const keptPreviousSelection = filtered.some((doc) => doc.docId === previous);
+      if (keptPreviousSelection) select.value = previous;
+      if (!filtered.length) select.innerHTML = '<option value="">ไม่พบเอกสารที่ค้นหา</option>';
+      if (previous && !keptPreviousSelection) renderSelectedDocument();
+    };
+
+    const renderSelectedDocument = () => {
+      selectedDoc = documents.find((doc) => doc.docId === select.value) || null;
+      if (!selectedDoc) {
+        summary.innerHTML = '<p>เลือกเอกสารเพื่อดูรายละเอียด</p>';
+        recipientList.innerHTML = '<p class="text-slate-500">ยังไม่ได้เลือกเอกสาร</p>';
+        ackSummary.textContent = '0/0';
+        generatedMessage = '';
+        messageArea.value = '';
+        messageArea.disabled = true;
+        resetButton.disabled = true;
+        copyButton.disabled = true;
+        warning.classList.add('hide');
+        return;
+      }
+
+      const recipients = selectedDoc.recipients || [];
+      const acknowledgedCount = recipients.filter((item) => item.acknowledgedAt).length;
+      const dispatchLabel = selectedDoc.dispatchType === 'ทุกคน'
+        ? 'แจ้งทุกคนทราบ'
+        : recipients.length
+          ? 'ส่งให้ผู้รับตามรายชื่อ'
+          : 'ยังไม่ได้ส่งให้ผู้รับ';
+      summary.innerHTML = `<div class="line-summary-number">เลขรับ ${escapeHtml(selectedDoc.recvNo || '-')}</div><h3>${escapeHtml(selectedDoc.subject || '-')}</h3><p><b>จาก:</b> ${escapeHtml(selectedDoc.fromSender || '-')}</p><div class="line-dispatch-chip">${escapeHtml(dispatchLabel)}</div>`;
+      recipientList.innerHTML = lineRecipientStatusMarkup(selectedDoc);
+      ackSummary.textContent = `${acknowledgedCount}/${recipients.length}`;
+      generatedMessage = buildLineNotificationMessage(selectedDoc);
+      messageArea.value = generatedMessage;
+      messageArea.disabled = !generatedMessage;
+      resetButton.disabled = !generatedMessage;
+      copyButton.disabled = !generatedMessage;
+      if (!generatedMessage) {
+        warning.textContent = 'เอกสารนี้ยังไม่มีรายชื่อผู้รับ ระบบจึงยังไม่สร้างข้อความเพื่อป้องกันการแจ้งผิดคน';
+        warning.classList.remove('hide');
+      } else {
+        warning.classList.add('hide');
+      }
+    };
+
+    renderDocumentOptions();
+    searchInput.addEventListener('input', renderDocumentOptions);
+    select.addEventListener('change', renderSelectedDocument);
+    resetButton.addEventListener('click', () => { messageArea.value = generatedMessage; });
+    copyButton.addEventListener('click', async () => {
+      if (!selectedDoc) return;
+      const copied = await copyTextToClipboard(messageArea.value, 'คัดลอกข้อความสำหรับส่งใน LINE แล้ว');
+      if (copied) {
+        gasCall('recordLineNotificationCopy', state.token, selectedDoc.docId).catch((error) => console.warn('บันทึก Audit Log การคัดลอก LINE ไม่สำเร็จ', error));
+      }
+    });
+    overlay.querySelector('.close-modal').onclick = () => overlay.remove();
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
   }
 
   function showAckStatus(docId) {
@@ -2258,6 +2489,7 @@
     const admin = state.appSettings?.admin || {};
     const defaults = state.appSettings?.defaults || { fromSender: 'สพป.ชม.2', operationMode: 'normal' };
     const display = state.displaySettings || DEFAULT_DISPLAY_SETTINGS;
+    const workflowMascot = state.workflowMascotSettings || loadWorkflowMascotSettings(user.username);
     const signatureHtml = user.signatureDataUrl
       ? `<img class="settings-signature-preview" src="${user.signatureDataUrl}" alt="ตัวอย่างลายเซ็น">`
       : '<div class="settings-empty-signature">ยังไม่ได้ตั้งค่าลายเซ็น</div>';
@@ -2267,6 +2499,7 @@
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
       display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-toggle-list"><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
+      workflowMascot: `<section class="settings-content-section"><h2>🐥 มาสคอตแจ้งเตือนงาน</h2><p class="settings-lead">สำหรับครู รองผู้อำนวยการ และผู้อำนวยการ สามารถซ่อนหรือแสดงเป็ด กระต่าย หมี และแพนด้าได้ตามต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>แสดงมาสคอตแจ้งเตือนงาน</b><small>เมื่อปิด มาสคอตจะไม่แสดงบนหน้ารายการเอกสาร แต่จำนวนงานและการแจ้งเตือนอื่นยังทำงานตามปกติ</small></span><input id="workflow-mascot-enabled" type="checkbox" ${workflowMascot.enabled ? 'checked' : ''}></label><div class="mascot-preview-box"><b>ตัวอย่างมาสคอต</b><div class="mascot-settings-preview"><span title="เป็ดแจ้งงานใหม่">${mascotArt('duck')}</span><span title="กระต่ายบันทึกสำเร็จ">${mascotArt('bunny')}</span><span title="หมีงานเสร็จแล้ว">${mascotArt('bear')}</span><span title="แพนด้าพักสายตา">${mascotArt('panda')}</span></div><small>การตั้งค่านี้บันทึกแยกตามชื่อผู้ใช้ใน Browser เครื่องที่กำลังใช้งาน</small></div></div><div class="settings-actions"><button id="reset-workflow-mascot-settings" class="btn btn-muted" type="button">เปิดค่าเริ่มต้น</button><button id="save-workflow-mascot-settings" class="btn btn-primary" type="button">บันทึกการตั้งค่า</button></div></section>`,
       mascots: `<section class="settings-content-section"><h2>🎀 มาสคอตและตัวละคร</h2><p class="settings-lead">แสดงเฉพาะบัญชีที่มีบทบาท “ธุรการ” เลือกตัวละครได้สูงสุด 10 ตัว และเลือกตำแหน่งที่ต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>เปิดใช้งานมาสคอต</b><small>ปิดได้ทุกเมื่อหากต้องการหน้าเว็บแบบเรียบ</small></span><input id="mascot-enabled" type="checkbox" ${(state.mascotSettings || loadMascotSettings()).enabled ? 'checked' : ''}></label><div class="mascot-settings-block"><h3>เลือกตัวละคร <small>เลือกได้ไม่เกิน 10 ตัว</small></h3><div id="mascot-choice-grid" class="mascot-choice-grid">${ADMIN_MASCOT_CATALOG.map((item) => `<label class="mascot-choice-card"><input type="checkbox" value="${item.id}" ${(state.mascotSettings || loadMascotSettings()).selected.includes(item.id) ? 'checked' : ''}><span class="mascot-choice-icon">${item.icon}</span><b>${escapeHtml(item.name)}</b></label>`).join('')}</div></div><div class="mascot-settings-options"><fieldset><legend>ตำแหน่งแสดงผล</legend><label><input type="radio" name="mascotPosition" value="top" ${(state.mascotSettings || loadMascotSettings()).position === 'top' ? 'checked' : ''}> วิ่งบริเวณด้านบนของหน้าเว็บ</label><label><input type="radio" name="mascotPosition" value="page" ${(state.mascotSettings || loadMascotSettings()).position === 'page' ? 'checked' : ''}> วิ่งภายในพื้นที่หน้าเว็บ</label></fieldset><label>ความเร็ว<select id="mascot-speed" class="input"><option value="slow" ${(state.mascotSettings || loadMascotSettings()).speed === 'slow' ? 'selected' : ''}>ช้า</option><option value="normal" ${(state.mascotSettings || loadMascotSettings()).speed === 'normal' ? 'selected' : ''}>ปกติ</option><option value="fast" ${(state.mascotSettings || loadMascotSettings()).speed === 'fast' ? 'selected' : ''}>เร็ว</option></select></label></div><div class="mascot-preview-box"><b>ตัวอย่างที่เลือก</b><div id="mascot-settings-preview" class="mascot-settings-preview"></div><small>เมื่อแตะตัวละครในหน้าเว็บ จะสุ่มแอนิเมชันและแสดงหัวใจ ดาว หรือข้อความสั้น ๆ</small></div></div><div class="settings-actions"><button id="reset-mascot-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-mascot-settings" class="btn btn-primary" type="button">บันทึกมาสคอต</button></div></section>`,
       users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
       import: `<section class="settings-content-section"><h2>📥 ค่าเริ่มต้นการนำเข้า</h2><p class="settings-lead">ค่าที่กำหนดจะถูกใส่ให้อัตโนมัติเมื่อเปิดหน้าต่างนำเข้าหนังสือใหม่</p><form id="import-defaults-form" class="settings-form"><label>หน่วยงานผู้ส่งเริ่มต้น<input class="input" name="fromSender" value="${escapeHtml(defaults.fromSender || 'สพป.ชม.2')}" required></label><label>รูปแบบการดำเนินงานเริ่มต้น<select class="input" name="operationMode"><option value="normal" ${defaults.operationMode === 'normal' ? 'selected' : ''}>ปกติ</option><option value="acting" ${defaults.operationMode === 'acting' ? 'selected' : ''}>รองรักษาการ</option><option value="director" ${defaults.operationMode === 'director' ? 'selected' : ''}>รองผู้อำนวยการไม่อยู่</option></select></label><button class="btn btn-primary" type="submit">บันทึกค่าเริ่มต้น</button></form></section>`,
@@ -2287,7 +2520,7 @@
     let displaySaved = true;
     const overlay = document.createElement('div');
     overlay.className = 'settings-backdrop';
-    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('mascots','🎀','มาสคอตและตัวละคร','เลือกตัวละครและตำแหน่ง',true)}${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${!isAdmin ? settingsNavButton('workflowMascot','🐥','มาสคอตแจ้งเตือน','เปิดหรือปิดสัตว์แจ้งงาน') : ''}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('mascots','🎀','มาสคอตและตัวละคร','เลือกตัวละครและตำแหน่ง',true)}${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
     document.body.appendChild(overlay);
 
     const content = overlay.querySelector('#settings-content');
@@ -2371,6 +2604,27 @@
           applyDisplaySettings(displayDraft);
           displaySaved = false;
           renderSection('display');
+        };
+      }
+
+      if (sectionId === 'workflowMascot' && !isAdmin) {
+        overlay.querySelector('#save-workflow-mascot-settings').onclick = () => {
+          const enabled = overlay.querySelector('#workflow-mascot-enabled').checked;
+          saveWorkflowMascotSettings({ enabled });
+          Swal.fire({
+            icon: 'success',
+            title: enabled ? 'เปิดมาสคอตแล้ว' : 'ปิดมาสคอตแล้ว',
+            text: enabled ? 'มาสคอตแจ้งเตือนจะแสดงบนหน้ารายการเอกสาร' : 'มาสคอตถูกซ่อนแล้ว การทำงานและจำนวนแจ้งเตือนยังเหมือนเดิม',
+            timer: 1700,
+            showConfirmButton: false,
+          });
+          close();
+          renderDashboard();
+        };
+
+        overlay.querySelector('#reset-workflow-mascot-settings').onclick = () => {
+          saveWorkflowMascotSettings({ ...DEFAULT_WORKFLOW_MASCOT_SETTINGS });
+          renderSection('workflowMascot');
         };
       }
 
