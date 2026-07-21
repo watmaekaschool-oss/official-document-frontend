@@ -1376,16 +1376,35 @@ html.reduced-motion .admin-mascot-runway .admin-mascot-character {
 }
 .merge-confirm { border-color:#93c5fd; background:#eff6ff; color:#1e3a8a; }
 
-/* Persistent work-status animals for every role except clerk/admin. */
+/* Work-status animals sit below the filter and directly above the
+   rightmost "การจัดการ" column instead of floating over the page. */
+.dashboard-tabs-mascot-row {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(280px,330px);
+  gap:1rem;
+  align-items:start;
+  margin-bottom:1rem;
+}
+.dashboard-tabs {
+  min-width:0;
+  align-self:start;
+}
+.workflow-mascot-slot {
+  width:100%;
+  min-height:0;
+  display:flex;
+  justify-content:flex-end;
+}
+.workflow-mascot-slot:empty { display:none; }
 .workflow-mascot-host {
-  position:fixed;
-  z-index:42;
-  right:18px;
-  bottom:18px;
+  position:relative;
+  z-index:2;
+  right:auto;
+  bottom:auto;
   display:flex;
   flex-direction:column;
   gap:.55rem;
-  width:min(330px,calc(100vw - 28px));
+  width:100%;
   pointer-events:none;
 }
 .workflow-mascot-card {
@@ -1508,8 +1527,14 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble { background:#1f2937; bor
 html[data-theme-preset="dark"] .workflow-mascot-bubble::before { border-color:#4b5563; }
 html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
 
+@media (max-width:900px) {
+  .dashboard-tabs-mascot-row { grid-template-columns:1fr; gap:.75rem; }
+  .workflow-mascot-slot { order:-1; justify-content:stretch; }
+  .workflow-mascot-host { width:min(100%,420px); margin-left:auto; }
+}
+
 @media (max-width:640px) {
-  .workflow-mascot-host { right:10px; bottom:10px; width:min(300px,calc(100vw - 20px)); }
+  .workflow-mascot-host { width:100%; margin-left:0; }
   .workflow-mascot-card { grid-template-columns:62px minmax(0,1fr); padding:.45rem .55rem .45rem .35rem; }
   .workflow-mascot-art { width:60px; height:60px; }
   .workflow-mascot-art .mascot-svg { width:58px; height:58px; }
