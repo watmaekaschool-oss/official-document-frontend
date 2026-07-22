@@ -188,6 +188,15 @@
     workflowMascotSettings: null,
     workflowMascotUntil: 0,
     workflowMascotTimer: null,
+    activeModule: 'documents',
+    meetingTab: 'action',
+    meetingActionMeetings: [],
+    meetingInboxMeetings: [],
+    meetingAllMeetings: [],
+    meetingSetupRequired: false,
+    currentMeetingDetails: null,
+    meetingEditorTab: 'ai',
+    meetingUsers: [],
   };
 
   applyDisplaySettings(loadDisplaySettings());
@@ -687,6 +696,7 @@
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
               ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สร้างข้อความแจ้งเอกสารทาง LINE" title="สร้างข้อความแจ้งเอกสารทาง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
+              <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
             </div>
             <div class="flex gap-2 items-center">
               <input id="search-input" class="input w-64 max-w-full" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง">
@@ -712,7 +722,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.1.5';
+    document.documentElement.dataset.frontendVersion = '2.2.0';
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -730,6 +740,7 @@
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
     const lineNotifyBtn = document.getElementById('line-notify-btn');
     if (lineNotifyBtn) lineNotifyBtn.onclick = openLineNotificationModal;
+    document.getElementById('meeting-module-btn').onclick = openMeetingModule;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { state.tab = button.dataset.tab; renderDashboard(); };
     });
@@ -2900,6 +2911,720 @@
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+
+  // ==================== โมดูลวาระการประชุม 2.2.0 ====================
+
+  const MEETING_AGENDA_LABELS = {
+    unknown: 'ไม่รู้วาระการประชุม',
+    '1': 'ระเบียบวาระที่ 1 เรื่องที่ประธานแจ้งให้ทราบ',
+    '2': 'ระเบียบวาระที่ 2 รับรองรายงานการประชุมครั้งก่อน',
+    '3': 'ระเบียบวาระที่ 3 เรื่องสืบเนื่องจากการประชุมครั้งก่อน',
+    '4': 'ระเบียบวาระที่ 4 เรื่องเสนอที่ประชุมให้รับทราบ',
+    '5': 'ระเบียบวาระที่ 5 เรื่องเสนอพิจารณา',
+    '6': 'ระเบียบวาระที่ 6 เรื่องอื่น ๆ',
+  };
+
+  function meetingStatusClass(status) {
+    const value = String(status || '');
+    if (value.includes('ครบ')) return 'meeting-status-complete';
+    if (value.includes('ส่งกลับ')) return 'meeting-status-returned';
+    if (value.includes('รอ')) return 'meeting-status-waiting';
+    if (value.includes('ส่งให้')) return 'meeting-status-sent';
+    return 'meeting-status-draft';
+  }
+
+  function meetingRoleCanEdit() {
+    return !!state.currentMeetingDetails?.permissions?.canEdit;
+  }
+
+  async function openMeetingModule() {
+    state.activeModule = 'meetings';
+    state.meetingTab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
+    loading('กำลังเปิดระบบวาระการประชุม...');
+    try {
+      await loadMeetingDashboard();
+      Swal.close();
+    } catch (error) { showError(error); }
+  }
+
+  async function loadMeetingDashboard() {
+    const result = await gasCall('getMeetingDashboard', state.token);
+    state.meetingSetupRequired = !!result.setupRequired;
+    state.meetingActionMeetings = result.actionMeetings || [];
+    state.meetingInboxMeetings = result.inboxMeetings || [];
+    state.meetingAllMeetings = result.allMeetings || [];
+    state.user = result.user || state.user;
+    renderMeetingDashboard();
+  }
+
+  function currentMeetings() {
+    if (state.meetingTab === 'action') return state.meetingActionMeetings;
+    if (state.meetingTab === 'inbox') return state.meetingInboxMeetings;
+    return state.meetingAllMeetings;
+  }
+
+  function renderMeetingDashboard() {
+    const isTeacher = guideRoleKey() === 'ครู';
+    root.innerHTML = `
+      <div class="app-shell meeting-app-shell">
+        <header class="topbar meeting-topbar">
+          <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
+            <div class="brand-mark">
+              <img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน">
+              <div class="brand-copy"><div class="brand-title-main text-lg">ระบบวาระการประชุม</div><div class="brand-title-sub">โรงเรียนวัดแม่กะ</div></div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
+              <button id="meeting-settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า">⚙</button>
+              <button id="meeting-logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
+            </div>
+          </div>
+        </header>
+        <main class="max-w-7xl mx-auto px-4 py-6">
+          <div class="meeting-module-banner">
+            <div><b>📋 เอกสารวาระการประชุม</b><span>ข้อมูลส่วนนี้แยกจากหนังสือรับอย่างสมบูรณ์</span></div>
+            <button id="back-to-documents-btn" class="btn btn-muted">← กลับเอกสารรับ</button>
+          </div>
+          ${state.meetingSetupRequired ? meetingSetupRequiredMarkup() : `
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div class="flex flex-wrap gap-2">
+                ${isClericalUser() ? '<button id="create-meeting-btn" class="btn btn-success">＋ สร้างวาระการประชุม</button>' : ''}
+                <button id="refresh-meeting-btn" class="btn btn-muted">↻ รีเฟรช</button>
+              </div>
+              <input id="meeting-search-input" class="input w-72 max-w-full" placeholder="ค้นหาชื่อ ครั้งที่ หรือสถานะ">
+            </div>
+            <div class="meeting-dashboard-summary">
+              <div><b>${state.meetingActionMeetings.length}</b><span>รอฉันดำเนินการ</span></div>
+              <div><b>${state.meetingAllMeetings.length || state.meetingInboxMeetings.length}</b><span>${isTeacher ? 'วาระที่ได้รับ' : 'วาระทั้งหมด'}</span></div>
+              <div><b>${[...state.meetingAllMeetings, ...state.meetingInboxMeetings].filter((m) => m.status === 'ดำเนินการครบแล้ว').length}</b><span>ดำเนินการครบ</span></div>
+            </div>
+            <div class="dashboard-tabs flex gap-2 overflow-auto pb-2">
+              ${!isTeacher ? `<button class="tab-button ${state.meetingTab === 'action' ? 'active' : ''}" data-meeting-tab="action">รอฉันตรวจ (${state.meetingActionMeetings.length})</button>` : ''}
+              <button class="tab-button ${state.meetingTab === 'inbox' ? 'active' : ''}" data-meeting-tab="inbox">วาระที่ส่งถึงฉัน (${state.meetingInboxMeetings.length})</button>
+              ${!isTeacher ? `<button class="tab-button ${state.meetingTab === 'all' ? 'active' : ''}" data-meeting-tab="all">วาระทั้งหมด (${state.meetingAllMeetings.length})</button>` : ''}
+            </div>
+            <div class="card table-wrap meeting-table-wrap"><table class="data-table"><thead><tr><th>ครั้งที่ / วันที่</th><th>ชื่อการประชุม</th><th>สถานะ</th><th>การดำเนินการ</th></tr></thead><tbody id="meeting-tbody"></tbody></table></div>
+          `}
+        </main>
+      </div>`;
+
+    document.getElementById('back-to-documents-btn').onclick = async () => {
+      state.activeModule = 'documents';
+      loading('กำลังกลับระบบเอกสารรับ...');
+      try { await loadDashboard(); Swal.close(); } catch (error) { showError(error); }
+    };
+    document.getElementById('meeting-settings-btn').onclick = openSettingsPanel;
+    document.getElementById('meeting-logout-btn').onclick = async () => {
+      try { await gasCall('logout', state.token); } catch (_) {}
+      clearSession();
+    };
+    if (state.meetingSetupRequired) return;
+    document.getElementById('refresh-meeting-btn').onclick = async () => {
+      loading('กำลังรีเฟรชวาระการประชุม...');
+      try { await loadMeetingDashboard(); Swal.close(); } catch (error) { showError(error); }
+    };
+    document.getElementById('create-meeting-btn')?.addEventListener('click', openCreateMeetingModal);
+    document.querySelectorAll('[data-meeting-tab]').forEach((button) => {
+      button.onclick = () => { state.meetingTab = button.dataset.meetingTab; renderMeetingDashboard(); };
+    });
+    document.getElementById('meeting-search-input').addEventListener('input', renderMeetingRows);
+    renderMeetingRows();
+  }
+
+  function meetingSetupRequiredMarkup() {
+    return `<div class="card meeting-setup-card">
+      <div class="meeting-setup-icon">🧰</div>
+      <h2>ต้องติดตั้งโครงสร้างวาระการประชุมหนึ่งครั้ง</h2>
+      <p>ระบบยังไม่พบชีตเฉพาะวาระการประชุม ข้อมูลหนังสือรับเดิมยังอยู่ครบและไม่ได้รับผลกระทบ</p>
+      <div class="meeting-setup-steps"><b>ให้บัญชีธุรการดำเนินการ:</b><ol><li>เปิด Google Sheet ของระบบ</li><li>เลือกเมนู “ระบบสารบรรณ”</li><li>กด “5) ติดตั้ง/ซ่อมโมดูลวาระการประชุม”</li><li>กลับมารีเฟรชหน้านี้</li></ol></div>
+    </div>`;
+  }
+
+  function renderMeetingRows() {
+    const tbody = document.getElementById('meeting-tbody');
+    if (!tbody) return;
+    const query = String(document.getElementById('meeting-search-input')?.value || '').trim().toLowerCase();
+    const meetings = currentMeetings().filter((meeting) => `${meeting.meetingNo} ${meeting.meetingTitle} ${meeting.meetingDate} ${meeting.status}`.toLowerCase().includes(query));
+    if (!meetings.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-slate-500 py-8">ไม่มีวาระการประชุมในรายการนี้</td></tr>';
+      return;
+    }
+    tbody.innerHTML = meetings.map((meeting) => {
+      const recipientSummary = meeting.recipientCount ? `<div class="meeting-recipient-summary">ดำเนินการ ${meeting.completedCount}/${meeting.recipientCount}</div>` : '';
+      return `<tr>
+        <td><div class="font-bold">${escapeHtml(meeting.meetingNo || 'ไม่ระบุครั้ง')}</div><div class="text-xs text-slate-500">${escapeHtml(meeting.meetingDate || 'ยังไม่กำหนดวันที่')} ${escapeHtml(meeting.meetingTime || '')}</div></td>
+        <td><div class="font-semibold">${escapeHtml(meeting.meetingTitle)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(meeting.location || '')}</div></td>
+        <td><span class="meeting-status ${meetingStatusClass(meeting.status)}">${escapeHtml(meeting.status)}</span>${recipientSummary}</td>
+        <td><button class="btn btn-primary text-xs open-meeting-btn" data-meeting-id="${escapeHtml(meeting.meetingId)}">${state.meetingTab === 'action' ? 'เปิดตรวจและแก้ไข' : 'เปิดดูวาระ'}</button></td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('.open-meeting-btn').forEach((button) => button.onclick = () => openMeetingEditor(button.dataset.meetingId));
+  }
+
+  function openCreateMeetingModal() {
+    if (!isClericalUser()) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.innerHTML = `<div class="modal-panel meeting-create-modal">
+      <div class="flex justify-between items-start gap-3 mb-4"><div><h2 class="text-xl font-bold">สร้างวาระการประชุมใหม่</h2><p class="text-sm text-slate-500">ข้อมูลนี้จะบันทึกในชีต Meetings แยกจากเอกสารรับ</p></div><button class="text-2xl close-modal">×</button></div>
+      <form id="create-meeting-form" class="meeting-form-grid">
+        <div class="meeting-field span-2"><label>ชื่อการประชุม *</label><input name="meetingTitle" class="input" required placeholder="เช่น การประชุมคณะครูและบุคลากร"></div>
+        <div class="meeting-field"><label>ครั้งที่</label><input name="meetingNo" class="input" placeholder="เช่น 7/2569"></div>
+        <div class="meeting-field"><label>วันที่ประชุม</label><input name="meetingDate" type="date" class="input"></div>
+        <div class="meeting-field"><label>เวลา</label><input name="meetingTime" type="time" class="input"></div>
+        <div class="meeting-field"><label>สถานที่</label><input name="location" class="input"></div>
+        <div class="meeting-field"><label>ประธานการประชุม</label><input name="chairman" class="input"></div>
+        <div class="meeting-field"><label>ผู้บันทึก/เลขานุการ</label><input name="secretary" class="input"></div>
+        <div class="meeting-field span-2"><label>ข้อความต้นฉบับ</label><textarea name="sourceText" class="input meeting-source-textarea" placeholder="สามารถวางข้อความทั้งหมดตอนนี้ หรือเพิ่มภายหลังก็ได้"></textarea></div>
+        <div class="span-2 flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button type="submit" class="btn btn-success">สร้างและเปิดหน้าจัดวาระ</button></div>
+      </form>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
+    overlay.querySelector('#create-meeting-form').onsubmit = async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      loading('กำลังสร้างวาระการประชุม...');
+      try {
+        const result = await gasCall('createMeeting', state.token, {
+          meetingTitle: form.elements.meetingTitle.value,
+          meetingNo: form.elements.meetingNo.value,
+          meetingDate: form.elements.meetingDate.value,
+          meetingTime: form.elements.meetingTime.value,
+          location: form.elements.location.value,
+          chairman: form.elements.chairman.value,
+          secretary: form.elements.secretary.value,
+          sourceText: form.elements.sourceText.value,
+        });
+        overlay.remove();
+        Swal.close();
+        await openMeetingEditor(result.meetingId);
+      } catch (error) { showError(error); }
+    };
+  }
+
+  async function openMeetingEditor(meetingId) {
+    loading('กำลังเปิดวาระการประชุม...');
+    try {
+      const requests = [gasCall('getMeetingDetails', state.token, meetingId)];
+      if (isClericalUser() && !state.meetingUsers.length) requests.push(gasCall('listActiveUsers', state.token));
+      const results = await Promise.all(requests);
+      state.currentMeetingDetails = results[0];
+      if (results[1]) state.meetingUsers = results[1];
+      state.meetingEditorTab = 'ai';
+      renderMeetingEditor();
+      Swal.close();
+    } catch (error) { showError(error); }
+  }
+
+  function meetingEditorValues() {
+    return state.currentMeetingDetails?.meeting || {};
+  }
+
+  function updateMeetingMeta(field, value) {
+    if (!state.currentMeetingDetails?.meeting) return;
+    state.currentMeetingDetails.meeting[field] = value;
+  }
+
+  function renderMeetingEditor() {
+    const details = state.currentMeetingDetails;
+    if (!details) return;
+    const meeting = details.meeting;
+    const canEdit = !!details.permissions.canEdit;
+    root.innerHTML = `<div class="app-shell meeting-app-shell">
+      <header class="topbar meeting-topbar"><div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
+        <div class="brand-mark"><img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน"><div class="brand-copy"><div class="brand-title-main text-lg">${escapeHtml(meeting.meetingTitle)}</div><div class="brand-title-sub">${escapeHtml(meeting.meetingNo || 'วาระการประชุม')} · ${escapeHtml(meeting.status)}</div></div></div>
+        <div class="flex gap-2"><button id="meeting-editor-back" class="btn bg-white/15 text-white">← รายการวาระ</button><button id="meeting-editor-logout" class="btn bg-red-950/40 text-white">ออกจากระบบ</button></div>
+      </div></header>
+      <main class="max-w-7xl mx-auto px-4 py-6">
+        <div class="meeting-editor-head">
+          <div><span class="meeting-status ${meetingStatusClass(meeting.status)}">${escapeHtml(meeting.status)}</span><small>เวอร์ชันข้อมูล ${meeting.version}</small></div>
+          <div class="meeting-edit-lock ${canEdit ? 'can-edit' : 'read-only'}">${canEdit ? '✏️ คุณสามารถแก้ไขวาระนี้ได้' : '🔒 เปิดดูอย่างเดียว — งานอยู่กับ ' + escapeHtml(meeting.currentRole)}</div>
+        </div>
+        <div class="meeting-editor-tabs">
+          <button class="meeting-editor-tab ${state.meetingEditorTab === 'ai' ? 'active' : ''}" data-editor-tab="ai">1. AI วาระการประชุม</button>
+          <button class="meeting-editor-tab ${state.meetingEditorTab === 'process' ? 'active' : ''}" data-editor-tab="process">2. ประมวลผล AI</button>
+          <button class="meeting-editor-tab ${state.meetingEditorTab === 'publish' ? 'active' : ''}" data-editor-tab="publish">3. เพิ่มวาระประชุม</button>
+        </div>
+        <section id="meeting-editor-content">${meetingEditorSectionMarkup()}</section>
+      </main>
+    </div>`;
+    document.getElementById('meeting-editor-back').onclick = async () => {
+      loading('กำลังกลับหน้ารายการ...');
+      try { state.currentMeetingDetails = null; await loadMeetingDashboard(); Swal.close(); } catch (error) { showError(error); }
+    };
+    document.getElementById('meeting-editor-logout').onclick = async () => {
+      try { await gasCall('logout', state.token); } catch (_) {}
+      clearSession();
+    };
+    document.querySelectorAll('[data-editor-tab]').forEach((button) => {
+      button.onclick = () => { state.meetingEditorTab = button.dataset.editorTab; renderMeetingEditor(); };
+    });
+    bindMeetingEditorSection();
+  }
+
+  function meetingEditorSectionMarkup() {
+    if (state.meetingEditorTab === 'process') return meetingProcessMarkup();
+    if (state.meetingEditorTab === 'publish') return meetingPublishMarkup();
+    return meetingAiMarkup();
+  }
+
+  function meetingAiMarkup() {
+    const meeting = meetingEditorValues();
+    const disabled = meetingRoleCanEdit() ? '' : 'disabled';
+    const grouped = Object.keys(MEETING_AGENDA_LABELS).map((code) => {
+      const items = (state.currentMeetingDetails.items || []).filter((item) => item.agendaCode === code);
+      return `<div class="meeting-agenda-bucket agenda-${code}"><div><b>${escapeHtml(MEETING_AGENDA_LABELS[code])}</b><span>${items.length} เรื่อง</span></div>${items.length ? `<ul>${items.slice(0, 4).map((item) => `<li>${escapeHtml(item.title)}</li>`).join('')}</ul>` : '<p>ยังไม่มีเรื่องในวาระนี้</p>'}</div>`;
+    }).join('');
+    return `<div class="meeting-ai-layout">
+      <div class="card meeting-meta-card">
+        <div class="meeting-section-title"><div><h2>ข้อมูลการประชุมและข้อความต้นฉบับ</h2><p>AI เป็นเพียงตัวช่วยสร้างร่าง คนต้องตรวจและอนุมัติก่อนส่งต่อ</p></div><span class="meeting-local-badge">ไม่ส่งข้อมูลออกภายนอก</span></div>
+        <div class="meeting-form-grid">
+          <div class="meeting-field span-2"><label>ชื่อการประชุม</label><input data-meeting-meta="meetingTitle" class="input" value="${escapeHtml(meeting.meetingTitle)}" ${disabled}></div>
+          <div class="meeting-field"><label>ครั้งที่</label><input data-meeting-meta="meetingNo" class="input" value="${escapeHtml(meeting.meetingNo)}" ${disabled}></div>
+          <div class="meeting-field"><label>วันที่</label><input data-meeting-meta="meetingDate" type="date" class="input" value="${escapeHtml(String(meeting.meetingDate || '').slice(0,10))}" ${disabled}></div>
+          <div class="meeting-field"><label>เวลา</label><input data-meeting-meta="meetingTime" type="time" class="input" value="${escapeHtml(meeting.meetingTime)}" ${disabled}></div>
+          <div class="meeting-field"><label>สถานที่</label><input data-meeting-meta="location" class="input" value="${escapeHtml(meeting.location)}" ${disabled}></div>
+          <div class="meeting-field"><label>ประธาน</label><input data-meeting-meta="chairman" class="input" value="${escapeHtml(meeting.chairman)}" ${disabled}></div>
+          <div class="meeting-field"><label>ผู้บันทึก/เลขานุการ</label><input data-meeting-meta="secretary" class="input" value="${escapeHtml(meeting.secretary)}" ${disabled}></div>
+          <div class="meeting-field span-2"><label>ข้อความการประชุมทั้งหมด</label><textarea data-meeting-meta="sourceText" class="input meeting-source-textarea" ${disabled}>${escapeHtml(meeting.sourceText)}</textarea></div>
+        </div>
+        <div class="meeting-ai-notice"><b>รุ่นทดลองนี้ยังไม่เชื่อม AI ภายนอก</b><span>ปุ่มด้านล่างใช้กฎคำสำคัญเพื่อแยกข้อความเป็นร่าง จึงไม่เสียโทเคนและไม่มีข้อมูลออกจากระบบ ผลลัพธ์ทุกเรื่องจะแสดงว่าเป็นร่างอัตโนมัติให้ตรวจแก้</span></div>
+        <div class="flex flex-wrap justify-end gap-2 mt-4">
+          ${meetingRoleCanEdit() ? '<button id="save-meeting-meta" class="btn btn-muted">บันทึกข้อมูล</button><button id="local-process-meeting" class="btn btn-primary">✨ ประมวลผล AI (โหมดไม่ใช้โทเคน)</button>' : ''}
+        </div>
+      </div>
+      <div class="meeting-agenda-buckets">${grouped}</div>
+    </div>`;
+  }
+
+  function agendaOptions(selected) {
+    return Object.entries(MEETING_AGENDA_LABELS).map(([code, label]) => `<option value="${code}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  }
+
+  function meetingProcessMarkup() {
+    const items = state.currentMeetingDetails.items || [];
+    const canEdit = meetingRoleCanEdit();
+    return `<div class="meeting-process-layout">
+      <div class="meeting-process-toolbar card">
+        <div><h2>ตรวจและแก้ไขร่างวาระ</h2><p>แก้ไขข้อความ ย้ายวาระ แยก รวม ลบ และจัดลำดับได้โดยตรง</p></div>
+        <div class="flex flex-wrap gap-2">${canEdit ? '<button id="add-meeting-item" class="btn btn-muted">＋ เพิ่มเรื่องใหม่</button><button id="save-meeting-agenda" class="btn btn-primary">บันทึกการแก้ไข</button>' : ''}<button id="show-meeting-history" class="btn btn-muted">ประวัติการแก้ไข</button></div>
+      </div>
+      ${items.length ? `<div id="meeting-item-list" class="meeting-item-list">${items.map((item, index) => meetingItemCardMarkup(item, index, canEdit)).join('')}</div>` : '<div class="card meeting-empty-items"><b>ยังไม่มีเรื่องในวาระ</b><p>กลับไปแท็บ “AI วาระการประชุม” เพื่อวางข้อความและสร้างร่าง หรือกดเพิ่มเรื่องใหม่</p></div>'}
+      ${meetingWorkflowActionsMarkup()}
+    </div>`;
+  }
+
+  function meetingItemCardMarkup(item, index, canEdit) {
+    const disabled = canEdit ? '' : 'disabled';
+    return `<article class="meeting-item-card" data-item-index="${index}">
+      <div class="meeting-item-card-head"><div><span class="meeting-item-number">${index + 1}</span><span class="meeting-ai-draft-label">${item.generatedBy === 'LOCAL_RULES' ? 'ร่างอัตโนมัติ — กรุณาตรวจสอบ' : 'แก้ไขโดยผู้ใช้'}</span></div>${canEdit ? `<div class="meeting-item-tools"><button data-item-action="up" title="เลื่อนขึ้น">↑</button><button data-item-action="down" title="เลื่อนลง">↓</button><button data-item-action="split" title="แยกเรื่อง">✂ แยก</button><button data-item-action="merge" title="รวมกับเรื่องก่อนหน้า">⇄ รวม</button><button data-item-action="delete" title="ลบเรื่อง">🗑</button></div>` : ''}</div>
+      <div class="meeting-item-grid">
+        <div class="meeting-field span-2"><label>ระเบียบวาระ</label><select data-item-field="agendaCode" class="input" ${disabled}>${agendaOptions(item.agendaCode)}</select></div>
+        <div class="meeting-field span-2"><label>ชื่อเรื่อง</label><input data-item-field="title" class="input" value="${escapeHtml(item.title)}" ${disabled}></div>
+        <div class="meeting-field span-2"><label>สรุปสาระสำคัญ</label><textarea data-item-field="summary" class="input" ${disabled}>${escapeHtml(item.summary)}</textarea></div>
+        <div class="meeting-field span-2"><label>มติ / ข้อเสนอ</label><textarea data-item-field="resolution" class="input" ${disabled}>${escapeHtml(item.resolution)}</textarea></div>
+        <div class="meeting-field"><label>ผู้รับผิดชอบ</label><input data-item-field="responsiblePerson" class="input" value="${escapeHtml(item.responsiblePerson)}" ${disabled}></div>
+        <div class="meeting-field"><label>กำหนดการ</label><input data-item-field="dueDate" class="input" value="${escapeHtml(item.dueDate)}" ${disabled}></div>
+        <details class="meeting-source-excerpt span-2"><summary>ดูข้อความต้นฉบับของเรื่องนี้</summary><textarea data-item-field="sourceExcerpt" class="input" ${disabled}>${escapeHtml(item.sourceExcerpt)}</textarea></details>
+      </div>
+    </article>`;
+  }
+
+  function meetingWorkflowActionsMarkup() {
+    const details = state.currentMeetingDetails;
+    const meeting = details.meeting;
+    if (!details.permissions.canEdit) return '';
+    const role = guideRoleKey();
+    if (role === 'ธุรการ') {
+      const returned = ['ส่งคืนธุรการ'].includes(meeting.status);
+      return `<div class="card meeting-workflow-card"><div><b>ขั้นตอนถัดไปของธุรการ</b><p>${returned ? 'ตรวจข้อความพร้อมคัดลอก แล้วเปลี่ยนเป็นสถานะรออัปโหลด PDF' : 'ตรวจร่างครบแล้วจึงส่งให้รองผู้อำนวยการ'}</p></div><div>${returned ? '<button class="btn btn-primary meeting-transition-btn" data-transition="CLERK_WAITING_PDF">พร้อมจัดทำ/อัปโหลด PDF</button>' : '<button class="btn btn-primary meeting-transition-btn" data-transition="CLERK_TO_DEPUTY">ส่งให้รองผู้อำนวยการตรวจและแก้ไข</button>'}</div></div>`;
+    }
+    if (role === 'รองผู้อำนวยการ') {
+      const returnedByDirector = meeting.status === 'ผู้อำนวยการส่งกลับ';
+      return `<div class="card meeting-workflow-card"><div><b>การตรวจของรองผู้อำนวยการ</b><p>${returnedByDirector ? 'ผู้อำนวยการส่งกลับมาแก้ไข กรุณาตรวจแล้วส่งให้ผู้อำนวยการอีกครั้ง' : 'บันทึกการแก้ไขก่อนเลือกส่งกลับหรือส่งต่อ'}</p></div><div class="flex flex-wrap gap-2">${returnedByDirector ? '' : '<button class="btn btn-warning meeting-transition-btn" data-transition="DEPUTY_TO_CLERK">ส่งกลับให้ธุรการแก้ไข</button>'}<button class="btn btn-primary meeting-transition-btn" data-transition="DEPUTY_TO_DIRECTOR">${returnedByDirector ? 'ส่งให้ผู้อำนวยการตรวจอีกครั้ง' : 'ส่งให้ผู้อำนวยการตรวจและแก้ไข'}</button></div></div>`;
+    }
+    if (role === 'ผู้อำนวยการ') {
+      return `<div class="card meeting-workflow-card"><div><b>การตรวจของผู้อำนวยการ</b><p>ส่งกลับรองผู้อำนวยการ หรือส่งคืนธุรการเพื่อจัดทำฉบับสมบูรณ์</p></div><div class="flex flex-wrap gap-2"><button class="btn btn-warning meeting-transition-btn" data-transition="DIRECTOR_TO_DEPUTY">ส่งกลับให้รองผู้อำนวยการแก้ไข</button><button class="btn btn-primary meeting-transition-btn" data-transition="DIRECTOR_TO_CLERK">ส่งคืนธุรการ</button></div></div>`;
+    }
+    return '';
+  }
+
+  function formattedMeetingAgendaText() {
+    const meeting = meetingEditorValues();
+    const items = state.currentMeetingDetails.items || [];
+    const lines = [];
+    lines.push(`ระเบียบวาระการประชุม${meeting.meetingTitle ? ' ' + meeting.meetingTitle : ''}`);
+    if (meeting.meetingNo) lines.push(`ครั้งที่ ${meeting.meetingNo}`);
+    if (meeting.meetingDate) lines.push(`วันที่ ${String(meeting.meetingDate).slice(0, 10)}${meeting.meetingTime ? ' เวลา ' + meeting.meetingTime + ' น.' : ''}`);
+    if (meeting.location) lines.push(`ณ ${meeting.location}`);
+    lines.push('');
+    Object.keys(MEETING_AGENDA_LABELS).forEach((code) => {
+      const group = items.filter((item) => item.agendaCode === code);
+      if (!group.length) return;
+      lines.push(MEETING_AGENDA_LABELS[code]);
+      group.forEach((item, index) => {
+        const prefix = code === 'unknown' ? `-` : `${code}.${index + 1}`;
+        lines.push(`${prefix} ${item.title || 'ยังไม่ได้ตั้งชื่อเรื่อง'}`);
+        if (item.summary) lines.push(`สาระสำคัญ: ${item.summary}`);
+        if (item.resolution) lines.push(`มติ/ข้อเสนอ: ${item.resolution}`);
+        if (item.responsiblePerson) lines.push(`ผู้รับผิดชอบ: ${item.responsiblePerson}`);
+        if (item.dueDate) lines.push(`กำหนดการ: ${item.dueDate}`);
+        lines.push('');
+      });
+    });
+    return lines.join('\n').trim();
+  }
+
+  function meetingRecipientStatusMarkup() {
+    const recipients = state.currentMeetingDetails.meeting.recipients || [];
+    if (!recipients.length) return '<div class="meeting-no-recipients">ยังไม่ได้ส่งให้ผู้เกี่ยวข้อง</div>';
+    return `<div class="meeting-recipient-list">${recipients.map((recipient) => {
+      const done = !!recipient.acknowledgedAt || !!recipient.signedAt;
+      return `<div class="meeting-recipient-row ${done ? 'done' : 'pending'}"><div><b>${done ? '✅' : '⏳'} ${escapeHtml(recipient.name)}</b><span>${escapeHtml(recipient.requiredAction)}</span></div><small>${escapeHtml(recipient.status || (done ? 'ดำเนินการแล้ว' : 'รอดำเนินการ'))}</small></div>`;
+    }).join('')}</div>`;
+  }
+
+  function meetingPublishMarkup() {
+    const details = state.currentMeetingDetails;
+    const meeting = details.meeting;
+    const ownRecipient = (meeting.recipients || []).find((item) => item.userId === state.user.userId);
+    const canUpload = details.permissions.canUploadPdf && ['ส่งคืนธุรการ', 'รออัปโหลด PDF'].includes(meeting.status);
+    const copyText = formattedMeetingAgendaText();
+    return `<div class="meeting-publish-grid">
+      <div class="card meeting-copy-card">
+        <div class="meeting-section-title"><div><h2>ข้อความพร้อมคัดลอกไป Microsoft Word</h2><p>ระบบจัดหัวข้อและเลขข้อให้แล้ว ธุรการยังสามารถแก้รูปแบบใน Word ได้</p></div><button id="copy-meeting-text" class="btn btn-primary">📋 คัดลอกข้อความ</button></div>
+        <textarea id="meeting-copy-text" class="input meeting-copy-text">${escapeHtml(copyText)}</textarea>
+      </div>
+      <div class="card meeting-pdf-card">
+        <div class="meeting-section-title"><div><h2>PDF ฉบับสมบูรณ์และผู้รับ</h2><p>ส่วนนี้แยกจากไฟล์เอกสารรับเดิม</p></div>${meeting.hasPdf ? '<span class="meeting-pdf-ready">มี PDF แล้ว</span>' : '<span class="meeting-pdf-waiting">ยังไม่มี PDF</span>'}</div>
+        ${meeting.hasPdf ? '<button id="view-meeting-pdf" class="btn btn-muted">เปิดดู PDF ฉบับสมบูรณ์</button>' : ''}
+        ${canUpload ? meetingUploadFormMarkup() : ''}
+        ${ownRecipient && meeting.hasPdf ? meetingRecipientActionMarkup(ownRecipient) : ''}
+        <div class="meeting-recipient-status-block"><h3>สถานะผู้เกี่ยวข้อง</h3>${meetingRecipientStatusMarkup()}</div>
+      </div>
+    </div>`;
+  }
+
+  function meetingUploadFormMarkup() {
+    const users = state.meetingUsers || [];
+    return `<form id="meeting-pdf-upload-form" class="meeting-upload-form">
+      <div class="meeting-field"><label>เลือก PDF ฉบับสมบูรณ์</label><input id="meeting-final-pdf" class="input" type="file" accept="application/pdf,.pdf" required></div>
+      <div class="meeting-field"><label>การดำเนินการของผู้รับ</label><select id="meeting-required-action" class="input"><option value="รับทราบ">เปิดอ่านและรับทราบ</option><option value="ลงลายเซ็น">ลงลายเซ็นรับรอง</option></select></div>
+      <div class="meeting-recipient-mode"><label><input type="radio" name="meetingRecipientMode" value="ทุกคน" checked> ส่งให้ทุกคนอัตโนมัติ</label><label><input type="radio" name="meetingRecipientMode" value="บางคน"> เลือกเฉพาะบุคคล</label></div>
+      <div id="meeting-user-picker" class="meeting-user-picker is-disabled">${users.map((user) => `<label><input type="checkbox" value="${escapeHtml(user.userId)}" disabled><span><b>${escapeHtml(user.name)}</b><small>${escapeHtml(user.role)}${user.department ? ' · ' + escapeHtml(user.department) : ''}</small></span></label>`).join('')}</div>
+      <button class="btn btn-success w-full" type="submit">อัปโหลด PDF และส่งให้ผู้เกี่ยวข้อง</button>
+    </form>`;
+  }
+
+  function meetingRecipientActionMarkup(recipient) {
+    const done = !!recipient.acknowledgedAt || !!recipient.signedAt;
+    if (done) return '<div class="meeting-own-action done">✅ คุณดำเนินการวาระฉบับนี้แล้ว</div>';
+    const action = recipient.requiredAction === 'ลงลายเซ็น' ? 'ลงลายเซ็น' : 'รับทราบ';
+    return `<div class="meeting-own-action"><b>งานของคุณ: ${escapeHtml(action)}</b><p>กรุณาเปิดอ่าน PDF ให้ครบก่อนยืนยัน</p><button id="complete-meeting-recipient" class="btn btn-success" data-action="${escapeHtml(action)}">${action === 'ลงลายเซ็น' ? '✍ ลงลายเซ็นรับรอง' : '✅ รับทราบ'}</button></div>`;
+  }
+
+  function bindMeetingEditorSection() {
+    document.querySelectorAll('[data-meeting-meta]').forEach((input) => {
+      input.addEventListener('input', () => updateMeetingMeta(input.dataset.meetingMeta, input.value));
+    });
+    document.getElementById('save-meeting-meta')?.addEventListener('click', () => saveMeetingAgenda(false));
+    document.getElementById('local-process-meeting')?.addEventListener('click', processMeetingLocally);
+    document.querySelectorAll('[data-item-index]').forEach((card) => {
+      const index = Number(card.dataset.itemIndex);
+      card.querySelectorAll('[data-item-field]').forEach((input) => {
+        input.addEventListener('input', () => { state.currentMeetingDetails.items[index][input.dataset.itemField] = input.value; });
+        input.addEventListener('change', () => { state.currentMeetingDetails.items[index][input.dataset.itemField] = input.value; });
+      });
+      card.querySelectorAll('[data-item-action]').forEach((button) => button.onclick = () => meetingItemAction(index, button.dataset.itemAction));
+    });
+    document.getElementById('add-meeting-item')?.addEventListener('click', () => {
+      state.currentMeetingDetails.items.push(newMeetingItem());
+      renderMeetingEditor();
+    });
+    document.getElementById('save-meeting-agenda')?.addEventListener('click', () => saveMeetingAgenda(false));
+    document.getElementById('show-meeting-history')?.addEventListener('click', showMeetingHistory);
+    document.querySelectorAll('.meeting-transition-btn').forEach((button) => button.onclick = () => transitionMeetingAction(button.dataset.transition));
+    document.getElementById('copy-meeting-text')?.addEventListener('click', async () => {
+      const text = document.getElementById('meeting-copy-text').value;
+      if (await copyTextToClipboard(text, 'คัดลอกข้อความวาระการประชุมแล้ว')) {
+        gasCall('recordMeetingAgendaCopy', state.token, state.currentMeetingDetails.meeting.meetingId).catch(() => {});
+      }
+    });
+    document.getElementById('view-meeting-pdf')?.addEventListener('click', openMeetingPdf);
+    const modeInputs = document.querySelectorAll('input[name="meetingRecipientMode"]');
+    modeInputs.forEach((input) => input.onchange = toggleMeetingUserPicker);
+    document.getElementById('meeting-pdf-upload-form')?.addEventListener('submit', uploadMeetingPdfAndDispatch);
+    document.getElementById('complete-meeting-recipient')?.addEventListener('click', completeOwnMeetingAction);
+  }
+
+  function newMeetingItem(overrides = {}) {
+    return {
+      itemId: '', agendaCode: 'unknown', sortOrder: (state.currentMeetingDetails.items || []).length + 1,
+      title: '', summary: '', resolution: '', responsiblePerson: '', dueDate: '',
+      sourceExcerpt: '', generatedBy: 'MANUAL', version: 1, ...overrides,
+    };
+  }
+
+  function classifyAgendaByKeywords(text) {
+    const value = String(text || '').toLowerCase();
+    if (/รับรอง.*รายงาน|รายงานการประชุมครั้งก่อน/.test(value)) return '2';
+    if (/สืบเนื่อง|ติดตาม|ครั้งก่อน|ค้างจาก/.test(value)) return '3';
+    if (/พิจารณา|อนุมัติ|ขอความเห็น|เสนอให้ที่ประชุม/.test(value)) return '5';
+    if (/ประธาน.*แจ้ง|ประธานแจ้ง/.test(value)) return '1';
+    if (/รายงาน|ประชาสัมพันธ์|เพื่อทราบ|รับทราบ|แจ้งให้ทราบ/.test(value)) return '4';
+    if (/เรื่องอื่น|อื่น ๆ|อื่นๆ/.test(value)) return '6';
+    return 'unknown';
+  }
+
+  function splitSourceIntoTopics(text) {
+    const normalized = String(text || '').replace(/\r/g, '').trim();
+    if (!normalized) return [];
+    let parts = normalized.split(/\n\s*\n+/).map((part) => part.trim()).filter(Boolean);
+    if (parts.length === 1) {
+      const lines = normalized.split(/\n+/).map((line) => line.replace(/^[-•*\d.)\s]+/, '').trim()).filter(Boolean);
+      if (lines.length > 1) parts = lines;
+    }
+    return parts.slice(0, 100);
+  }
+
+  function topicTitle(text) {
+    const clean = String(text || '').replace(/\s+/g, ' ').trim();
+    const first = clean.split(/[.!?\n]|[。]/)[0].trim();
+    return (first || clean || 'ยังไม่ได้ตั้งชื่อเรื่อง').slice(0, 140);
+  }
+
+  async function processMeetingLocally() {
+    const sourceText = meetingEditorValues().sourceText;
+    const topics = splitSourceIntoTopics(sourceText);
+    if (!topics.length) {
+      Swal.fire('ยังไม่มีข้อความ', 'กรุณาพิมพ์หรือวางข้อความการประชุมก่อนประมวลผล', 'warning');
+      return;
+    }
+    const confirmation = await Swal.fire({
+      icon: 'info',
+      title: 'สร้างร่างอัตโนมัติแบบไม่ใช้โทเคน',
+      text: `ระบบจะแยกข้อความเป็น ${topics.length} เรื่องด้วยกฎคำสำคัญ โดยจะไม่ส่งข้อมูลไปบริการภายนอก และไม่แต่งข้อมูลที่ไม่มีในต้นฉบับ`,
+      showCancelButton: true,
+      confirmButtonText: 'สร้างร่าง',
+      cancelButtonText: 'ยกเลิก',
+    });
+    if (!confirmation.isConfirmed) return;
+    state.currentMeetingDetails.items = topics.map((topic, index) => newMeetingItem({
+      agendaCode: classifyAgendaByKeywords(topic), sortOrder: index + 1,
+      title: topicTitle(topic), summary: topic, sourceExcerpt: topic, generatedBy: 'LOCAL_RULES',
+    }));
+    const saved = await saveMeetingAgenda(true);
+    if (!saved) return;
+    state.meetingEditorTab = 'process';
+    renderMeetingEditor();
+  }
+
+  function meetingItemAction(index, action) {
+    const items = state.currentMeetingDetails.items;
+    if (action === 'delete') {
+      items.splice(index, 1);
+    } else if (action === 'up' && index > 0) {
+      [items[index - 1], items[index]] = [items[index], items[index - 1]];
+    } else if (action === 'down' && index < items.length - 1) {
+      [items[index + 1], items[index]] = [items[index], items[index + 1]];
+    } else if (action === 'merge') {
+      if (index === 0) return Swal.fire('รวมไม่ได้', 'เรื่องแรกไม่มีเรื่องก่อนหน้าให้รวม', 'warning');
+      const previous = items[index - 1];
+      const current = items[index];
+      previous.title = previous.title || current.title;
+      previous.summary = [previous.summary, current.summary].filter(Boolean).join('\n\n');
+      previous.sourceExcerpt = [previous.sourceExcerpt, current.sourceExcerpt].filter(Boolean).join('\n\n');
+      previous.resolution = [previous.resolution, current.resolution].filter(Boolean).join('\n');
+      previous.responsiblePerson = [previous.responsiblePerson, current.responsiblePerson].filter(Boolean).join(', ');
+      items.splice(index, 1);
+    } else if (action === 'split') {
+      splitMeetingItem(index);
+      return;
+    }
+    items.forEach((item, itemIndex) => { item.sortOrder = itemIndex + 1; });
+    renderMeetingEditor();
+  }
+
+  async function splitMeetingItem(index) {
+    const item = state.currentMeetingDetails.items[index];
+    const result = await Swal.fire({
+      title: 'แยกเรื่องออกจากกัน',
+      text: 'แบ่งข้อความเป็นอย่างน้อย 2 ส่วน โดยเว้นบรรทัดว่างระหว่างส่วน',
+      input: 'textarea',
+      inputValue: item.summary || item.sourceExcerpt || '',
+      showCancelButton: true,
+      confirmButtonText: 'แยกเรื่อง',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => splitSourceIntoTopics(value).length < 2 ? 'กรุณาแบ่งเป็นอย่างน้อย 2 ส่วน' : undefined,
+    });
+    if (!result.isConfirmed) return;
+    const parts = splitSourceIntoTopics(result.value);
+    const replacements = parts.map((part) => newMeetingItem({
+      agendaCode: item.agendaCode,
+      title: topicTitle(part), summary: part, sourceExcerpt: part,
+      generatedBy: item.generatedBy || 'MANUAL',
+    }));
+    state.currentMeetingDetails.items.splice(index, 1, ...replacements);
+    state.currentMeetingDetails.items.forEach((entry, itemIndex) => { entry.sortOrder = itemIndex + 1; });
+    renderMeetingEditor();
+  }
+
+  function meetingSavePayload(markAiProcessed) {
+    const meeting = meetingEditorValues();
+    return {
+      meetingId: meeting.meetingId,
+      expectedVersion: meeting.version,
+      meetingTitle: meeting.meetingTitle,
+      meetingNo: meeting.meetingNo,
+      meetingDate: String(meeting.meetingDate || '').slice(0, 10),
+      meetingTime: meeting.meetingTime,
+      location: meeting.location,
+      chairman: meeting.chairman,
+      secretary: meeting.secretary,
+      sourceText: meeting.sourceText,
+      dueDate: meeting.dueDate || '',
+      markAiProcessed: !!markAiProcessed,
+      items: (state.currentMeetingDetails.items || []).map((item, index) => ({ ...item, sortOrder: index + 1 })),
+    };
+  }
+
+  async function saveMeetingAgenda(markAiProcessed) {
+    loading('กำลังบันทึกวาระการประชุม...');
+    try {
+      await gasCall('saveMeetingAgenda', state.token, meetingSavePayload(markAiProcessed));
+      const refreshed = await gasCall('getMeetingDetails', state.token, meetingEditorValues().meetingId);
+      state.currentMeetingDetails = refreshed;
+      Swal.fire('บันทึกสำเร็จ', 'บันทึกข้อมูลและประวัติการแก้ไขแล้ว', 'success');
+      renderMeetingEditor();
+      return true;
+    } catch (error) { showError(error); return false; }
+  }
+
+  async function transitionMeetingAction(action) {
+    if (meetingRoleCanEdit()) {
+      const save = await Swal.fire({
+        icon: 'question', title: 'บันทึกและส่งต่อวาระหรือไม่',
+        text: 'ระบบจะบันทึกการแก้ไขล่าสุดก่อนส่งต่อ',
+        input: 'textarea', inputLabel: 'ความคิดเห็นหรือหมายเหตุ (ไม่บังคับ)',
+        showCancelButton: true, confirmButtonText: 'บันทึกและส่งต่อ', cancelButtonText: 'ยกเลิก',
+      });
+      if (!save.isConfirmed) return;
+      loading('กำลังบันทึกและส่งต่อ...');
+      try {
+        const saved = await gasCall('saveMeetingAgenda', state.token, meetingSavePayload(false));
+        state.currentMeetingDetails.meeting.version = saved.version;
+        await gasCall('transitionMeeting', state.token, {
+          meetingId: meetingEditorValues().meetingId,
+          expectedVersion: saved.version,
+          action,
+          comment: save.value || '',
+        });
+        state.currentMeetingDetails = null;
+        await loadMeetingDashboard();
+        Swal.fire('ส่งต่อสำเร็จ', 'ระบบบันทึกผู้ดำเนินการ วันเวลา และขั้นตอนใหม่แล้ว', 'success');
+      } catch (error) { showError(error); }
+    }
+  }
+
+  function meetingAuditDetailMarkup(rawDetails) {
+    try {
+      const details = JSON.parse(rawDetails || '{}');
+      const changes = Array.isArray(details.changes) ? details.changes : [];
+      const summary = [];
+      if (details.fromStatus || details.toStatus) summary.push(`${details.fromStatus || '-'} → ${details.toStatus || '-'}`);
+      if (Number.isFinite(Number(details.changedCount))) summary.push(`แก้ไข ${details.changedCount} จุด`);
+      if (details.recipientCount) summary.push(`ผู้รับ ${details.recipientCount} คน`);
+      const changeLines = changes.slice(0, 8).map((change) => {
+        if (change.type === 'meeting') return `ข้อมูลการประชุม: ${change.field}`;
+        if (change.type === 'item-added') return `เพิ่มเรื่อง: ${change.title || '-'}`;
+        if (change.type === 'item-deleted') return `ลบเรื่อง: ${change.title || '-'}`;
+        if (change.type === 'item-reordered') return `ย้ายลำดับเรื่อง ${change.itemId}`;
+        if (change.type === 'item-changed') return `แก้ ${change.field}: ${change.itemId}`;
+        return change.type || 'แก้ไขข้อมูล';
+      });
+      return `${summary.length ? `<p class="meeting-audit-summary">${escapeHtml(summary.join(' · '))}</p>` : ''}${changeLines.length ? `<ul>${changeLines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>` : ''}`;
+    } catch (_) { return ''; }
+  }
+
+  function showMeetingHistory() {
+    const reviews = state.currentMeetingDetails.reviews || [];
+    const audit = state.currentMeetingDetails.audit || [];
+    const reviewHtml = reviews.length ? reviews.map((item) => `<div class="meeting-history-entry"><b>${escapeHtml(item.reviewerName)} · ${escapeHtml(item.reviewerRole)}</b><span>${escapeHtml(item.action)}</span><p>${escapeHtml(item.comment || 'ไม่มีความคิดเห็น')}</p><small>${escapeHtml(item.createdAt)}</small></div>`).join('') : '<p>ยังไม่มีความคิดเห็น</p>';
+    const auditHtml = audit.length ? audit.slice(0, 50).map((item) => `<div class="meeting-audit-entry"><b>${escapeHtml(item.action)}</b><span>${escapeHtml(item.role)} · ${escapeHtml(item.username)}</span>${meetingAuditDetailMarkup(item.details)}<small>${escapeHtml(item.timestamp)}</small></div>`).join('') : '<p>ยังไม่มี Audit Log</p>';
+    Swal.fire({ title: 'ประวัติการแก้ไขและส่งต่อ', html: `<div class="meeting-history-modal"><h3>ความคิดเห็นผู้ตรวจ</h3>${reviewHtml}<h3>Audit Log</h3>${auditHtml}</div>`, width: 780, confirmButtonText: 'ปิด' });
+  }
+
+  function toggleMeetingUserPicker() {
+    const mode = document.querySelector('input[name="meetingRecipientMode"]:checked')?.value || 'ทุกคน';
+    const picker = document.getElementById('meeting-user-picker');
+    if (!picker) return;
+    picker.classList.toggle('is-disabled', mode === 'ทุกคน');
+    picker.querySelectorAll('input').forEach((input) => { input.disabled = mode === 'ทุกคน'; });
+  }
+
+  async function uploadMeetingPdfAndDispatch(event) {
+    event.preventDefault();
+    const fileInput = document.getElementById('meeting-final-pdf');
+    const file = validatePdfFiles(selectedFiles(fileInput))[0];
+    const recipientMode = document.querySelector('input[name="meetingRecipientMode"]:checked')?.value || 'ทุกคน';
+    const userIds = [...document.querySelectorAll('#meeting-user-picker input:checked')].map((input) => input.value);
+    if (recipientMode === 'บางคน' && !userIds.length) {
+      Swal.fire('ยังไม่ได้เลือกผู้รับ', 'กรุณาเลือกผู้รับอย่างน้อย 1 คน', 'warning');
+      return;
+    }
+    const confirmation = await Swal.fire({
+      icon: 'warning', title: 'ยืนยันอัปโหลดและส่งวาระ',
+      text: recipientMode === 'ทุกคน' ? 'PDF จะถูกส่งให้ผู้ใช้ที่เปิดใช้งานทุกบัญชี' : `PDF จะถูกส่งให้ผู้รับ ${userIds.length} คน`,
+      showCancelButton: true, confirmButtonText: 'ยืนยันส่ง', cancelButtonText: 'กลับไปตรวจสอบ',
+    });
+    if (!confirmation.isConfirmed) return;
+    loading('กำลังอัปโหลด PDF และส่งให้ผู้เกี่ยวข้อง...');
+    try {
+      await uploadFileForm('uploadAndDispatchMeetingPdf', 'meetingPdfFile', file, {
+        sessionToken: state.token,
+        meetingId: meetingEditorValues().meetingId,
+        recipientMode,
+        requiredAction: document.getElementById('meeting-required-action').value,
+        expectedVersion: meetingEditorValues().version,
+        userIds: JSON.stringify(userIds),
+      });
+      state.currentMeetingDetails = await gasCall('getMeetingDetails', state.token, meetingEditorValues().meetingId);
+      renderMeetingEditor();
+      Swal.fire('ส่งวาระสำเร็จ', 'ระบบแยกติดตามผู้รับ ลายเซ็น และการรับทราบไว้ในโมดูลวาระการประชุมแล้ว', 'success');
+    } catch (error) { showError(error); }
+  }
+
+  async function openMeetingPdf() {
+    const previewWindow = window.open('about:blank', '_blank');
+    try {
+      const result = await gasCall('getMeetingPdf', state.token, meetingEditorValues().meetingId, true);
+      previewOrDownloadFile(result.file, previewWindow);
+      state.currentMeetingDetails = await gasCall('getMeetingDetails', state.token, meetingEditorValues().meetingId);
+      renderMeetingEditor();
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) previewWindow.close();
+      showError(error);
+    }
+  }
+
+  async function completeOwnMeetingAction(event) {
+    const action = event.currentTarget.dataset.action || 'รับทราบ';
+    const result = await Swal.fire({
+      icon: 'question', title: `ยืนยัน${action}`, input: 'textarea',
+      inputLabel: 'หมายเหตุ (ไม่บังคับ)', showCancelButton: true,
+      confirmButtonText: `ยืนยัน${action}`, cancelButtonText: 'ยกเลิก',
+    });
+    if (!result.isConfirmed) return;
+    loading(`กำลังบันทึก${action}...`);
+    try {
+      await gasCall('completeMeetingRecipient', state.token, meetingEditorValues().meetingId, action, result.value || '');
+      state.currentMeetingDetails = await gasCall('getMeetingDetails', state.token, meetingEditorValues().meetingId);
+      renderMeetingEditor();
+      Swal.fire('บันทึกสำเร็จ', `${action}เรียบร้อยแล้ว`, 'success');
+    } catch (error) { showError(error); }
   }
 
   bootstrap();
