@@ -2030,7 +2030,7 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
 }
 
 
-/* ==================== โมดูลวาระการประชุม 2.3.0 ==================== */
+/* ==================== โมดูลวาระการประชุม 2.3.1 ==================== */
 .meeting-module-btn { background:linear-gradient(135deg,#6d28d9,#4f46e5); color:#fff; border:1px solid rgba(255,255,255,.2); box-shadow:0 8px 18px rgba(79,70,229,.18); }
 .meeting-module-btn:hover { transform:translateY(-1px); filter:brightness(1.04); }
 .meeting-topbar { background:linear-gradient(120deg,#312e81,#5b21b6 55%,#7e22ce); }
