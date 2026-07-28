@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '2.3.1';
+  const FRONTEND_BUILD_VERSION = '3.4.1';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -2921,7 +2921,7 @@
   }
 
 
-  // ==================== โมดูลวาระการประชุม 2.3.1 ====================
+  // ==================== โมดูลวาระการประชุม 3.4.1 ====================
 
   const MEETING_AGENDA_LABELS = {
     '1': 'ระเบียบวาระที่ 1 เรื่องที่ประธานแจ้งให้ทราบ',
@@ -3180,32 +3180,48 @@
     return meetingNotesMarkup();
   }
 
-  function agendaItemsWithIndexes(code) {
-    return (state.currentMeetingDetails.items || [])
-      .map((item, index) => ({ item, index }))
-      .filter((entry) => String(entry.item.agendaCode) === String(code));
+  function agendaItemText_(item, label) {
+    if (!item) return '';
+    const title = String(item.title || '').trim();
+    const summary = String(item.summary || '').trim();
+    if (!title || title === label || title === 'ยังไม่ได้ตั้งชื่อเรื่อง') return summary;
+    return [title, summary].filter(Boolean).join('\n');
   }
 
-  function ensureMeetingAgendaPlaceholders() {
-    if (!meetingRoleCanEdit()) return;
-    Object.keys(MEETING_AGENDA_LABELS).forEach((code) => {
-      const exists = (state.currentMeetingDetails.items || []).some((item) => String(item.agendaCode) === code);
-      if (!exists) state.currentMeetingDetails.items.push(newMeetingItem({ agendaCode: code }));
+  function normalizeMeetingAgendaTextBoxes() {
+    const sourceItems = Array.isArray(state.currentMeetingDetails?.items) ? state.currentMeetingDetails.items : [];
+    const normalized = Object.entries(MEETING_AGENDA_LABELS).map(([code, label], index) => {
+      const group = sourceItems.filter((item) => String(item.agendaCode) === code);
+      const combinedText = group.map((item) => agendaItemText_(item, label)).filter(Boolean).join('\n\n');
+      const first = group[0] || {};
+      return {
+        itemId: first.itemId || '',
+        agendaCode: code,
+        sortOrder: index + 1,
+        title: label,
+        summary: combinedText,
+        createdBy: first.createdBy || '',
+        createdAt: first.createdAt || '',
+        version: first.version || 1,
+      };
     });
-    normalizeMeetingItemOrder();
+    state.currentMeetingDetails.items = normalized;
+    return normalized;
   }
 
   function meetingNotesMarkup() {
     const meeting = meetingEditorValues();
     const canEdit = meetingRoleCanEdit();
-    if (canEdit) ensureMeetingAgendaPlaceholders();
     const disabled = canEdit ? '' : 'disabled';
-    const agendaBoxes = Object.entries(MEETING_AGENDA_LABELS).map(([code, label]) => {
-      const entries = agendaItemsWithIndexes(code);
-      const filledCount = entries.filter((entry) => String(entry.item.title || '').trim() || String(entry.item.summary || '').trim()).length;
+    const agendaItems = normalizeMeetingAgendaTextBoxes();
+    const agendaBoxes = Object.entries(MEETING_AGENDA_LABELS).map(([code, label], index) => {
+      const item = agendaItems[index];
       return `<section class="meeting-note-bucket agenda-${code}">
-        <div class="meeting-note-bucket-head"><div><span class="meeting-agenda-code">${code}</span><h2>${escapeHtml(label)}</h2><small>${filledCount} เรื่อง</small></div>${canEdit ? `<button class="btn btn-muted text-xs" data-add-agenda="${code}">＋ เพิ่มเรื่องในวาระนี้</button>` : ''}</div>
-        <div class="meeting-note-items">${entries.length ? entries.map((entry, localIndex) => meetingItemCardMarkup(entry.item, entry.index, canEdit, localIndex + 1)).join('') : '<div class="meeting-note-empty">ยังไม่มีข้อมูลในวาระนี้</div>'}</div>
+        <div class="meeting-note-bucket-head"><div><span class="meeting-agenda-code">${code}</span><h2>${escapeHtml(label)}</h2></div></div>
+        <article class="meeting-agenda-text-card" data-item-index="${index}">
+          <label class="meeting-agenda-text-label" for="meeting-agenda-text-${code}">${escapeHtml(label)}</label>
+          <textarea id="meeting-agenda-text-${code}" data-item-field="summary" class="input meeting-agenda-textarea" placeholder="กรอกเนื้อหาวาระนี้..." ${disabled}>${escapeHtml(item.summary)}</textarea>
+        </article>
       </section>`;
     }).join('');
     return `<div class="meeting-notes-layout">
@@ -3226,35 +3242,19 @@
     </div>`;
   }
 
-  function agendaOptions(selected) {
-    return Object.entries(MEETING_AGENDA_LABELS).map(([code, label]) => `<option value="${code}" ${selected === code ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
-  }
-
   function meetingReviewMarkup() {
     const meeting = meetingEditorValues();
-    const items = state.currentMeetingDetails.items || [];
-    const grouped = Object.entries(MEETING_AGENDA_LABELS).map(([code, label]) => {
-      const group = items.filter((item) => String(item.agendaCode) === code);
-      return `<section class="meeting-preview-agenda"><h2>${escapeHtml(label)}</h2>${group.length ? group.map((item, index) => `<article><h3>${code}.${index + 1} ${escapeHtml(item.title || 'ยังไม่ได้ตั้งชื่อเรื่อง')}</h3>${item.summary ? `<p>${escapeHtml(item.summary).replace(/\n/g, '<br>')}</p>` : '<p class="text-slate-400">ยังไม่มีรายละเอียด</p>'}</article>`).join('') : '<div class="meeting-preview-empty">ยังไม่มีข้อมูล</div>'}</section>`;
+    const items = normalizeMeetingAgendaTextBoxes();
+    const grouped = Object.entries(MEETING_AGENDA_LABELS).map(([code, label], index) => {
+      const text = String(items[index]?.summary || '').trim();
+      return `<section class="meeting-preview-agenda"><h2>${escapeHtml(label)}</h2>${text ? `<article><p>${escapeHtml(text).replace(/\n/g, '<br>')}</p></article>` : '<div class="meeting-preview-empty">ยังไม่มีข้อมูล</div>'}</section>`;
     }).join('');
     return `<div class="meeting-review-layout">
-      <div class="meeting-process-toolbar card"><div><h2>ตรวจข้อความก่อนส่งต่อ</h2><p>ตรวจชื่อเรื่องและรายละเอียดของวาระทั้ง 5 ก่อนดำเนินการตามบทบาท</p></div><div class="flex flex-wrap gap-2"><button id="meeting-back-notes" class="btn btn-muted">← กลับไปแก้ไข</button><button id="show-meeting-history" class="btn btn-muted">ประวัติการแก้ไข</button></div></div>
+      <div class="meeting-process-toolbar card"><div><h2>ตรวจข้อความก่อนส่งต่อ</h2><p>ตรวจข้อความภายในวาระทั้ง 5 ก่อนดำเนินการตามบทบาท</p></div><div class="flex flex-wrap gap-2"><button id="meeting-back-notes" class="btn btn-muted">← กลับไปแก้ไข</button><button id="show-meeting-history" class="btn btn-muted">ประวัติการแก้ไข</button></div></div>
       <div class="card meeting-preview-header"><h1>${escapeHtml(meeting.meetingTitle)}</h1><p>${meeting.meetingNo ? 'ครั้งที่ ' + escapeHtml(meeting.meetingNo) : ''}${meeting.meetingDate ? ' · วันที่ ' + escapeHtml(String(meeting.meetingDate).slice(0,10)) : ''}${meeting.meetingTime ? ' เวลา ' + escapeHtml(meeting.meetingTime) + ' น.' : ''}</p><p>${meeting.location ? 'สถานที่ ' + escapeHtml(meeting.location) : ''}</p><p>${meeting.chairman ? 'ประธานการประชุม ' + escapeHtml(meeting.chairman) : ''}${meeting.secretary ? ' · ผู้บันทึก ' + escapeHtml(meeting.secretary) : ''}</p></div>
       <div class="meeting-preview-list">${grouped}</div>
       ${meetingWorkflowActionsMarkup()}
     </div>`;
-  }
-
-  function meetingItemCardMarkup(item, index, canEdit, localNumber) {
-    const disabled = canEdit ? '' : 'disabled';
-    return `<article class="meeting-item-card" data-item-index="${index}">
-      <div class="meeting-item-card-head"><div><span class="meeting-item-number">${localNumber}</span><span class="meeting-manual-item-label">เรื่องย่อย</span></div>${canEdit ? `<div class="meeting-item-tools"><button data-item-action="up" title="เลื่อนขึ้น">↑</button><button data-item-action="down" title="เลื่อนลง">↓</button><button data-item-action="split" title="แยกรายละเอียด">✂ แยก</button><button data-item-action="merge" title="รวมกับเรื่องก่อนหน้า">⇄ รวม</button><button data-item-action="delete" title="ลบเรื่อง">🗑</button></div>` : ''}</div>
-      <div class="meeting-item-grid">
-        <div class="meeting-field span-2"><label>ชื่อเรื่อง</label><input data-item-field="title" class="input" value="${escapeHtml(item.title)}" placeholder="พิมพ์ชื่อเรื่อง" ${disabled}></div>
-        <div class="meeting-field span-2"><label>รายละเอียด</label><textarea data-item-field="summary" class="input meeting-detail-textarea" placeholder="จดรายละเอียดของเรื่องนี้" ${disabled}>${escapeHtml(item.summary)}</textarea></div>
-        ${canEdit ? `<div class="meeting-field span-2"><label>ย้ายไปวาระอื่น</label><select data-item-field="agendaCode" class="input">${agendaOptions(item.agendaCode)}</select></div>` : ''}
-      </div>
-    </article>`;
   }
 
   function meetingWorkflowActionsMarkup() {
@@ -3278,7 +3278,7 @@
 
   function formattedMeetingAgendaText() {
     const meeting = meetingEditorValues();
-    const items = state.currentMeetingDetails.items || [];
+    const items = normalizeMeetingAgendaTextBoxes();
     const lines = [];
     lines.push(meeting.meetingTitle || 'รายงานการประชุม');
     if (meeting.meetingNo) lines.push(`ครั้งที่ ${meeting.meetingNo}`);
@@ -3287,18 +3287,11 @@
     if (meeting.chairman) lines.push(`ประธานการประชุม ${meeting.chairman}`);
     if (meeting.secretary) lines.push(`ผู้บันทึก ${meeting.secretary}`);
     lines.push('');
-    Object.entries(MEETING_AGENDA_LABELS).forEach(([code, label]) => {
-      const group = items.filter((item) => String(item.agendaCode) === code);
+    Object.entries(MEETING_AGENDA_LABELS).forEach(([code, label], index) => {
       lines.push(label);
-      if (!group.length) {
-        lines.push('');
-        return;
-      }
-      group.forEach((item, index) => {
-        lines.push(`${code}.${index + 1} ${item.title || 'ยังไม่ได้ตั้งชื่อเรื่อง'}`);
-        if (item.summary) lines.push(item.summary);
-        lines.push('');
-      });
+      const text = String(items[index]?.summary || '').trim();
+      if (text) lines.push(text);
+      lines.push('');
     });
     return lines.join('\n').trim();
   }
@@ -3320,7 +3313,7 @@
     const copyText = formattedMeetingAgendaText();
     return `<div class="meeting-publish-grid">
       <div class="card meeting-copy-card">
-        <div class="meeting-section-title"><div><h2>ข้อความพร้อมคัดลอกไป Microsoft Word</h2><p>ระบบจัดหัวข้อและเลขข้อให้แล้ว ธุรการยังสามารถแก้รูปแบบใน Word ได้</p></div><button id="copy-meeting-text" class="btn btn-primary">📋 คัดลอกข้อความ</button></div>
+        <div class="meeting-section-title"><div><h2>ข้อความพร้อมคัดลอกไป Microsoft Word</h2><p>ระบบจัดหัวข้อวาระให้แล้ว ธุรการยังสามารถแก้รูปแบบใน Word ได้</p></div><button id="copy-meeting-text" class="btn btn-primary">📋 คัดลอกข้อความ</button></div>
         <textarea id="meeting-copy-text" class="input meeting-copy-text">${escapeHtml(copyText)}</textarea>
       </div>
       <div class="card meeting-pdf-card">
@@ -3358,15 +3351,13 @@
     document.querySelectorAll('[data-item-index]').forEach((card) => {
       const index = Number(card.dataset.itemIndex);
       card.querySelectorAll('[data-item-field]').forEach((input) => {
-        input.addEventListener('input', () => { state.currentMeetingDetails.items[index][input.dataset.itemField] = input.value; });
-        input.addEventListener('change', () => { state.currentMeetingDetails.items[index][input.dataset.itemField] = input.value; renderMeetingEditor(); });
+        input.addEventListener('input', () => {
+          const item = state.currentMeetingDetails.items[index];
+          if (!item) return;
+          item[input.dataset.itemField] = input.value;
+          item.title = MEETING_AGENDA_LABELS[String(item.agendaCode)] || item.title;
+        });
       });
-      card.querySelectorAll('[data-item-action]').forEach((button) => button.onclick = () => meetingItemAction(index, button.dataset.itemAction));
-    });
-    document.querySelectorAll('[data-add-agenda]').forEach((button) => button.onclick = () => {
-      state.currentMeetingDetails.items.push(newMeetingItem({ agendaCode: button.dataset.addAgenda }));
-      normalizeMeetingItemOrder();
-      renderMeetingEditor();
     });
     document.getElementById('save-meeting-agenda')?.addEventListener('click', () => saveMeetingAgenda());
     document.getElementById('meeting-go-review')?.addEventListener('click', async () => {
@@ -3393,83 +3384,6 @@
     document.getElementById('complete-meeting-recipient')?.addEventListener('click', completeOwnMeetingAction);
   }
 
-  function newMeetingItem(overrides = {}) {
-    return {
-      itemId: '', agendaCode: '1', sortOrder: (state.currentMeetingDetails.items || []).length + 1,
-      title: '', summary: '', version: 1, ...overrides,
-    };
-  }
-
-  function normalizeMeetingItemOrder() {
-    (state.currentMeetingDetails.items || []).forEach((item, index) => {
-      if (!MEETING_AGENDA_LABELS[String(item.agendaCode)]) item.agendaCode = '5';
-      item.sortOrder = index + 1;
-    });
-  }
-
-  function splitMeetingDetails(text) {
-    return String(text || '').replace(/\r/g, '').split(/\n\s*\n+/).map((part) => part.trim()).filter(Boolean);
-  }
-
-  function titleFromDetails(text) {
-    const clean = String(text || '').replace(/\s+/g, ' ').trim();
-    return (clean.split(/[.!?\n]|[。]/)[0].trim() || 'ยังไม่ได้ตั้งชื่อเรื่อง').slice(0, 140);
-  }
-
-  function sameAgendaNeighborIndex(items, index, direction) {
-    const agendaCode = String(items[index]?.agendaCode || '');
-    for (let cursor = index + direction; cursor >= 0 && cursor < items.length; cursor += direction) {
-      if (String(items[cursor].agendaCode) === agendaCode) return cursor;
-    }
-    return -1;
-  }
-
-  function meetingItemAction(index, action) {
-    const items = state.currentMeetingDetails.items;
-    if (action === 'delete') {
-      items.splice(index, 1);
-    } else if (action === 'up' || action === 'down') {
-      const target = sameAgendaNeighborIndex(items, index, action === 'up' ? -1 : 1);
-      if (target >= 0) [items[target], items[index]] = [items[index], items[target]];
-    } else if (action === 'merge') {
-      const previousIndex = sameAgendaNeighborIndex(items, index, -1);
-      if (previousIndex < 0) return Swal.fire('รวมไม่ได้', 'ไม่มีเรื่องก่อนหน้าในวาระเดียวกันให้รวม', 'warning');
-      const previous = items[previousIndex];
-      const current = items[index];
-      previous.title = previous.title || current.title;
-      previous.summary = [previous.summary, current.summary].filter(Boolean).join('\n\n');
-      items.splice(index, 1);
-    } else if (action === 'split') {
-      splitMeetingItem(index);
-      return;
-    }
-    normalizeMeetingItemOrder();
-    renderMeetingEditor();
-  }
-
-  async function splitMeetingItem(index) {
-    const item = state.currentMeetingDetails.items[index];
-    const result = await Swal.fire({
-      title: 'แยกรายละเอียดเป็นหลายเรื่อง',
-      text: 'เว้นบรรทัดว่างระหว่างแต่ละเรื่องที่ต้องการแยก',
-      input: 'textarea',
-      inputValue: item.summary || '',
-      showCancelButton: true,
-      confirmButtonText: 'แยกเรื่อง',
-      cancelButtonText: 'ยกเลิก',
-      inputValidator: (value) => splitMeetingDetails(value).length < 2 ? 'กรุณาแบ่งเป็นอย่างน้อย 2 ส่วน' : undefined,
-    });
-    if (!result.isConfirmed) return;
-    const replacements = splitMeetingDetails(result.value).map((part, partIndex) => newMeetingItem({
-      agendaCode: item.agendaCode,
-      title: partIndex === 0 && item.title ? item.title : titleFromDetails(part),
-      summary: part,
-    }));
-    state.currentMeetingDetails.items.splice(index, 1, ...replacements);
-    normalizeMeetingItemOrder();
-    renderMeetingEditor();
-  }
-
   function meetingSavePayload() {
     const meeting = meetingEditorValues();
     return {
@@ -3482,14 +3396,18 @@
       location: meeting.location,
       chairman: meeting.chairman,
       secretary: meeting.secretary,
-      items: (state.currentMeetingDetails.items || []).map((item, index) => ({
-        itemId: item.itemId || '',
-        agendaCode: MEETING_AGENDA_LABELS[String(item.agendaCode)] ? String(item.agendaCode) : '5',
-        sortOrder: index + 1,
-        title: item.title || '',
-        summary: item.summary || '',
-        version: item.version || 1,
-      })),
+      items: normalizeMeetingAgendaTextBoxes().map((item, index) => {
+        const agendaCode = MEETING_AGENDA_LABELS[String(item.agendaCode)] ? String(item.agendaCode) : String(index + 1);
+        const summary = String(item.summary || '').trim();
+        return {
+          itemId: item.itemId || '',
+          agendaCode,
+          sortOrder: index + 1,
+          title: summary ? MEETING_AGENDA_LABELS[agendaCode] : '',
+          summary,
+          version: item.version || 1,
+        };
+      }),
     };
   }
 
