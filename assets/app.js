@@ -3,6 +3,13 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
+  const FRONTEND_BUILD_VERSION = '2.3.1';
+  const MEETING_DEFAULTS = Object.freeze({
+    meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
+    location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
+    chairman: 'นางสาวศิริยา อินทกาโมทย์',
+    secretary: 'นายพิสิษฐ์ ตั้งสกุล',
+  });
 
   const THEME_PRESETS = {
     formal: { name: 'ทางการ', description: 'แดงเข้มและทอง เหมาะกับงานราชการ', primary: '#b91c1c', secondary: '#f59e0b' },
@@ -722,7 +729,7 @@
       </div>`;
 
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
-    document.documentElement.dataset.frontendVersion = '2.3.0';
+    document.documentElement.dataset.frontendVersion = FRONTEND_BUILD_VERSION;
 
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
@@ -2914,7 +2921,7 @@
   }
 
 
-  // ==================== โมดูลวาระการประชุม 2.3.0 ====================
+  // ==================== โมดูลวาระการประชุม 2.3.1 ====================
 
   const MEETING_AGENDA_LABELS = {
     '1': 'ระเบียบวาระที่ 1 เรื่องที่ประธานแจ้งให้ทราบ',
@@ -3068,32 +3075,37 @@
     overlay.innerHTML = `<div class="modal-panel meeting-create-modal">
       <div class="flex justify-between items-start gap-3 mb-4"><div><h2 class="text-xl font-bold">สร้างวาระการประชุมใหม่</h2><p class="text-sm text-slate-500">ข้อมูลวาระจะแยกจากเอกสารรับ และสามารถแก้ค่าเริ่มต้นก่อนบันทึกได้</p></div><button class="text-2xl close-modal">×</button></div>
       <form id="create-meeting-form" class="meeting-form-grid">
-        <div class="meeting-field span-2"><label>ชื่อการประชุม *</label><input name="meetingTitle" class="input" required value="รายงานการประชุมประจำสัปดาห์"></div>
+        <div class="meeting-field span-2"><label>ชื่อการประชุม *</label><input name="meetingTitle" class="input" required value="${escapeHtml(MEETING_DEFAULTS.meetingTitle)}"></div>
         <div class="meeting-field"><label>ครั้งที่</label><input name="meetingNo" class="input" placeholder="เช่น 7/2569"></div>
         <div class="meeting-field"><label>วันที่ประชุม</label><input name="meetingDate" type="date" class="input"></div>
         <div class="meeting-field"><label>เวลา</label><input name="meetingTime" type="time" class="input"></div>
-        <div class="meeting-field span-2"><label>สถานที่</label><input name="location" class="input" value="ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ"></div>
-        <div class="meeting-field"><label>ประธานการประชุม</label><input name="chairman" class="input" value="นางสาวศิริยา อินทกาโมทย์"></div>
-        <div class="meeting-field"><label>ผู้บันทึก</label><input name="secretary" class="input" value="นายพิสิษฐ์ ตั้งสกุล"></div>
+        <div class="meeting-field span-2"><label>สถานที่</label><input name="location" class="input" value="${escapeHtml(MEETING_DEFAULTS.location)}"></div>
+        <div class="meeting-field"><label>ประธานการประชุม</label><input name="chairman" class="input" value="${escapeHtml(MEETING_DEFAULTS.chairman)}"></div>
+        <div class="meeting-field"><label>ผู้บันทึก</label><input name="secretary" class="input" value="${escapeHtml(MEETING_DEFAULTS.secretary)}"></div>
         <div class="span-2 meeting-create-note">เมื่อบันทึกแล้ว ระบบจะเปิดหน้าจดวาระ 5 กล่องให้ทันที</div>
         <div class="span-2 flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button type="submit" class="btn btn-success">บันทึกและเริ่มจดวาระ</button></div>
       </form>
     </div>`;
     document.body.appendChild(overlay);
     overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
-    overlay.querySelector('#create-meeting-form').onsubmit = async (event) => {
+    const createMeetingForm = overlay.querySelector('#create-meeting-form');
+    Object.entries(MEETING_DEFAULTS).forEach(([field, value]) => {
+      const input = createMeetingForm.elements[field];
+      if (input && !String(input.value || '').trim()) input.value = value;
+    });
+    createMeetingForm.onsubmit = async (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       loading('กำลังสร้างวาระการประชุม...');
       try {
         const result = await gasCall('createMeeting', state.token, {
-          meetingTitle: form.elements.meetingTitle.value,
+          meetingTitle: String(form.elements.meetingTitle.value || '').trim() || MEETING_DEFAULTS.meetingTitle,
           meetingNo: form.elements.meetingNo.value,
           meetingDate: form.elements.meetingDate.value,
           meetingTime: form.elements.meetingTime.value,
-          location: form.elements.location.value,
-          chairman: form.elements.chairman.value,
-          secretary: form.elements.secretary.value,
+          location: String(form.elements.location.value || '').trim() || MEETING_DEFAULTS.location,
+          chairman: String(form.elements.chairman.value || '').trim() || MEETING_DEFAULTS.chairman,
+          secretary: String(form.elements.secretary.value || '').trim() || MEETING_DEFAULTS.secretary,
         });
         overlay.remove();
         Swal.close();
