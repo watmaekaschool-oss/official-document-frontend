@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.4.1';
+  const FRONTEND_BUILD_VERSION = '3.5.0';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -125,6 +125,7 @@
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
         ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
         ['สร้างข้อความ LINE', 'กดปุ่ม LINE ข้างปุ่มรีเฟรช เลือกเอกสาร ตรวจรายชื่อและสถานะ แล้วกดคัดลอกข้อความสำเร็จรูปไปวางใน LINE'],
+        ['จัดการผู้รับและดาวน์โหลด', 'กด “จัดการ” ข้างแท็บจดหมายทั้งหมด เพื่อเพิ่มหรือลบผู้รับด้วย Checkbox หรือดาวน์โหลด PDF รายวัน รายสัปดาห์ รายเดือน และช่วงวันที่'],
         ['ตั้งรหัสผ่านใหม่', 'ไปที่ ⚙ การตั้งค่า → จัดการผู้ใช้งาน แล้วเลือก “ตั้งรหัสใหม่” กรณีผู้ใช้ลืมรหัสเดิม'],
         ['ตรวจสอบสถานะ', 'ดูตัวเลขรับทราบในจดหมายเข้าและจดหมายทั้งหมด สีแดงหมายถึงยังไม่ครบ สีเขียวหมายถึงครบแล้ว'],
       ],
@@ -138,6 +139,7 @@
         ['กรณีรักษาการ', 'ตราจะแสดงตำแหน่งรองผู้อำนวยการโรงเรียนวัดแม่กะ และรักษาการแทนผู้อำนวยการโรงเรียนวัดแม่กะ'],
         ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ แล้วใช้เครื่องมือย่อ–ขยายก่อนบันทึก'],
         ['ส่งต่อ', 'ตรวจความถูกต้องของตราและลายเซ็น แล้วกดยืนยันเพื่อส่งเอกสารตามเส้นทางงาน'],
+        ['แก้ไขผู้รับ', 'กด “จัดการ” ข้างจดหมายทั้งหมด เพื่อเพิ่มผู้รับที่ตกหล่นหรือลบผู้รับเดิม โดยผู้รับที่ยังเลือกจะคงสถานะเดิม'],
       ],
     },
     'ผู้อำนวยการ': {
@@ -149,6 +151,7 @@
         ['ตรวจลายเซ็น', 'ตรวจว่าลายเซ็นและชื่อผู้ลงนามแสดงถูกต้องก่อนบันทึก'],
         ['จัดวางตรา', 'ระบบแสดงเอกสารครบทุกหน้า สามารถลากตราไปยังหน้าที่ต้องการ และย่อ–ขยายไม่ให้ทับเนื้อหาสำคัญ'],
         ['ส่งกลับธุรการ', 'กดยืนยันเพื่อส่งเอกสารกลับให้ธุรการดำเนินการจ่ายเรื่อง'],
+        ['แก้ไขผู้รับ', 'กด “จัดการ” ข้างจดหมายทั้งหมด เพื่อเพิ่มผู้รับที่ตกหล่นหรือลบผู้รับเดิม โดยระบบบันทึกประวัติไว้ใน Audit Log'],
       ],
     },
     'ครู': {
@@ -215,6 +218,11 @@
   function isClericalUser() {
     const role = normalizedUserRole();
     return role === 'ธุรการ' || role.includes('ธุรการ');
+  }
+
+  function canManageDocumentRecipients() {
+    const role = guideRoleKey();
+    return ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(role);
   }
 
 
@@ -721,6 +729,7 @@
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
               <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>` : ''}
+              ${!isTeacher ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
             </div>
             <div id="workflow-mascot-slot" class="workflow-mascot-slot">${workflowMascotMarkup()}</div>
           </div>
@@ -747,6 +756,8 @@
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
     const lineNotifyBtn = document.getElementById('line-notify-btn');
     if (lineNotifyBtn) lineNotifyBtn.onclick = openLineNotificationModal;
+    const documentManageBtn = document.getElementById('document-manage-btn');
+    if (documentManageBtn) documentManageBtn.onclick = openDocumentManagementMenu;
     document.getElementById('meeting-module-btn').onclick = openMeetingModule;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { state.tab = button.dataset.tab; renderDashboard(); };
@@ -1113,7 +1124,8 @@
       return;
     }
 
-    const documents = sortDocumentsByReceiveNumberDesc(state.allDocs || []);
+    const documents = sortDocumentsByReceiveNumberDesc(state.allDocs || [])
+      .filter((doc) => Number(doc.recipientCount || 0) > 0 || doc.status === 'แจ้งให้ทราบ / ดำเนินการ');
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop line-notification-backdrop';
     overlay.innerHTML = `<div class="modal-panel line-notification-panel">
@@ -2820,24 +2832,426 @@
     renderSection(activeSection);
   }
 
+  function openDocumentManagementMenu() {
+    if (!canManageDocumentRecipients()) {
+      Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'เมนูจัดการใช้ได้เฉพาะธุรการ รองผู้อำนวยการ และผู้อำนวยการ', 'warning');
+      return;
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop document-manage-backdrop';
+    overlay.innerHTML = `<div class="modal-panel document-manage-menu-panel">
+      <div class="document-manage-menu-heading">
+        <div><span class="document-manage-kicker">จัดการเอกสารรับ</span><h2>เลือกสิ่งที่ต้องการดำเนินการ</h2><p>แก้ไขรายชื่อผู้รับ หรือดาวน์โหลด PDF ตามช่วงเวลา</p></div>
+        <button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button>
+      </div>
+      <div class="document-manage-option-grid">
+        <button id="open-recipient-manager" class="document-manage-option recipient-option" type="button">
+          <span class="document-manage-option-icon">👥</span><span><b>แก้ไขผู้รับ</b><small>เพิ่มผู้รับที่ตกหล่น หรือลบผู้รับเดิมด้วย Checkbox โดยรักษาสถานะของคนที่ยังเลือกไว้</small></span><i>›</i>
+        </button>
+        <button id="open-pdf-download-manager" class="document-manage-option download-option" type="button">
+          <span class="document-manage-option-icon">📥</span><span><b>ดาวน์โหลดเอกสาร</b><small>เลือก PDF รายวัน รายสัปดาห์ รายเดือน หรือช่วงวันที่ และรวมหลายไฟล์เป็น ZIP</small></span><i>›</i>
+        </button>
+      </div>
+      <div class="document-manage-permission-note">สิทธิ์เมนูนี้: ธุรการ • รองผู้อำนวยการ • ผู้อำนวยการ</div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('.close-modal').onclick = close;
+    overlay.onclick = (event) => { if (event.target === overlay) close(); };
+    overlay.querySelector('#open-recipient-manager').onclick = () => { close(); openRecipientManagementModal(); };
+    overlay.querySelector('#open-pdf-download-manager').onclick = () => { close(); openDownloadCenter(); };
+  }
+
+  function recipientStatusLabel(recipient) {
+    if (!recipient) return { text: 'ยังไม่ได้ส่ง', className: 'not-assigned' };
+    if (recipient.acknowledgedAt) return { text: 'รับทราบแล้ว', className: 'acknowledged' };
+    if (recipient.openedAt) return { text: 'เปิดอ่านแล้ว', className: 'opened' };
+    return { text: 'ยังไม่ได้รับทราบ', className: 'pending' };
+  }
+
+  async function openRecipientManagementModal() {
+    if (!canManageDocumentRecipients()) {
+      Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'แก้ไขผู้รับได้เฉพาะธุรการ รองผู้อำนวยการ และผู้อำนวยการ', 'warning');
+      return;
+    }
+    const documents = sortDocumentsByReceiveNumberDesc(state.allDocs || []);
+    if (!documents.length) {
+      Swal.fire('ยังไม่มีเอกสาร', 'ไม่พบเอกสารสำหรับแก้ไขผู้รับ', 'info');
+      return;
+    }
+
+    loading('กำลังอ่านรายชื่อผู้ใช้...');
+    let users;
+    try {
+      users = await gasCall('listActiveUsers', state.token);
+      Swal.close();
+    } catch (error) {
+      showError(error);
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop recipient-manager-backdrop';
+    overlay.innerHTML = `<div class="modal-panel recipient-manager-panel">
+      <div class="recipient-manager-heading">
+        <div><span class="document-manage-kicker">จัดการผู้รับเอกสาร</span><h2>เพิ่มหรือลบผู้รับ</h2><p>ติ๊กชื่อที่ต้องการให้เป็นผู้รับ และเอาเครื่องหมายถูกออกจากชื่อที่ต้องการลบ</p></div>
+        <button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button>
+      </div>
+      <div class="recipient-manager-layout">
+        <section class="recipient-document-picker">
+          <label class="line-field-label" for="recipient-document-search">ค้นหาเอกสาร</label>
+          <input id="recipient-document-search" class="input" placeholder="เลขรับ เรื่อง หรือผู้ส่ง">
+          <label class="line-field-label" for="recipient-document-select">เลือกเอกสาร</label>
+          <select id="recipient-document-select" class="input"><option value="">— กรุณาเลือกเอกสาร —</option></select>
+          <div id="recipient-document-summary" class="recipient-document-summary"><p>เลือกเอกสารเพื่อแก้ไขรายชื่อผู้รับ</p></div>
+          <div class="recipient-manager-warning"><b>สำคัญ</b><span>ผู้รับที่ยังคงติ๊กอยู่จะรักษาวันที่เปิดอ่านและสถานะรับทราบเดิมไว้</span></div>
+        </section>
+        <section class="recipient-user-section">
+          <div class="recipient-user-toolbar">
+            <div><h3>รายชื่อผู้ใช้งาน</h3><p id="recipient-selection-summary">ยังไม่ได้เลือกเอกสาร</p></div>
+            <div class="recipient-quick-actions"><button id="recipient-select-all" class="btn btn-muted text-xs" type="button" disabled>เลือกทั้งหมด</button><button id="recipient-clear-all" class="btn btn-muted text-xs" type="button" disabled>ยกเลิกทั้งหมด</button></div>
+          </div>
+          <input id="recipient-user-search" class="input" placeholder="ค้นหาชื่อ บทบาท หรือฝ่าย" disabled>
+          <div id="recipient-user-list" class="recipient-user-list"><div class="recipient-empty-state">กรุณาเลือกเอกสารก่อน</div></div>
+        </section>
+      </div>
+      <div class="recipient-manager-footer"><button class="btn btn-muted close-modal-bottom" type="button">ยกเลิก</button><button id="save-document-recipients" class="btn btn-primary" type="button" disabled>บันทึกการแก้ไขผู้รับ</button></div>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    const documentSearch = overlay.querySelector('#recipient-document-search');
+    const documentSelect = overlay.querySelector('#recipient-document-select');
+    const documentSummary = overlay.querySelector('#recipient-document-summary');
+    const userSearch = overlay.querySelector('#recipient-user-search');
+    const userList = overlay.querySelector('#recipient-user-list');
+    const selectionSummary = overlay.querySelector('#recipient-selection-summary');
+    const selectAllButton = overlay.querySelector('#recipient-select-all');
+    const clearAllButton = overlay.querySelector('#recipient-clear-all');
+    const saveButton = overlay.querySelector('#save-document-recipients');
+    let selectedDocument = null;
+    let initialRecipientIds = new Set();
+    let selectedUserIds = new Set();
+    let recipientByUserId = new Map();
+    let userPool = users.slice();
+
+    const close = () => overlay.remove();
+    overlay.querySelector('.close-modal').onclick = close;
+    overlay.querySelector('.close-modal-bottom').onclick = close;
+    overlay.onclick = (event) => { if (event.target === overlay) close(); };
+
+    const renderDocumentOptions = () => {
+      const query = String(documentSearch.value || '').trim().toLowerCase();
+      const previous = documentSelect.value;
+      const filtered = documents.filter((doc) => `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query));
+      documentSelect.innerHTML = `<option value="">— กรุณาเลือกเอกสาร —</option>${filtered.map((doc) => `<option value="${escapeHtml(doc.docId)}">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</option>`).join('')}`;
+      if (filtered.some((doc) => doc.docId === previous)) documentSelect.value = previous;
+      if (!filtered.length) documentSelect.innerHTML = '<option value="">ไม่พบเอกสารที่ค้นหา</option>';
+      if (previous && !filtered.some((doc) => doc.docId === previous)) selectDocument('');
+    };
+
+    const updateSelectionSummary = () => {
+      if (!selectedDocument) {
+        selectionSummary.textContent = 'ยังไม่ได้เลือกเอกสาร';
+        return;
+      }
+      const added = [...selectedUserIds].filter((id) => !initialRecipientIds.has(id)).length;
+      const removed = [...initialRecipientIds].filter((id) => !selectedUserIds.has(id)).length;
+      const retained = [...selectedUserIds].filter((id) => initialRecipientIds.has(id)).length;
+      selectionSummary.textContent = `ผู้รับ ${selectedUserIds.size} คน • เพิ่ม ${added} • ลบ ${removed} • คงเดิม ${retained}`;
+    };
+
+    const renderUsers = () => {
+      if (!selectedDocument) {
+        userList.innerHTML = '<div class="recipient-empty-state">กรุณาเลือกเอกสารก่อน</div>';
+        return;
+      }
+      const query = String(userSearch.value || '').trim().toLowerCase();
+      const filtered = userPool.filter((user) => `${user.name} ${user.username || ''} ${user.role || ''} ${user.department || ''}`.toLowerCase().includes(query));
+      if (!filtered.length) {
+        userList.innerHTML = '<div class="recipient-empty-state">ไม่พบรายชื่อที่ค้นหา</div>';
+        return;
+      }
+      userList.innerHTML = filtered.map((user) => {
+        const recipient = recipientByUserId.get(user.userId);
+        const status = recipientStatusLabel(recipient);
+        return `<label class="recipient-checkbox-row ${selectedUserIds.has(user.userId) ? 'is-selected' : ''}">
+          <input type="checkbox" class="recipient-user-check" value="${escapeHtml(user.userId)}" ${selectedUserIds.has(user.userId) ? 'checked' : ''}>
+          <span class="recipient-check-visual" aria-hidden="true"></span>
+          <span class="recipient-user-info"><b>${escapeHtml(user.name)}</b><small>${escapeHtml(user.role)}${user.department ? ' • ' + escapeHtml(user.department) : ''}</small></span>
+          <span class="recipient-status-chip ${status.className}">${escapeHtml(status.text)}</span>
+        </label>`;
+      }).join('');
+      userList.querySelectorAll('.recipient-user-check').forEach((input) => {
+        input.onchange = () => {
+          if (input.checked) selectedUserIds.add(input.value); else selectedUserIds.delete(input.value);
+          updateSelectionSummary();
+          renderUsers();
+        };
+      });
+    };
+
+    const selectDocument = (docId) => {
+      selectedDocument = documents.find((doc) => doc.docId === docId) || null;
+      const recipients = selectedDocument?.recipients || [];
+      recipientByUserId = new Map(recipients.map((recipient) => [recipient.userId, recipient]));
+      const activeIds = new Set(users.map((user) => user.userId));
+      const inactiveRecipientUsers = recipients
+        .filter((recipient) => !activeIds.has(recipient.userId))
+        .map((recipient) => ({
+          userId: recipient.userId,
+          username: '',
+          name: recipient.name || recipient.email || recipient.userId,
+          role: 'บัญชีเดิม/ปิดใช้งาน',
+          email: recipient.email || '',
+          department: '',
+        }));
+      userPool = [...users, ...inactiveRecipientUsers];
+      initialRecipientIds = new Set(recipients.map((recipient) => recipient.userId));
+      selectedUserIds = new Set(initialRecipientIds);
+      const enabled = !!selectedDocument;
+      userSearch.disabled = !enabled;
+      selectAllButton.disabled = !enabled;
+      clearAllButton.disabled = !enabled;
+      saveButton.disabled = !enabled;
+      if (!selectedDocument) {
+        documentSummary.innerHTML = '<p>เลือกเอกสารเพื่อแก้ไขรายชื่อผู้รับ</p>';
+        userSearch.value = '';
+      } else {
+        documentSummary.innerHTML = `<div class="recipient-summary-number">เลขรับ ${escapeHtml(selectedDocument.recvNo || '-')}</div><h3>${escapeHtml(selectedDocument.subject || '-')}</h3><p><b>จาก:</b> ${escapeHtml(selectedDocument.fromSender || '-')}</p><div class="recipient-summary-count">ผู้รับเดิม ${recipients.length} คน • รับทราบแล้ว ${recipients.filter((item) => item.acknowledgedAt).length} คน</div>`;
+      }
+      updateSelectionSummary();
+      renderUsers();
+    };
+
+    documentSearch.oninput = renderDocumentOptions;
+    documentSelect.onchange = () => selectDocument(documentSelect.value);
+    userSearch.oninput = renderUsers;
+    selectAllButton.onclick = () => { selectedUserIds = new Set(userPool.map((user) => user.userId)); updateSelectionSummary(); renderUsers(); };
+    clearAllButton.onclick = () => { selectedUserIds.clear(); updateSelectionSummary(); renderUsers(); };
+
+    saveButton.onclick = async () => {
+      if (!selectedDocument) return;
+      if (!selectedUserIds.size) {
+        Swal.fire('ยังไม่มีผู้รับ', 'กรุณาเลือกผู้รับอย่างน้อย 1 คน เพื่อป้องกันเอกสารไม่มีผู้รับ', 'warning');
+        return;
+      }
+      const userMap = new Map(userPool.map((user) => [user.userId, user]));
+      const addedIds = [...selectedUserIds].filter((id) => !initialRecipientIds.has(id));
+      const removedIds = [...initialRecipientIds].filter((id) => !selectedUserIds.has(id));
+      const retainedIds = [...selectedUserIds].filter((id) => initialRecipientIds.has(id));
+      const removedAcknowledged = removedIds.filter((id) => recipientByUserId.get(id)?.acknowledgedAt);
+      const names = (ids) => ids.map((id) => userMap.get(id)?.name || recipientByUserId.get(id)?.name || id);
+      const warningHtml = removedAcknowledged.length
+        ? `<div class="recipient-confirm-danger"><b>มีผู้ที่รับทราบแล้วถูกลบ ${removedAcknowledged.length} คน</b><span>${names(removedAcknowledged).map(escapeHtml).join(', ')}</span></div>` : '';
+      const confirmation = await Swal.fire({
+        title: 'ยืนยันการแก้ไขผู้รับ?',
+        html: `<div class="recipient-confirm-summary"><div><span>เพิ่ม</span><b>${addedIds.length} คน</b><small>${names(addedIds).map(escapeHtml).join(', ') || '-'}</small></div><div><span>ลบ</span><b>${removedIds.length} คน</b><small>${names(removedIds).map(escapeHtml).join(', ') || '-'}</small></div><div><span>คงเดิม</span><b>${retainedIds.length} คน</b></div></div>${warningHtml}<p class="recipient-confirm-note">สถานะของผู้รับที่ยังคงเลือกอยู่จะไม่ถูกล้าง</p>`,
+        icon: removedAcknowledged.length ? 'warning' : 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันการแก้ไขผู้รับ',
+        cancelButtonText: 'กลับไปตรวจสอบ',
+        confirmButtonColor: removedAcknowledged.length ? '#b91c1c' : '#2563eb',
+        reverseButtons: true,
+      });
+      if (!confirmation.isConfirmed) return;
+      loading('กำลังบันทึกรายชื่อผู้รับ...');
+      try {
+        const result = await gasCall('updateDocumentRecipients', state.token, {
+          docId: selectedDocument.docId,
+          userIds: [...selectedUserIds],
+          expectedRecipientIds: [...initialRecipientIds],
+        });
+        close();
+        await loadDashboard();
+        Swal.fire('บันทึกสำเร็จ', `เพิ่ม ${result.addedCount} คน • ลบ ${result.removedCount} คน • คงสถานะเดิม ${result.retainedCount} คน`, 'success');
+      } catch (error) {
+        showError(error);
+      }
+    };
+
+    renderDocumentOptions();
+  }
+
+  function localDateKey(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function parseLocalDateInput(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function addLocalDays(date, amount) {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    next.setDate(next.getDate() + amount);
+    return next;
+  }
+
+  function mondayOfWeek(date) {
+    const day = date.getDay();
+    return addLocalDays(date, day === 0 ? -6 : 1 - day);
+  }
+
+  function formatThaiDocumentDate(dateKey) {
+    const date = parseLocalDateInput(dateKey);
+    return date ? date.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ทราบวันที่';
+  }
+
+  function sanitizeZipLabel(value) {
+    return String(value || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '-').slice(0, 80);
+  }
+
   function openDownloadCenter() {
     const docs = guideRoleKey() === 'ครู' ? state.inboxDocs : state.allDocs.length ? state.allDocs : [...state.actionDocs, ...state.inboxDocs];
-    const unique = [...new Map(docs.map((doc) => [doc.docId, doc])).values()];
+    const unique = [...new Map(docs.map((doc) => [doc.docId, doc])).values()]
+      .filter((doc) => doc.currentFileId)
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const todayKey = localDateKey(new Date());
+    const monthKey = todayKey.slice(0, 7);
+    const weekMonday = mondayOfWeek(new Date());
     const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop';
-    overlay.innerHTML = `<div class="modal-panel max-w-3xl"><div class="flex justify-between items-center mb-4"><div><h2 class="text-xl font-bold">ดาวน์โหลดเอกสาร</h2><p class="text-sm text-slate-500">เลือกหนึ่งไฟล์เพื่อดาวน์โหลด PDF หรือเลือกหลายไฟล์เพื่อสร้าง ZIP</p></div><button class="text-2xl close-modal">×</button></div><div class="flex flex-wrap gap-2 mb-3"><button id="select-all-download" class="btn btn-muted">เลือกทั้งหมด</button><button id="clear-download" class="btn btn-muted">ยกเลิกทั้งหมด</button><input id="download-search" class="input flex-1 min-w-52" placeholder="ค้นหาเอกสาร"></div><div id="download-list" class="space-y-2 max-h-96 overflow-auto"></div><div id="download-progress" class="hide mt-4"><div class="flex justify-between text-sm"><span id="download-progress-text">กำลังเตรียมไฟล์</span><span id="download-progress-percent">0%</span></div><div class="progress-track mt-2"><div id="download-progress-bar" class="progress-bar"></div></div></div><div class="flex justify-end mt-4"><button id="download-selected" class="btn btn-success">ดาวน์โหลดไฟล์ที่เลือก</button></div></div>`;
+    overlay.className = 'modal-backdrop download-manager-backdrop';
+    overlay.innerHTML = `<div class="modal-panel download-manager-panel">
+      <div class="download-manager-heading"><div><span class="document-manage-kicker">ดาวน์โหลดเฉพาะไฟล์ PDF</span><h2>ดาวน์โหลดเอกสารตามช่วงเวลา</h2><p>เลือกหนึ่งไฟล์เพื่อดาวน์โหลด PDF หรือเลือกหลายไฟล์เพื่อรวมเป็น ZIP</p></div><button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button></div>
+      <div class="download-period-tabs">
+        <button class="download-period-tab active" data-download-mode="day" type="button">รายวัน</button>
+        <button class="download-period-tab" data-download-mode="week" type="button">รายสัปดาห์</button>
+        <button class="download-period-tab" data-download-mode="month" type="button">รายเดือน</button>
+        <button class="download-period-tab" data-download-mode="custom" type="button">เลือกช่วงวันที่</button>
+      </div>
+      <div class="download-filter-panel">
+        <div id="download-day-filter" class="download-filter-control"><label>วันที่<input id="download-day-value" class="input" type="date" value="${todayKey}"></label></div>
+        <div id="download-week-filter" class="download-filter-control hide"><label>เลือกวันใดก็ได้ในสัปดาห์<input id="download-week-value" class="input" type="date" value="${localDateKey(weekMonday)}"></label><div id="download-week-label" class="download-range-label"></div></div>
+        <div id="download-month-filter" class="download-filter-control hide"><label>เดือน<input id="download-month-value" class="input" type="month" value="${monthKey}"></label></div>
+        <div id="download-custom-filter" class="download-filter-control download-custom-range hide"><label>ตั้งแต่วันที่<input id="download-start-value" class="input" type="date" value="${localDateKey(addLocalDays(new Date(), -6))}"></label><label>ถึงวันที่<input id="download-end-value" class="input" type="date" value="${todayKey}"></label></div>
+        <input id="download-search" class="input download-search-input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง">
+      </div>
+      <div class="download-selection-toolbar"><div><b id="download-result-count">0 เอกสาร</b><span id="download-selected-count">เลือกแล้ว 0 ไฟล์</span></div><div><button id="select-all-download" class="btn btn-muted text-xs" type="button">เลือกทั้งหมดที่แสดง</button><button id="clear-download" class="btn btn-muted text-xs" type="button">ยกเลิกทั้งหมด</button></div></div>
+      <div id="download-list" class="download-date-list"></div>
+      <div id="download-progress" class="hide mt-4"><div class="flex justify-between text-sm"><span id="download-progress-text">กำลังเตรียมไฟล์</span><span id="download-progress-percent">0%</span></div><div class="progress-track mt-2"><div id="download-progress-bar" class="progress-bar"></div></div></div>
+      <div class="download-manager-footer"><span>ไฟล์ที่เลือกหลายรายการจะรวมเป็น ZIP อัตโนมัติ</span><button id="download-selected" class="btn btn-success" type="button">ดาวน์โหลดไฟล์ที่เลือก</button></div>
+    </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('.close-modal').onclick = () => overlay.remove();
-    const renderList = () => {
-      const query = overlay.querySelector('#download-search').value.trim().toLowerCase();
-      overlay.querySelector('#download-list').innerHTML = unique.filter((doc) => `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query)).map((doc) => `<label class="download-row"><input type="checkbox" class="download-check mt-1" value="${escapeHtml(doc.docId)}"><span><b>${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</b><br><small class="text-slate-500">${escapeHtml(doc.fromSender)} • ${escapeHtml(doc.status)}</small></span><span class="badge">PDF</span></label>`).join('');
+
+    let mode = 'day';
+    let visibleDocs = [];
+    const selectedIds = new Set();
+    const close = () => overlay.remove();
+    overlay.querySelector('.close-modal').onclick = close;
+    overlay.onclick = (event) => { if (event.target === overlay) close(); };
+
+    const dateRange = () => {
+      if (mode === 'day') {
+        const day = parseLocalDateInput(overlay.querySelector('#download-day-value').value);
+        return day ? { start: day, end: day, label: localDateKey(day) } : null;
+      }
+      if (mode === 'week') {
+        const selected = parseLocalDateInput(overlay.querySelector('#download-week-value').value);
+        if (!selected) return null;
+        const start = mondayOfWeek(selected);
+        const end = addLocalDays(start, 6);
+        overlay.querySelector('#download-week-label').textContent = `${formatThaiDocumentDate(localDateKey(start))} – ${formatThaiDocumentDate(localDateKey(end))}`;
+        return { start, end, label: `${localDateKey(start)}_ถึง_${localDateKey(end)}` };
+      }
+      if (mode === 'month') {
+        const match = overlay.querySelector('#download-month-value').value.match(/^(\d{4})-(\d{2})$/);
+        if (!match) return null;
+        const start = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+        const end = new Date(Number(match[1]), Number(match[2]), 0);
+        return { start, end, label: `${match[1]}-${match[2]}` };
+      }
+      const start = parseLocalDateInput(overlay.querySelector('#download-start-value').value);
+      const end = parseLocalDateInput(overlay.querySelector('#download-end-value').value);
+      if (!start || !end || start > end) return null;
+      return { start, end, label: `${localDateKey(start)}_ถึง_${localDateKey(end)}` };
     };
-    renderList();
+
+    const updateSelectedCount = () => {
+      overlay.querySelector('#download-selected-count').textContent = `เลือกแล้ว ${selectedIds.size} ไฟล์`;
+      overlay.querySelector('#download-selected').disabled = selectedIds.size === 0;
+    };
+
+    const renderList = () => {
+      const range = dateRange();
+      const query = String(overlay.querySelector('#download-search').value || '').trim().toLowerCase();
+      if (!range) {
+        visibleDocs = [];
+        overlay.querySelector('#download-list').innerHTML = '<div class="download-empty-state">กรุณาตรวจสอบช่วงวันที่ให้ถูกต้อง</div>';
+        overlay.querySelector('#download-result-count').textContent = '0 เอกสาร';
+        selectedIds.clear();
+        updateSelectedCount();
+        return;
+      }
+      const startKey = localDateKey(range.start);
+      const endKey = localDateKey(range.end);
+      visibleDocs = unique.filter((doc) => {
+        const key = localDateKey(doc.createdAt);
+        if (!key || key < startKey || key > endKey) return false;
+        return !query || `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query);
+      });
+      const visibleIdSet = new Set(visibleDocs.map((doc) => doc.docId));
+      [...selectedIds].forEach((id) => { if (!visibleIdSet.has(id)) selectedIds.delete(id); });
+      overlay.querySelector('#download-result-count').textContent = `${visibleDocs.length} เอกสาร`;
+      if (!visibleDocs.length) {
+        overlay.querySelector('#download-list').innerHTML = '<div class="download-empty-state"><b>ไม่พบเอกสารในช่วงเวลานี้</b><span>ลองเปลี่ยนวันที่หรือค้นหาด้วยคำอื่น</span></div>';
+        updateSelectedCount();
+        return;
+      }
+      const groups = new Map();
+      visibleDocs.forEach((doc) => {
+        const key = localDateKey(doc.createdAt) || 'unknown';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(doc);
+      });
+      overlay.querySelector('#download-list').innerHTML = [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([dateKey, groupDocs]) => {
+        const groupIds = groupDocs.map((doc) => doc.docId);
+        const allSelected = groupIds.every((id) => selectedIds.has(id));
+        return `<section class="download-date-group" data-date-key="${escapeHtml(dateKey)}">
+          <header><div><b>${escapeHtml(formatThaiDocumentDate(dateKey))}</b><span>${groupDocs.length} เอกสาร</span></div><button class="download-select-day" data-date-key="${escapeHtml(dateKey)}" type="button">${allSelected ? 'ยกเลิกวันนี้' : 'เลือกทั้งหมดวันนี้'}</button></header>
+          <div class="download-day-documents">${groupDocs.map((doc) => `<label class="download-document-row ${selectedIds.has(doc.docId) ? 'is-selected' : ''}"><input type="checkbox" class="download-check" value="${escapeHtml(doc.docId)}" ${selectedIds.has(doc.docId) ? 'checked' : ''}><span class="download-check-visual"></span><span class="download-document-info"><b>${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</b><small>${escapeHtml(doc.fromSender)} • ${escapeHtml(doc.status)}</small></span><span class="download-pdf-badge">PDF</span></label>`).join('')}</div>
+        </section>`;
+      }).join('');
+      overlay.querySelectorAll('.download-check').forEach((input) => {
+        input.onchange = () => {
+          if (input.checked) selectedIds.add(input.value); else selectedIds.delete(input.value);
+          renderList();
+        };
+      });
+      overlay.querySelectorAll('.download-select-day').forEach((button) => {
+        button.onclick = () => {
+          const dayDocs = visibleDocs.filter((doc) => localDateKey(doc.createdAt) === button.dataset.dateKey);
+          const shouldSelect = !dayDocs.every((doc) => selectedIds.has(doc.docId));
+          dayDocs.forEach((doc) => shouldSelect ? selectedIds.add(doc.docId) : selectedIds.delete(doc.docId));
+          renderList();
+        };
+      });
+      updateSelectedCount();
+    };
+
+    overlay.querySelectorAll('[data-download-mode]').forEach((button) => {
+      button.onclick = () => {
+        mode = button.dataset.downloadMode;
+        overlay.querySelectorAll('[data-download-mode]').forEach((item) => item.classList.toggle('active', item === button));
+        ['day', 'week', 'month', 'custom'].forEach((name) => overlay.querySelector(`#download-${name}-filter`).classList.toggle('hide', name !== mode));
+        selectedIds.clear();
+        renderList();
+      };
+    });
+    ['#download-day-value', '#download-week-value', '#download-month-value', '#download-start-value', '#download-end-value'].forEach((selector) => {
+      overlay.querySelector(selector).onchange = () => { selectedIds.clear(); renderList(); };
+    });
     overlay.querySelector('#download-search').oninput = renderList;
-    overlay.querySelector('#select-all-download').onclick = () => overlay.querySelectorAll('.download-check').forEach((input) => input.checked = true);
-    overlay.querySelector('#clear-download').onclick = () => overlay.querySelectorAll('.download-check').forEach((input) => input.checked = false);
+    overlay.querySelector('#select-all-download').onclick = () => { visibleDocs.forEach((doc) => selectedIds.add(doc.docId)); renderList(); };
+    overlay.querySelector('#clear-download').onclick = () => { selectedIds.clear(); renderList(); };
     overlay.querySelector('#download-selected').onclick = async () => {
-      const ids = [...overlay.querySelectorAll('.download-check:checked')].map((input) => input.value);
+      const ids = [...selectedIds];
       if (!ids.length) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกเอกสารอย่างน้อย 1 ไฟล์', 'warning'); return; }
       const progress = overlay.querySelector('#download-progress');
       progress.classList.remove('hide');
@@ -2845,22 +3259,25 @@
         if (ids.length === 1) {
           updateDownloadProgress(overlay, 10, 'กำลังอ่าน PDF');
           const result = await gasCall('getDocumentFile', state.token, ids[0], false);
-          downloadBase64(result.file.base64, result.file.name, result.file.mimeType);
-          updateDownloadProgress(overlay, 100, 'ดาวน์โหลดสำเร็จ');
+          downloadBase64(result.file.base64, result.file.name, 'application/pdf');
+          updateDownloadProgress(overlay, 100, 'ดาวน์โหลด PDF สำเร็จ');
           return;
         }
         const zip = new JSZip();
         for (let index = 0; index < ids.length; index++) {
           const result = await gasCall('getDocumentFile', state.token, ids[index], false);
-          const safeName = uniqueFileName(zip, result.file.name || `${result.document.recvNo}.pdf`);
+          const fallbackName = `${sanitizeZipLabel(result.document.recvNo)}_${sanitizeZipLabel(result.document.subject)}.pdf`;
+          const safeName = uniqueFileName(zip, result.file.name || fallbackName);
           zip.file(safeName, result.file.base64, { base64: true });
           updateDownloadProgress(overlay, Math.round(((index + 1) / ids.length) * 75), `รับไฟล์ ${index + 1}/${ids.length}`);
         }
         const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (meta) => updateDownloadProgress(overlay, 75 + Math.round(meta.percent * .25), 'กำลังสร้าง ZIP'));
-        downloadBlob(blob, `เอกสารราชการ-${new Date().toISOString().slice(0, 10)}-${ids.length}-ไฟล์.zip`);
+        const range = dateRange();
+        downloadBlob(blob, `เอกสารราชการ-${sanitizeZipLabel(range?.label || todayKey)}-${ids.length}-ไฟล์.zip`);
         updateDownloadProgress(overlay, 100, 'สร้าง ZIP สำเร็จ');
       } catch (error) { showError(error); }
     };
+    renderList();
   }
 
   function updateDownloadProgress(overlay, percent, text) {
