@@ -2332,3 +2332,50 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
   .line-summary-document-row { grid-template-columns:auto auto minmax(0,1fr); }
   .line-pending-badge { grid-column:3; justify-self:start; }
 }
+
+/* ==================== รุ่น 3.6.0 กล่องทราบ / ด่วน / เวียน / ติดตามงาน ==================== */
+.dispatch-section-title{font-weight:800;color:#7f1d1d;margin:16px 0 8px}
+.dispatch-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 16px}
+.dispatch-choice-grid label,.dispatch-priority-options label{display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;font-weight:700}
+.dispatch-priority-panel{border:1px solid #ddd6fe;background:#faf5ff;border-radius:14px;padding:14px;margin:14px 0}
+.dispatch-priority-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dispatch-priority-options label{align-items:flex-start;flex-wrap:wrap}
+.dispatch-priority-options small{display:block;width:100%;margin-left:24px;font-weight:500;color:#64748b}
+.priority-normal{border-left:5px solid #eab308!important}
+.priority-urgent{border-left:5px solid #7c3aed!important}
+.dispatch-color-note{font-size:12px;color:#6b21a8;margin-top:10px;line-height:1.6}
+.dispatch-user-no-signature{border-color:#fecaca!important;background:#fff7f7!important}
+.ack-box-instruction{margin-top:14px;padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-weight:700;line-height:1.6}
+
+.acknowledgement-box-stamp .stamp-content{background:transparent!important}
+.acknowledgement-box-card{width:100%;border:2px solid #111;background:rgba(255,255,255,.96);color:#111;font-family:"Sarabun","Noto Sans Thai",sans-serif;padding:5px;box-sizing:border-box}
+.acknowledgement-box-title{text-align:center;font-weight:800;font-size:16px;line-height:1.3;border-bottom:1px solid #111;padding:2px 3px 5px}
+.acknowledgement-slot-grid{display:grid;grid-template-columns:repeat(var(--ack-columns,1),minmax(0,1fr));gap:0}
+.ack-sign-slot{display:grid;grid-template-columns:28px 1fr;align-items:center;min-height:44px;border-bottom:1px solid #777;box-sizing:border-box}
+.ack-columns-1 .ack-sign-slot:last-child{border-bottom:0}
+.ack-columns-2 .ack-sign-slot:nth-last-child(-n+2){border-bottom:0}
+.ack-columns-2 .ack-sign-slot:nth-child(2n){border-left:1px solid #777}
+.ack-slot-number{font-weight:700;padding-left:5px;align-self:start;padding-top:7px}
+.ack-signature-target{display:block;height:40px;min-width:70px}
+
+.acknowledge-btn{border:none!important;font-weight:800!important;box-shadow:0 3px 8px rgba(15,23,42,.18)!important}
+.ack-btn-normal{background:#facc15!important;color:#422006!important}
+.ack-btn-normal:hover{background:#eab308!important}
+.ack-btn-urgent{background:#7c3aed!important;color:#fff!important}
+.ack-btn-urgent:hover{background:#6d28d9!important}
+.ack-btn-circular{background:#dc2626!important;color:#fff!important}
+.ack-btn-circular:hover{background:#b91c1c!important}
+.ack-btn-circular-urgent{background:linear-gradient(90deg,#dc2626 0%,#dc2626 50%,#7c3aed 50%,#7c3aed 100%)!important;color:#fff!important;border:1px solid rgba(255,255,255,.55)!important}
+.ack-btn-circular-urgent:hover{filter:brightness(.92)}
+.badge-urgent{background:#ede9fe!important;color:#5b21b6!important;border-color:#c4b5fd!important}
+.badge-normal{background:#fef9c3!important;color:#854d0e!important;border-color:#fde047!important}
+.badge-circular{background:#fee2e2!important;color:#991b1b!important;border-color:#fca5a5!important}
+.recipient-waiting-note{font-size:12px;line-height:1.55;padding:8px 10px;border-radius:9px;background:#ecfdf5;color:#166534;border:1px solid #86efac;font-weight:700}
+
+@media (max-width:720px){
+  .dispatch-choice-grid,.dispatch-priority-options{grid-template-columns:1fr}
+  .acknowledgement-box-stamp{max-width:88vw}
+}
+.ack-status-person-row{display:flex;justify-content:space-between;gap:16px;padding:10px 2px;border-bottom:1px solid #e2e8f0;align-items:flex-start}
+.ack-status-person-row>div:last-child{text-align:right}
+.ack-status-person-row small{display:block;font-size:11px;color:#64748b;margin-top:3px}
