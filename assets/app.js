@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.5.0';
+  const FRONTEND_BUILD_VERSION = '3.5.1';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -1442,7 +1442,7 @@
       </div>`;
     document.body.appendChild(workspace);
     document.getElementById('workspace-close').onclick = closeWorkspace;
-    document.getElementById('download-current').onclick = () => downloadBase64(state.originalPdfBase64, `${doc.recvNo.replace('/', '-')}-${doc.subject}.pdf`, 'application/pdf');
+    document.getElementById('download-current').onclick = () => downloadBase64(state.originalPdfBase64, buildDocumentDownloadFileName(doc), 'application/pdf');
     document.getElementById('zoom-in').onclick = async () => {
       state.currentScale = Math.min(2.2, state.currentScale + .15);
       await renderAllPdfPages();
@@ -3259,15 +3259,16 @@
         if (ids.length === 1) {
           updateDownloadProgress(overlay, 10, 'กำลังอ่าน PDF');
           const result = await gasCall('getDocumentFile', state.token, ids[0], false);
-          downloadBase64(result.file.base64, result.file.name, 'application/pdf');
+          const downloadName = buildDocumentDownloadFileName(result.document);
+          downloadBase64(result.file.base64, downloadName, 'application/pdf');
           updateDownloadProgress(overlay, 100, 'ดาวน์โหลด PDF สำเร็จ');
           return;
         }
         const zip = new JSZip();
         for (let index = 0; index < ids.length; index++) {
           const result = await gasCall('getDocumentFile', state.token, ids[index], false);
-          const fallbackName = `${sanitizeZipLabel(result.document.recvNo)}_${sanitizeZipLabel(result.document.subject)}.pdf`;
-          const safeName = uniqueFileName(zip, result.file.name || fallbackName);
+          const downloadName = buildDocumentDownloadFileName(result.document);
+          const safeName = uniqueFileName(zip, downloadName);
           zip.file(safeName, result.file.base64, { base64: true });
           updateDownloadProgress(overlay, Math.round(((index + 1) / ids.length) * 75), `รับไฟล์ ${index + 1}/${ids.length}`);
         }
@@ -3284,6 +3285,22 @@
     overlay.querySelector('#download-progress-bar').style.width = `${percent}%`;
     overlay.querySelector('#download-progress-percent').textContent = `${percent}%`;
     overlay.querySelector('#download-progress-text').textContent = text;
+  }
+
+  function buildDocumentDownloadFileName(doc) {
+    const receiveNumber = String(doc?.recvNo || 'ไม่ทราบเลขรับ')
+      .trim()
+      .replace(/[\\/]+/g, '-')
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/\s+/g, ' ')
+      .slice(0, 40) || 'ไม่ทราบเลขรับ';
+    const subject = String(doc?.subject || 'ไม่มีชื่อเรื่อง')
+      .trim()
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/[. ]+$/g, '')
+      .slice(0, 120) || 'ไม่มีชื่อเรื่อง';
+    return `${receiveNumber} (${subject}).pdf`;
   }
 
   function uniqueFileName(zip, name) {
