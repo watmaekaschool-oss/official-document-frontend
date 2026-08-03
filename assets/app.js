@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.5.2';
+  const FRONTEND_BUILD_VERSION = '3.5.3';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -124,7 +124,7 @@
         ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
         ['จ่ายเรื่องให้ผู้รับ', 'เมื่อเอกสารกลับมาที่ธุรการ ให้เลือกครูหรือผู้รับที่เกี่ยวข้อง แล้วกดส่งเรื่อง'],
-        ['สร้างข้อความ LINE', 'กดปุ่ม LINE ข้างปุ่มรีเฟรช เลือกเอกสาร ตรวจรายชื่อและสถานะ แล้วกดคัดลอกข้อความสำเร็จรูปไปวางใน LINE'],
+        ['สรุปการรับทราบสำหรับ LINE', 'กดปุ่ม LINE ข้างปุ่มรีเฟรช เลือกช่วงวันและติ๊กเอกสารได้หลายฉบับ ระบบจะสรุปจำนวนผู้รับและรายชื่อผู้ยังไม่รับทราบเป็นข้อความเดียวสำหรับส่งใน LINE'],
         ['จัดการผู้รับและดาวน์โหลด', 'กด “จัดการ” ข้างแท็บจดหมายทั้งหมด เพื่อเพิ่มหรือลบผู้รับด้วย Checkbox หรือดาวน์โหลด PDF รายวัน รายสัปดาห์ รายเดือน และช่วงวันที่'],
         ['ตั้งรหัสผ่านใหม่', 'ไปที่ ⚙ การตั้งค่า → จัดการผู้ใช้งาน แล้วเลือก “ตั้งรหัสใหม่” กรณีผู้ใช้ลืมรหัสเดิม'],
         ['ตรวจสอบสถานะ', 'ดูตัวเลขรับทราบในจดหมายเข้าและจดหมายทั้งหมด สีแดงหมายถึงยังไม่ครบ สีเขียวหมายถึงครบแล้ว'],
@@ -717,7 +717,7 @@
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
-              ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สร้างข้อความแจ้งเอกสารทาง LINE" title="สร้างข้อความแจ้งเอกสารทาง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
+              ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สรุปการรับทราบสำหรับส่ง LINE" title="สรุปการรับทราบสำหรับส่ง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
               <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
             </div>
             <div class="flex gap-2 items-center">
@@ -1087,73 +1087,131 @@
   }
 
 
-  function lineRecipientStatus(item) {
-    return item && item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่ได้รับทราบ';
+  function formatThaiLineSummaryDate(value) {
+    const date = value instanceof Date ? value : new Date(value || Date.now());
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('th-TH', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Bangkok',
+    }).format(date);
   }
 
-  function buildLineNotificationMessage(doc) {
-    if (!doc || !(doc.recipients || []).length) return '';
-    const header = [
-      '📢 แจ้งหนังสือราชการ',
+  function lineSummaryRecipientStats(doc) {
+    const recipients = Array.isArray(doc?.recipients) ? doc.recipients : [];
+    const recipientCountFromDocument = Number(doc?.recipientCount || 0);
+    const acknowledgedCountFromDocument = Number(doc?.ackCount || 0);
+    const total = Math.max(recipients.length, Number.isFinite(recipientCountFromDocument) ? recipientCountFromDocument : 0);
+    const acknowledgedFromRows = recipients.filter((item) => !!item.acknowledgedAt).length;
+    const acknowledged = Math.min(total, Math.max(acknowledgedFromRows, Number.isFinite(acknowledgedCountFromDocument) ? acknowledgedCountFromDocument : 0));
+    const pending = Math.max(total - acknowledged, 0);
+    const pendingNames = recipients
+      .filter((item) => !item.acknowledgedAt)
+      .map((item) => String(item.name || item.email || '').trim())
+      .filter(Boolean);
+    return { total, acknowledged, pending, pendingNames };
+  }
+
+  function compareReceiveNumbersAsc(leftDoc, rightDoc) {
+    const left = receiveNumberParts(leftDoc?.recvNo);
+    const right = receiveNumberParts(rightDoc?.recvNo);
+    if (left.valid !== right.valid) return left.valid ? -1 : 1;
+    if (left.year !== right.year) return left.year - right.year;
+    if (left.number !== right.number) return left.number - right.number;
+    return String(leftDoc?.subject || '').localeCompare(String(rightDoc?.subject || ''), 'th');
+  }
+
+  function sortLineSummaryDocuments(documents) {
+    return [...(documents || [])].sort((left, right) => {
+      const leftDate = new Date(left?.createdAt || 0).getTime();
+      const rightDate = new Date(right?.createdAt || 0).getTime();
+      if (leftDate !== rightDate) return leftDate - rightDate;
+      return compareReceiveNumbersAsc(left, right);
+    });
+  }
+
+  function buildLineAcknowledgementSummary(documents, summaryDate) {
+    const selectedDocuments = sortLineSummaryDocuments(documents);
+    if (!selectedDocuments.length) return '';
+    const lines = [
+      '🔔 สรุปการรับทราบหนังสือราชการ',
+      'โรงเรียนวัดแม่กะ',
       '',
-      `เลขรับ: ${String(doc.recvNo || '-').trim()}`,
-      `เรื่อง: ${String(doc.subject || '-').trim()}`,
-      `จาก: ${String(doc.fromSender || '-').trim()}`,
+      `วันที่ ${formatThaiLineSummaryDate(summaryDate || new Date())}`,
       '',
     ];
 
-    if (doc.dispatchType === 'ทุกคน') {
-      header.push('แจ้งทุกคนรับทราบ กรุณาเข้าสู่ระบบสารบรรณโรงเรียนวัดแม่กะ เพื่อเปิดอ่านและกดรับทราบ');
-      return header.join('\n');
-    }
-
-    const recipientText = (doc.recipients || [])
-      .map((item) => `${String(item.name || item.email || 'ไม่ระบุชื่อ').trim()} (${lineRecipientStatus(item)})`)
-      .join(', ');
-    header.push(`เอกสารฉบับนี้ส่งให้ ${recipientText} กรุณาเข้าสู่ระบบสารบรรณโรงเรียนวัดแม่กะ เพื่อเปิดอ่านและกดรับทราบ`);
-    return header.join('\n');
-  }
-
-  function lineRecipientStatusMarkup(doc) {
-    const recipients = doc?.recipients || [];
-    if (!recipients.length) {
-      return '<div class="line-empty-recipient"><b>ยังไม่ได้ส่งเอกสารให้ผู้รับ</b><span>กรุณาจ่ายเรื่องในระบบก่อนสร้างข้อความแจ้ง LINE</span></div>';
-    }
-    return recipients.map((item) => {
-      const acknowledged = !!item.acknowledgedAt;
-      return `<div class="line-recipient-row ${acknowledged ? 'is-acknowledged' : 'is-pending'}"><span class="line-recipient-name">${acknowledged ? '✅' : '⏳'} ${escapeHtml(item.name || item.email || 'ไม่ระบุชื่อ')}</span><span class="line-recipient-state">${acknowledged ? 'รับทราบแล้ว' : 'ยังไม่ได้รับทราบ'}</span></div>`;
-    }).join('');
+    selectedDocuments.forEach((doc, index) => {
+      const stats = lineSummaryRecipientStats(doc);
+      lines.push(`เรื่องที่ ${index + 1}`);
+      lines.push('');
+      lines.push(`เลขรับ ${String(doc.recvNo || '-').trim()}`);
+      lines.push(`เรื่อง ${String(doc.subject || '-').trim()}`);
+      lines.push(`จาก ${String(doc.fromSender || '-').trim()}`);
+      lines.push('');
+      lines.push(`ผู้รับทั้งหมด ${stats.total} คน`);
+      lines.push(`รับทราบแล้ว ${stats.acknowledged} คน`);
+      lines.push(`ยังไม่ได้รับทราบ ${stats.pending} คน`);
+      lines.push('');
+      lines.push('รายชื่อผู้ยังไม่ได้รับทราบ');
+      if (stats.pending === 0) {
+        lines.push('รับทราบครบทุกคนแล้ว');
+      } else if (stats.pendingNames.length) {
+        stats.pendingNames.forEach((name) => lines.push(name));
+        const missingNameCount = Math.max(stats.pending - stats.pendingNames.length, 0);
+        if (missingNameCount) lines.push(`ยังไม่พบชื่อผู้รับในข้อมูล ${missingNameCount} คน`);
+      } else {
+        lines.push(`ยังไม่พบชื่อผู้รับในข้อมูล ${stats.pending} คน`);
+      }
+      if (index < selectedDocuments.length - 1) lines.push('', '');
+    });
+    return lines.join('\n').trim();
   }
 
   function openLineNotificationModal() {
     if (!isClericalUser()) {
-      Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'เมนูสร้างข้อความ LINE ใช้ได้เฉพาะบัญชีธุรการ', 'warning');
+      Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'เมนูสรุปการรับทราบสำหรับ LINE ใช้ได้เฉพาะบัญชีธุรการ', 'warning');
       return;
     }
 
-    const documents = sortDocumentsByReceiveNumberDesc(state.allDocs || [])
-      .filter((doc) => Number(doc.recipientCount || 0) > 0 || doc.status === 'แจ้งให้ทราบ / ดำเนินการ');
+    const documents = [...new Map(sortDocumentsByReceiveNumberDesc(state.allDocs || []).map((doc) => [doc.docId, doc])).values()]
+      .filter((doc) => Number(doc.recipientCount || (doc.recipients || []).length || 0) > 0)
+      .sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0));
+    const today = new Date();
+    const todayKey = localDateKey(today);
+    const monthKey = todayKey.slice(0, 7);
+    const weekMonday = mondayOfWeek(today);
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop line-notification-backdrop';
-    overlay.innerHTML = `<div class="modal-panel line-notification-panel">
+    overlay.innerHTML = `<div class="modal-panel line-notification-panel line-summary-panel">
       <div class="line-modal-heading">
-        <div class="line-modal-title-wrap">${lineLogoMarkup()}<div><h2>สร้างข้อความแจ้งเอกสารทาง LINE</h2><p>เลือกเอกสาร ตรวจรายชื่อและสถานะ แล้วคัดลอกข้อความไปวางใน LINE</p></div></div>
+        <div class="line-modal-title-wrap">${lineLogoMarkup()}<div><h2>สรุปการรับทราบสำหรับส่ง LINE</h2><p>เลือกเอกสารได้หลายวัน ระบบจะแสดงวันที่สร้างสรุปวันนี้เพียงครั้งเดียวและไม่แสดงเวลา</p></div></div>
         <button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button>
       </div>
-      <div class="line-modal-grid">
-        <section class="line-picker-section">
-          <label class="line-field-label" for="line-document-search">ค้นหาเอกสาร</label>
-          <input id="line-document-search" class="input" placeholder="เลขรับ เรื่อง หรือผู้ส่ง">
-          <label class="line-field-label" for="line-document-select">เลือกเอกสาร</label>
-          <select id="line-document-select" class="input"><option value="">— กรุณาเลือกเอกสาร —</option></select>
-          <div id="line-document-summary" class="line-document-summary"><p>เลือกเอกสารเพื่อดูรายละเอียด</p></div>
-          <div class="line-status-heading"><span>รายชื่อผู้รับและสถานะ</span><span id="line-ack-summary" class="line-ack-summary">0/0</span></div>
-          <div id="line-recipient-list" class="line-recipient-list"><p class="text-slate-500">ยังไม่ได้เลือกเอกสาร</p></div>
+      <div class="line-modal-grid line-summary-grid">
+        <section class="line-picker-section line-summary-picker">
+          <div class="download-period-tabs line-summary-period-tabs">
+            <button class="download-period-tab active" data-line-mode="day" type="button">รายวัน</button>
+            <button class="download-period-tab" data-line-mode="week" type="button">รายสัปดาห์</button>
+            <button class="download-period-tab" data-line-mode="month" type="button">รายเดือน</button>
+            <button class="download-period-tab" data-line-mode="custom" type="button">เลือกหลายวัน</button>
+          </div>
+          <div class="download-filter-panel line-summary-filter-panel">
+            <div id="line-day-filter" class="download-filter-control"><label>วันที่<input id="line-day-value" class="input" type="date" value="${todayKey}"></label></div>
+            <div id="line-week-filter" class="download-filter-control hide"><label>เลือกวันใดก็ได้ในสัปดาห์<input id="line-week-value" class="input" type="date" value="${localDateKey(weekMonday)}"></label><div id="line-week-label" class="download-range-label"></div></div>
+            <div id="line-month-filter" class="download-filter-control hide"><label>เดือน<input id="line-month-value" class="input" type="month" value="${monthKey}"></label></div>
+            <div id="line-custom-filter" class="download-filter-control download-custom-range hide"><label>ตั้งแต่วันที่<input id="line-start-value" class="input" type="date" value="${localDateKey(addLocalDays(today, -6))}"></label><label>ถึงวันที่<input id="line-end-value" class="input" type="date" value="${todayKey}"></label></div>
+            <input id="line-document-search" class="input download-search-input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง">
+          </div>
+          <div class="download-selection-toolbar line-summary-toolbar"><div><b id="line-result-count">0 เอกสาร</b><span id="line-selected-count">เลือกแล้ว 0 เรื่อง</span></div><div><button id="select-all-line-docs" class="btn btn-muted text-xs" type="button">เลือกทั้งหมดที่แสดง</button><button id="clear-line-docs" class="btn btn-muted text-xs" type="button">ยกเลิกทั้งหมด</button></div></div>
+          <div id="line-document-list" class="download-date-list line-summary-document-list"></div>
         </section>
-        <section class="line-message-section">
-          <div class="line-message-heading"><div><h3>ข้อความสำหรับคัดลอก</h3><p>แก้ไขข้อความในกล่องนี้ได้ก่อนคัดลอก</p></div><span class="line-local-badge">สร้างข้อความภายในระบบ</span></div>
-          <textarea id="line-message-text" class="input line-message-text" placeholder="เลือกเอกสารเพื่อสร้างข้อความ" disabled></textarea>
-          <div id="line-message-warning" class="line-message-warning hide"></div>
+        <section class="line-message-section line-summary-message-section">
+          <div class="line-message-heading"><div><h3>ข้อความสรุปสำหรับคัดลอก</h3><p>วันที่ด้านบนคือวันนี้ เอกสารทุกวันจะเรียงต่อกันเป็นเรื่องที่ 1, 2, 3</p></div><span class="line-local-badge">ไม่ใช้โทเคน</span></div>
+          <div id="line-summary-date" class="line-summary-today">วันที่ ${formatThaiLineSummaryDate(today)}</div>
+          <textarea id="line-message-text" class="input line-message-text line-summary-message-text" placeholder="เลือกเอกสารเพื่อสร้างสรุป" disabled></textarea>
+          <div id="line-message-warning" class="line-message-warning">กรุณาเลือกเอกสารอย่างน้อย 1 เรื่อง</div>
           <div class="line-message-actions">
             <button id="reset-line-message" class="btn btn-muted" type="button" disabled>คืนข้อความเดิม</button>
             <button id="copy-line-message" class="btn line-copy-btn" type="button" disabled>${lineLogoMarkup()}<span>คัดลอกข้อความ</span></button>
@@ -1163,80 +1221,142 @@
     </div>`;
     document.body.appendChild(overlay);
 
-    const searchInput = overlay.querySelector('#line-document-search');
-    const select = overlay.querySelector('#line-document-select');
-    const summary = overlay.querySelector('#line-document-summary');
-    const recipientList = overlay.querySelector('#line-recipient-list');
-    const ackSummary = overlay.querySelector('#line-ack-summary');
+    let mode = 'day';
+    let visibleDocuments = [];
+    let generatedMessage = '';
+    const selectedIds = new Set();
+    const list = overlay.querySelector('#line-document-list');
     const messageArea = overlay.querySelector('#line-message-text');
     const warning = overlay.querySelector('#line-message-warning');
     const resetButton = overlay.querySelector('#reset-line-message');
     const copyButton = overlay.querySelector('#copy-line-message');
-    let generatedMessage = '';
-    let selectedDoc = null;
+    const close = () => overlay.remove();
+    overlay.querySelector('.close-modal').onclick = close;
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
 
-    const renderDocumentOptions = () => {
-      const query = String(searchInput.value || '').trim().toLowerCase();
-      const previous = select.value;
-      const filtered = documents.filter((doc) => `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query));
-      select.innerHTML = `<option value="">— กรุณาเลือกเอกสาร —</option>${filtered.map((doc) => `<option value="${escapeHtml(doc.docId)}">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</option>`).join('')}`;
-      const keptPreviousSelection = filtered.some((doc) => doc.docId === previous);
-      if (keptPreviousSelection) select.value = previous;
-      if (!filtered.length) select.innerHTML = '<option value="">ไม่พบเอกสารที่ค้นหา</option>';
-      if (previous && !keptPreviousSelection) renderSelectedDocument();
+    const dateRange = () => {
+      if (mode === 'day') {
+        const day = parseLocalDateInput(overlay.querySelector('#line-day-value').value);
+        return day ? { start: day, end: day } : null;
+      }
+      if (mode === 'week') {
+        const selected = parseLocalDateInput(overlay.querySelector('#line-week-value').value);
+        if (!selected) return null;
+        const start = mondayOfWeek(selected);
+        const end = addLocalDays(start, 6);
+        overlay.querySelector('#line-week-label').textContent = `${formatThaiDocumentDate(localDateKey(start))} – ${formatThaiDocumentDate(localDateKey(end))}`;
+        return { start, end };
+      }
+      if (mode === 'month') {
+        const match = overlay.querySelector('#line-month-value').value.match(/^(\d{4})-(\d{2})$/);
+        if (!match) return null;
+        return {
+          start: new Date(Number(match[1]), Number(match[2]) - 1, 1),
+          end: new Date(Number(match[1]), Number(match[2]), 0),
+        };
+      }
+      const start = parseLocalDateInput(overlay.querySelector('#line-start-value').value);
+      const end = parseLocalDateInput(overlay.querySelector('#line-end-value').value);
+      return start && end && start <= end ? { start, end } : null;
     };
 
-    const renderSelectedDocument = () => {
-      selectedDoc = documents.find((doc) => doc.docId === select.value) || null;
-      if (!selectedDoc) {
-        summary.innerHTML = '<p>เลือกเอกสารเพื่อดูรายละเอียด</p>';
-        recipientList.innerHTML = '<p class="text-slate-500">ยังไม่ได้เลือกเอกสาร</p>';
-        ackSummary.textContent = '0/0';
-        generatedMessage = '';
-        messageArea.value = '';
-        messageArea.disabled = true;
-        resetButton.disabled = true;
-        copyButton.disabled = true;
-        warning.classList.add('hide');
+    const selectedDocuments = () => sortLineSummaryDocuments(documents.filter((doc) => selectedIds.has(doc.docId)));
+
+    const refreshMessage = () => {
+      const chosen = selectedDocuments();
+      generatedMessage = buildLineAcknowledgementSummary(chosen, new Date());
+      messageArea.value = generatedMessage;
+      messageArea.disabled = !chosen.length;
+      resetButton.disabled = !chosen.length;
+      copyButton.disabled = !chosen.length;
+      overlay.querySelector('#line-selected-count').textContent = `เลือกแล้ว ${chosen.length} เรื่อง`;
+      warning.classList.toggle('hide', chosen.length > 0);
+    };
+
+    const renderList = () => {
+      const range = dateRange();
+      const query = String(overlay.querySelector('#line-document-search').value || '').trim().toLowerCase();
+      if (!range) {
+        visibleDocuments = [];
+        list.innerHTML = '<div class="download-empty-state">กรุณาตรวจสอบช่วงวันที่ให้ถูกต้อง</div>';
+        overlay.querySelector('#line-result-count').textContent = '0 เอกสาร';
+        refreshMessage();
         return;
       }
+      const startKey = localDateKey(range.start);
+      const endKey = localDateKey(range.end);
+      visibleDocuments = documents.filter((doc) => {
+        const key = localDateKey(doc.createdAt);
+        if (!key || key < startKey || key > endKey) return false;
+        return !query || `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query);
+      });
+      overlay.querySelector('#line-result-count').textContent = `${visibleDocuments.length} เอกสาร`;
+      if (!visibleDocuments.length) {
+        list.innerHTML = '<div class="download-empty-state"><b>ไม่พบเอกสารในช่วงเวลานี้</b><span>ลองเปลี่ยนวันที่หรือเลือกช่วงวันที่อื่น</span></div>';
+        refreshMessage();
+        return;
+      }
+      const groups = new Map();
+      visibleDocuments.forEach((doc) => {
+        const key = localDateKey(doc.createdAt) || 'unknown';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(doc);
+      });
+      list.innerHTML = [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([dateKey, groupDocs]) => {
+        const groupIds = groupDocs.map((doc) => doc.docId);
+        const allSelected = groupIds.every((id) => selectedIds.has(id));
+        return `<section class="download-date-group" data-date-key="${escapeHtml(dateKey)}">
+          <header><div><b>${escapeHtml(formatThaiDocumentDate(dateKey))}</b><span>${groupDocs.length} เอกสาร</span></div><button class="download-select-day" data-line-date-key="${escapeHtml(dateKey)}" type="button">${allSelected ? 'ยกเลิกวันนี้' : 'เลือกทั้งหมดวันนี้'}</button></header>
+          <div class="download-day-documents">${groupDocs.sort(compareReceiveNumbersAsc).map((doc) => {
+            const stats = lineSummaryRecipientStats(doc);
+            return `<label class="download-document-row line-summary-document-row ${selectedIds.has(doc.docId) ? 'is-selected' : ''}"><input type="checkbox" class="line-summary-check" value="${escapeHtml(doc.docId)}" ${selectedIds.has(doc.docId) ? 'checked' : ''}><span class="download-check-visual"></span><span class="download-document-info"><b>${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</b><small>${escapeHtml(doc.fromSender)} • รับทราบ ${stats.acknowledged}/${stats.total}</small></span><span class="line-pending-badge ${stats.pending === 0 ? 'is-complete' : ''}">${stats.pending === 0 ? 'ครบแล้ว' : `ค้าง ${stats.pending}`}</span></label>`;
+          }).join('')}</div>
+        </section>`;
+      }).join('');
+      overlay.querySelectorAll('.line-summary-check').forEach((input) => {
+        input.onchange = () => {
+          if (input.checked) selectedIds.add(input.value); else selectedIds.delete(input.value);
+          renderList();
+        };
+      });
+      overlay.querySelectorAll('[data-line-date-key]').forEach((button) => {
+        button.onclick = () => {
+          const dayDocuments = visibleDocuments.filter((doc) => localDateKey(doc.createdAt) === button.dataset.lineDateKey);
+          const shouldSelect = !dayDocuments.every((doc) => selectedIds.has(doc.docId));
+          dayDocuments.forEach((doc) => shouldSelect ? selectedIds.add(doc.docId) : selectedIds.delete(doc.docId));
+          renderList();
+        };
+      });
+      refreshMessage();
+    };
 
-      const recipients = selectedDoc.recipients || [];
-      const acknowledgedCount = recipients.filter((item) => item.acknowledgedAt).length;
-      const dispatchLabel = selectedDoc.dispatchType === 'ทุกคน'
-        ? 'แจ้งทุกคนทราบ'
-        : recipients.length
-          ? 'ส่งให้ผู้รับตามรายชื่อ'
-          : 'ยังไม่ได้ส่งให้ผู้รับ';
-      summary.innerHTML = `<div class="line-summary-number">เลขรับ ${escapeHtml(selectedDoc.recvNo || '-')}</div><h3>${escapeHtml(selectedDoc.subject || '-')}</h3><p><b>จาก:</b> ${escapeHtml(selectedDoc.fromSender || '-')}</p><div class="line-dispatch-chip">${escapeHtml(dispatchLabel)}</div>`;
-      recipientList.innerHTML = lineRecipientStatusMarkup(selectedDoc);
-      ackSummary.textContent = `${acknowledgedCount}/${recipients.length}`;
-      generatedMessage = buildLineNotificationMessage(selectedDoc);
-      messageArea.value = generatedMessage;
-      messageArea.disabled = !generatedMessage;
-      resetButton.disabled = !generatedMessage;
-      copyButton.disabled = !generatedMessage;
-      if (!generatedMessage) {
-        warning.textContent = 'เอกสารนี้ยังไม่มีรายชื่อผู้รับ ระบบจึงยังไม่สร้างข้อความเพื่อป้องกันการแจ้งผิดคน';
-        warning.classList.remove('hide');
-      } else {
-        warning.classList.add('hide');
+    overlay.querySelectorAll('[data-line-mode]').forEach((button) => {
+      button.onclick = () => {
+        mode = button.dataset.lineMode;
+        overlay.querySelectorAll('[data-line-mode]').forEach((item) => item.classList.toggle('active', item === button));
+        ['day', 'week', 'month', 'custom'].forEach((name) => overlay.querySelector(`#line-${name}-filter`).classList.toggle('hide', name !== mode));
+        selectedIds.clear();
+        renderList();
+      };
+    });
+    ['#line-day-value', '#line-week-value', '#line-month-value', '#line-start-value', '#line-end-value'].forEach((selector) => {
+      overlay.querySelector(selector).onchange = () => { selectedIds.clear(); renderList(); };
+    });
+    overlay.querySelector('#line-document-search').oninput = renderList;
+    overlay.querySelector('#select-all-line-docs').onclick = () => { visibleDocuments.forEach((doc) => selectedIds.add(doc.docId)); renderList(); };
+    overlay.querySelector('#clear-line-docs').onclick = () => { selectedIds.clear(); renderList(); };
+    resetButton.onclick = () => { messageArea.value = generatedMessage; };
+    copyButton.onclick = async () => {
+      const chosen = selectedDocuments();
+      if (!chosen.length) return;
+      const copied = await copyTextToClipboard(messageArea.value, 'คัดลอกสรุปการรับทราบสำหรับส่งใน LINE แล้ว');
+      if (copied) {
+        gasCall('recordLineDailySummaryCopy', state.token, chosen.map((doc) => doc.docId))
+          .catch((error) => console.warn('บันทึก Audit Log สรุป LINE ไม่สำเร็จ', error));
       }
     };
 
-    renderDocumentOptions();
-    searchInput.addEventListener('input', renderDocumentOptions);
-    select.addEventListener('change', renderSelectedDocument);
-    resetButton.addEventListener('click', () => { messageArea.value = generatedMessage; });
-    copyButton.addEventListener('click', async () => {
-      if (!selectedDoc) return;
-      const copied = await copyTextToClipboard(messageArea.value, 'คัดลอกข้อความสำหรับส่งใน LINE แล้ว');
-      if (copied) {
-        gasCall('recordLineNotificationCopy', state.token, selectedDoc.docId).catch((error) => console.warn('บันทึก Audit Log การคัดลอก LINE ไม่สำเร็จ', error));
-      }
-    });
-    overlay.querySelector('.close-modal').onclick = () => overlay.remove();
-    overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
+    renderList();
   }
 
   function showAckStatus(docId) {
