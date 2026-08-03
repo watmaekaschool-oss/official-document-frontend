@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.5.3';
+  const FRONTEND_BUILD_VERSION = '3.6.0';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -160,7 +160,8 @@
       steps: [
         ['เปิดจดหมายเข้า', 'เลือกหนังสือจากแท็บ “จดหมายเข้า” แล้วกด “ดูเอกสาร”'],
         ['อ่านเอกสารและไฟล์แนบ', 'ตรวจรายละเอียดหนังสือและเปิดไฟล์แนบที่เกี่ยวข้อง'],
-        ['กดรับทราบ', 'เมื่ออ่านเรียบร้อยแล้ว ให้กดปุ่ม “รับทราบ” เพื่อบันทึกวันและเวลา'],
+        ['กดรับทราบ', 'เมื่ออ่านเรียบร้อยแล้ว ให้กดปุ่ม “รับทราบ” ระบบจะนำลายเซ็นประจำบัญชีใส่ในกล่องทราบบน PDF อัตโนมัติ'],
+        ['ดำเนินการเสร็จสิ้น', 'หลังรับทราบและดำเนินงานตามหนังสือแล้ว ให้เปิดแท็บ “รับทราบแล้ว” และกด “ดำเนินการเสร็จสิ้น” เอกสารจะย้ายไปหมวดเสร็จสิ้นเมื่อผู้รับทุกคนดำเนินการครบ'],
         ['ดาวน์โหลด', 'ใช้ปุ่มดาวน์โหลดเมื่อต้องการเก็บไฟล์ไว้ในเครื่อง'],
         ['ตรวจข้อมูลบัญชี', 'ไปที่ ⚙ การตั้งค่า → บัญชีของฉัน เพื่อดูชื่อ บทบาท ฝ่าย และสถานะลายเซ็น'],
       ],
@@ -173,6 +174,8 @@
     user: null,
     actionDocs: [],
     inboxDocs: [],
+    acknowledgedDocs: [],
+    completedDocs: [],
     allDocs: [],
     tab: 'action',
     currentDoc: null,
@@ -457,8 +460,12 @@
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user?.userId);
       return ownRecipient ? !ownRecipient.acknowledgedAt : false;
     }).length;
+    const followup = (state.acknowledgedDocs || []).filter((doc) => {
+      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user?.userId);
+      return ownRecipient ? !ownRecipient.completedAt : false;
+    }).length;
     const action = (state.actionDocs || []).length;
-    return { pending: unread + action, unread, action };
+    return { pending: unread + followup + action, unread, followup, action };
   }
 
   function workflowMascotMarkup() {
@@ -478,7 +485,9 @@
     if (counts.pending > 0) {
       const detail = counts.unread > 0
         ? `มีเอกสารรอรับทราบ ${counts.unread} งาน`
-        : `มีเอกสารรอดำเนินการ ${counts.action} งาน`;
+        : counts.followup > 0
+          ? `มีเอกสารรอกดดำเนินการเสร็จสิ้น ${counts.followup} งาน`
+          : `มีเอกสารรอดำเนินการ ${counts.action} งาน`;
       return `<aside id="workflow-mascot-host" class="workflow-mascot-host workflow-mascot-new" aria-live="polite">
         <div class="workflow-mascot-card">
           <div class="workflow-mascot-art workflow-duck">${mascotArt('duck')}</div>
@@ -677,6 +686,8 @@
     ]);
     state.actionDocs = result.actionDocs || [];
     state.inboxDocs = result.inboxDocs || [];
+    state.acknowledgedDocs = result.acknowledgedDocs || [];
+    state.completedDocs = result.completedDocs || [];
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
     state.appSettings = appSettings || state.appSettings;
@@ -735,6 +746,7 @@
             <div class="dashboard-tabs flex gap-2 overflow-auto pb-1">
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
               <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
+              ${isTeacher ? `<button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button><button class="tab-button ${state.tab === 'completed' ? 'active' : ''}" data-tab="completed">ดำเนินการเสร็จสิ้น (${state.completedDocs.length})</button>` : ''}
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>` : ''}
               ${!isTeacher ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
             </div>
@@ -777,6 +789,8 @@
   function currentDocuments() {
     if (state.tab === 'action') return state.actionDocs;
     if (state.tab === 'inbox') return state.inboxDocs;
+    if (state.tab === 'acknowledged') return state.acknowledgedDocs;
+    if (state.tab === 'completed') return state.completedDocs;
     return state.allDocs;
   }
 
@@ -798,6 +812,15 @@
     });
   }
 
+  function acknowledgementButtonClass(doc) {
+    const circular = doc?.dispatchMode === 'เวียนคณะครู' || doc?.dispatchType === 'เวียนคณะครู';
+    const urgent = doc?.priority === 'ด่วน';
+    if (circular && urgent) return 'ack-btn-circular-urgent';
+    if (circular) return 'ack-btn-circular';
+    if (urgent) return 'ack-btn-urgent';
+    return 'ack-btn-normal';
+  }
+
   function renderDocumentRows() {
     const tbody = document.getElementById('document-tbody');
     if (!tbody) return;
@@ -806,7 +829,7 @@
     let sourceDocs = currentDocuments();
     if (state.tab === 'all') sourceDocs = sortDocumentsByReceiveNumberDesc(sourceDocs);
     let docs = sourceDocs.filter((doc) => {
-      const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''}`.toLowerCase();
+      const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''} ${doc.priority || ''} ${doc.dispatchMode || ''}`.toLowerCase();
       if (query && !text.includes(query)) return false;
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
       if (filter === 'unread') return ownRecipient ? !ownRecipient.acknowledgedAt : doc.ackCount < doc.recipientCount;
@@ -821,16 +844,25 @@
     }
     tbody.innerHTML = docs.map((doc) => {
       const isAckComplete = Number(doc.recipientCount || 0) > 0 && Number(doc.ackCount || 0) >= Number(doc.recipientCount || 0);
-      const showAckCompletionColor = state.tab === 'inbox' || state.tab === 'all';
+      const showAckCompletionColor = ['inbox', 'acknowledged', 'completed', 'all'].includes(state.tab);
       const ackStatusClass = showAckCompletionColor
         ? (isAckComplete ? 'text-green-600 font-bold' : 'text-red-600 font-bold')
         : 'text-slate-600';
-      const recipientText = doc.recipientCount
-        ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${doc.recipientCount}</button>`
+      const completionCount = Number(doc.completionCount || 0);
+      const recipientCount = Number(doc.recipientCount || 0);
+      const recipientText = recipientCount
+        ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${recipientCount} • เสร็จสิ้น ${completionCount}/${recipientCount}</button>`
         : '';
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
       const ackButton = state.tab === 'inbox' && ownRecipient && !ownRecipient.acknowledgedAt
-        ? `<button class="btn btn-success text-xs acknowledge-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
+        ? `<button class="btn text-xs acknowledge-btn ${acknowledgementButtonClass(doc)}" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
+      const completeButton = ownRecipient && ownRecipient.acknowledgedAt && !ownRecipient.completedAt && !doc.allRecipientsCompleted
+        ? `<button class="btn btn-success text-xs complete-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดำเนินการเสร็จสิ้น</button>` : '';
+      const waitingMessage = ownRecipient?.completedAt && !doc.allRecipientsCompleted
+        ? `<div class="recipient-waiting-note">✓ คุณดำเนินการแล้ว — รอผู้รับคนอื่น</div>` : '';
+      const priorityBadge = doc.priority === 'ด่วน' ? '<span class="badge badge-urgent">ด่วน</span>' : '<span class="badge badge-normal">ปกติ</span>';
+      const circularBadge = doc.dispatchMode === 'เวียนคณะครู' || doc.dispatchType === 'เวียนคณะครู'
+        ? '<span class="badge badge-circular">เวียนคณะครู</span>' : '';
       const actionButton = state.tab === 'action'
         ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
         : `<button class="btn btn-muted text-xs view-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดูเอกสาร</button>`;
@@ -841,21 +873,23 @@
         <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
         <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
-        <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}</div><div class="mt-2">${recipientText}</div></td>
-        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
+        <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}</div><div class="mt-2">${recipientText}</div></td>
+        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${completeButton}${waitingMessage}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
 
     tbody.querySelectorAll('.action-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, true));
     tbody.querySelectorAll('.view-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, false));
     tbody.querySelectorAll('.acknowledge-btn').forEach((button) => button.onclick = () => acknowledge(button.dataset.docId));
+    tbody.querySelectorAll('.complete-doc-btn').forEach((button) => button.onclick = () => completeDocument(button.dataset.docId));
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
     tbody.querySelectorAll('.replace-doc-btn').forEach((button) => button.onclick = () => openReplaceDocumentModal(button.dataset.docId));
   }
 
+
   function findDoc(docId) {
-    return [...state.actionDocs, ...state.inboxDocs, ...state.allDocs].find((doc) => doc.docId === docId);
+    return [...state.actionDocs, ...state.inboxDocs, ...state.acknowledgedDocs, ...state.completedDocs, ...state.allDocs].find((doc) => doc.docId === docId);
   }
 
 
@@ -1076,15 +1110,107 @@
     };
   }
 
+  async function normalizeSignatureImageDataUrl(signatureDataUrl) {
+    if (/^data:image\/(png|jpe?g)/i.test(signatureDataUrl || '')) return signatureDataUrl;
+    return await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, image.naturalWidth || image.width || 1);
+        canvas.height = Math.max(1, image.naturalHeight || image.height || 1);
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      image.onerror = () => reject(new Error('ไฟล์ลายเซ็นไม่ใช่รูปภาพที่รองรับ กรุณาติดต่อผู้ดูแลระบบ'));
+      image.src = signatureDataUrl;
+    });
+  }
+
+  async function embedSignatureIntoAcknowledgementSlot(fileBase64, signatureDataUrl, slot) {
+    const pdfDoc = await PDFLib.PDFDocument.load(fileBase64);
+    const pages = pdfDoc.getPages();
+    const page = pages[Number(slot.pageIndex) || 0];
+    if (!page) throw new Error('ไม่พบหน้าสำหรับวางลายเซ็น');
+    if (!signatureDataUrl) throw new Error('กรุณาส่งลายเซ็นต์ให้ผู้ดูแลระบบ');
+    const normalizedSignature = await normalizeSignatureImageDataUrl(signatureDataUrl);
+    const image = /^data:image\/(jpe?g)/i.test(normalizedSignature)
+      ? await pdfDoc.embedJpg(normalizedSignature)
+      : await pdfDoc.embedPng(normalizedSignature);
+    const padding = Math.max(1.5, Math.min(Number(slot.width || 0), Number(slot.height || 0)) * 0.06);
+    const maxWidth = Math.max(1, Number(slot.width) - padding * 2);
+    const maxHeight = Math.max(1, Number(slot.height) - padding * 2);
+    const ratio = Math.min(maxWidth / image.width, maxHeight / image.height);
+    const width = image.width * ratio;
+    const height = image.height * ratio;
+    page.drawImage(image, {
+      x: Number(slot.x) + padding + (maxWidth - width) / 2,
+      y: Number(slot.y) + padding + (maxHeight - height) / 2,
+      width,
+      height,
+    });
+    return await pdfDoc.saveAsBase64();
+  }
+
   async function acknowledge(docId) {
-    loading('กำลังบันทึกรับทราบ...');
+    if (!state.user?.signatureConfigured) {
+      Swal.fire('ยังไม่มีลายเซ็น', 'กรุณาส่งลายเซ็นต์ให้ผู้ดูแลระบบ', 'warning');
+      return;
+    }
+    loading('กำลังใส่ลายเซ็นและบันทึกรับทราบ...');
     try {
-      await gasCall('acknowledgeDocument', state.token, docId);
+      let saved = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const signing = await gasCall('getAcknowledgementSigningData', state.token, docId);
+        if (signing.alreadyAcknowledged) {
+          saved = signing;
+          break;
+        }
+        if (signing.legacy) {
+          saved = await gasCall('acknowledgeLegacyDocument', state.token, docId);
+          break;
+        }
+        const base64 = await embedSignatureIntoAcknowledgementSlot(signing.file.base64, signing.signatureDataUrl, signing.slot);
+        try {
+          saved = await gasCall('saveAcknowledgedDocument', state.token, {
+            docId,
+            base64,
+            expectedVersion: signing.expectedVersion,
+          });
+          break;
+        } catch (error) {
+          if (!/ACK_VERSION_CONFLICT/.test(error?.message || '') || attempt >= 2) throw error;
+        }
+      }
+      if (!saved) throw new Error('ไม่สามารถบันทึกลายเซ็นได้ กรุณาลองใหม่');
       triggerWorkflowMascotProgress();
       await loadDashboard();
-      Swal.fire('สำเร็จ', 'บันทึกรับทราบเรียบร้อยแล้ว', 'success');
+      Swal.fire('สำเร็จ', 'ใส่ลายเซ็นและบันทึกรับทราบเรียบร้อยแล้ว', 'success');
     } catch (error) { showError(error); }
   }
+
+  async function completeDocument(docId) {
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: 'ยืนยันดำเนินการเสร็จสิ้น',
+      text: 'ยืนยันว่าคุณดำเนินการตามหนังสือฉบับนี้เสร็จสิ้นแล้ว',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันเสร็จสิ้น',
+      cancelButtonText: 'ยกเลิก',
+    });
+    if (!confirm.isConfirmed) return;
+    loading('กำลังบันทึกสถานะ...');
+    try {
+      const result = await gasCall('completeDocumentAction', state.token, docId);
+      triggerWorkflowMascotProgress();
+      await loadDashboard();
+      Swal.fire('สำเร็จ', result.allCompleted
+        ? 'ผู้รับทุกคนดำเนินการครบแล้ว เอกสารถูกย้ายไปหมวดดำเนินการเสร็จสิ้น'
+        : 'บันทึกแล้ว กรุณารอผู้รับคนอื่นดำเนินการให้ครบ', 'success');
+    } catch (error) { showError(error); }
+  }
+
 
 
   function formatThaiLineSummaryDate(value) {
@@ -1361,8 +1487,12 @@
 
   function showAckStatus(docId) {
     const doc = findDoc(docId);
-    const html = (doc.recipients || []).map((item) => `<div class="flex justify-between border-b py-2"><span>${item.acknowledgedAt ? '✅' : '❌'} ${escapeHtml(item.name)}</span><span class="text-xs text-slate-500">${item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ'}</span></div>`).join('') || '<p>ยังไม่มีผู้รับ</p>';
-    Swal.fire({ title: 'สถานะการรับทราบ', html: `<div class="text-left max-h-80 overflow-auto">${html}</div>`, confirmButtonText: 'ปิด' });
+    const html = (doc.recipients || []).map((item) => {
+      const ackLabel = item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ';
+      const completeLabel = item.completedAt ? 'ดำเนินการเสร็จสิ้น' : (item.acknowledgedAt ? 'รอดำเนินการเสร็จสิ้น' : 'ยังไม่เริ่มดำเนินการ');
+      return `<div class="ack-status-person-row"><div><b>${item.acknowledgedAt ? '✅' : '❌'} ${escapeHtml(item.name)}</b><small>ช่องลายเซ็น ${Number(item.signatureSlot || 0) || '-'}</small></div><div><span>${escapeHtml(ackLabel)}</span><small>${escapeHtml(completeLabel)}</small></div></div>`;
+    }).join('') || '<p>ยังไม่มีผู้รับ</p>';
+    Swal.fire({ title: 'สถานะการรับทราบและดำเนินการ', html: `<div class="text-left max-h-80 overflow-auto">${html}</div>`, confirmButtonText: 'ปิด' });
   }
 
   function openAttachments(docId) {
@@ -2513,32 +2643,177 @@
   }
 
   function dispatchMarkup() {
-    return `<div id="dispatch-panel" class="dispatch-panel"><h3 class="text-xl font-bold text-red-800 border-b pb-3">ดำเนินการขั้นสุดท้าย</h3><div class="flex flex-wrap gap-5 my-4"><label><input type="radio" name="dispatch-type" value="ยุติเรื่อง"> ยุติเรื่อง</label><label><input type="radio" name="dispatch-type" value="ทุกคน"> ส่งให้ทุกคน</label><label><input type="radio" name="dispatch-type" value="บางคน"> ส่งให้บางคน</label></div><div id="dispatch-users" class="hide border rounded-xl bg-amber-50 p-4"><div class="font-bold mb-3">เลือกผู้รับ</div><div id="dispatch-user-grid" class="user-grid"></div></div><div class="text-right mt-5"><button id="dispatch-submit" class="btn btn-success">บันทึกการส่งเรื่อง</button></div></div>`;
+    return `<div id="dispatch-panel" class="dispatch-panel">
+      <h3 class="text-xl font-bold text-red-800 border-b pb-3">ดำเนินการขั้นสุดท้าย</h3>
+      <div class="dispatch-section-title">1. เลือกรูปแบบการส่ง</div>
+      <div class="dispatch-choice-grid">
+        <label><input type="radio" name="dispatch-type" value="บางคน"> ส่งให้บางคน</label>
+        <label><input type="radio" name="dispatch-type" value="ทุกคน"> ส่งให้ทุกคน</label>
+        <label><input type="radio" name="dispatch-type" value="เวียนคณะครู"> เวียนคณะครู</label>
+        <label><input type="radio" name="dispatch-type" value="ยุติเรื่อง"> ยุติเรื่อง</label>
+      </div>
+      <div id="dispatch-priority" class="dispatch-priority-panel hide">
+        <div class="dispatch-section-title">2. เลือกประเภทหนังสือ</div>
+        <div class="dispatch-priority-options">
+          <label class="priority-normal"><input type="radio" name="dispatch-priority" value="ปกติ" checked> ปกติ <small>ปุ่มรับทราบสีเหลือง</small></label>
+          <label class="priority-urgent"><input type="radio" name="dispatch-priority" value="ด่วน"> ด่วน <small>ปุ่มรับทราบสีม่วง</small></label>
+        </div>
+        <div class="dispatch-color-note">เวียนคณะครูใช้ปุ่มสีแดง และถ้าเลือกด่วนร่วมด้วยจะเป็นปุ่มสองสีแดง–ม่วง</div>
+      </div>
+      <div id="dispatch-users" class="hide border rounded-xl bg-amber-50 p-4">
+        <div class="font-bold mb-3">เลือกผู้รับ</div>
+        <div id="dispatch-user-grid" class="user-grid"></div>
+      </div>
+      <div id="ack-box-instruction" class="ack-box-instruction hide">3. ลากกล่อง “ทราบ” ไปวางบน PDF และปรับขนาดตามต้องการ ก่อนกดยืนยันส่งเรื่อง</div>
+      <div class="text-right mt-5"><button id="dispatch-submit" class="btn btn-success">ยืนยันตำแหน่งและส่งเรื่อง</button></div>
+    </div>`;
+  }
+
+  function acknowledgementBoxContent(capacity) {
+    const columns = capacity > 8 ? 2 : 1;
+    const slots = Array.from({ length: Math.max(1, capacity) }, (_, index) => `
+      <div class="ack-sign-slot" data-ack-slot="${index + 1}">
+        <span class="ack-slot-number">${index + 1}.</span>
+        <span class="ack-signature-target" data-ack-target="${index + 1}"></span>
+      </div>`).join('');
+    return `<div class="acknowledgement-box-card ack-columns-${columns}" style="--ack-columns:${columns}"><div class="acknowledgement-box-title">ทราบ</div><div class="acknowledgement-slot-grid">${slots}</div></div>`;
+  }
+
+  function removeAcknowledgementBox() {
+    const box = document.getElementById('acknowledgement-box-stamp');
+    if (box?._stampResizeObserver) box._stampResizeObserver.disconnect();
+    if (box) box.remove();
+    state.stampsInitialized = false;
+  }
+
+  function ensureAcknowledgementBox() {
+    const selected = document.querySelector('input[name="dispatch-type"]:checked')?.value || '';
+    const instruction = document.getElementById('ack-box-instruction');
+    if (!selected || selected === 'ยุติเรื่อง') {
+      removeAcknowledgementBox();
+      instruction?.classList.add('hide');
+      return;
+    }
+    instruction?.classList.remove('hide');
+    if (document.getElementById('acknowledgement-box-stamp')) return;
+    const container = document.getElementById('pdf-container');
+    if (!container) return;
+    const capacity = Math.max(1, state.allUsers.length);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = stampWrapper('acknowledgement-box-stamp', capacity > 8 ? 330 : 255, acknowledgementBoxContent(capacity));
+    const box = wrapper.firstElementChild;
+    box.classList.add('acknowledgement-box-stamp');
+    box.style.top = '55px';
+    container.appendChild(box);
+    initializeStamps();
+    state.stampsInitialized = true;
+  }
+
+  async function captureAcknowledgementBoxForDispatch() {
+    const stamp = document.getElementById('acknowledgement-box-stamp');
+    if (!stamp) throw new Error('ไม่พบกล่อง “ทราบ” บนเอกสาร');
+    snapStampIntoPage(stamp, false);
+    const pageShell = findClosestPageForStamp(stamp);
+    if (!pageShell) throw new Error('ไม่พบหน้าสำหรับวางกล่องทราบ');
+    const pageIndex = Number(pageShell.dataset.pageIndex || 0);
+    const pdfDoc = await PDFLib.PDFDocument.load(state.originalPdfBase64);
+    const page = pdfDoc.getPages()[pageIndex];
+    const canvas = pageShell.querySelector('.pdf-page-canvas');
+    if (!page || !canvas) throw new Error('ไม่สามารถอ่านหน้า PDF ได้');
+    const pageRect = canvas.getBoundingClientRect();
+    const stampRect = stamp.getBoundingClientRect();
+    const scaleX = page.getWidth() / pageRect.width;
+    const scaleY = page.getHeight() / pageRect.height;
+    const localX = Math.max(0, stampRect.left - pageRect.left);
+    const localY = Math.max(0, stampRect.top - pageRect.top);
+    const captureScale = Math.min(8, Math.max(6, (window.devicePixelRatio || 1) * 3));
+    const capture = await captureStampAtNativeResolution(stamp, captureScale);
+    const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
+    page.drawImage(image, {
+      x: localX * scaleX,
+      y: page.getHeight() - localY * scaleY - stampRect.height * scaleY,
+      width: stampRect.width * scaleX,
+      height: stampRect.height * scaleY,
+    });
+    const slots = [...stamp.querySelectorAll('.ack-signature-target')].map((target) => {
+      const rect = target.getBoundingClientRect();
+      const targetLocalX = localX + (rect.left - stampRect.left);
+      const targetLocalY = localY + (rect.top - stampRect.top);
+      return {
+        slot: Number(target.dataset.ackTarget || 0),
+        pageIndex,
+        x: targetLocalX * scaleX,
+        y: page.getHeight() - targetLocalY * scaleY - rect.height * scaleY,
+        width: rect.width * scaleX,
+        height: rect.height * scaleY,
+      };
+    });
+    return {
+      base64: await pdfDoc.saveAsBase64(),
+      acknowledgementBox: {
+        pageIndex,
+        capacity: slots.length,
+        slots,
+        box: {
+          x: localX * scaleX,
+          y: page.getHeight() - localY * scaleY - stampRect.height * scaleY,
+          width: stampRect.width * scaleX,
+          height: stampRect.height * scaleY,
+        },
+      },
+    };
   }
 
   async function loadDispatchUsers() {
     state.allUsers = await gasCall('listActiveUsers', state.token);
     const grid = document.getElementById('dispatch-user-grid');
-    grid.innerHTML = state.allUsers.map((user) => `<label class="bg-white border rounded-lg p-3 flex gap-2"><input type="checkbox" class="dispatch-user" value="${escapeHtml(user.userId)}"><span><b>${escapeHtml(user.name)}</b><br><small>${escapeHtml(user.role)}${user.department ? ' • ' + escapeHtml(user.department) : ''}</small></span></label>`).join('');
+    grid.innerHTML = state.allUsers.map((user) => `<label class="bg-white border rounded-lg p-3 flex gap-2 ${user.signatureConfigured ? '' : 'dispatch-user-no-signature'}"><input type="checkbox" class="dispatch-user" value="${escapeHtml(user.userId)}"><span><b>${escapeHtml(user.name)}</b><br><small>${escapeHtml(user.role)}${user.department ? ' • ' + escapeHtml(user.department) : ''}</small>${user.signatureConfigured ? '' : '<br><small class="text-red-600">ยังไม่มีลายเซ็น</small>'}</span></label>`).join('');
+    document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = ensureAcknowledgementBox);
+    if (document.querySelector('input[name="dispatch-type"]:checked')) {
+      removeAcknowledgementBox();
+      ensureAcknowledgementBox();
+    }
   }
 
   function initializeDispatch() {
-    document.querySelectorAll('input[name="dispatch-type"]').forEach((radio) => radio.onchange = () => {
-      document.getElementById('dispatch-users').classList.toggle('hide', radio.value !== 'บางคน' || !radio.checked);
-    });
+    const refreshDispatchUi = () => {
+      const type = document.querySelector('input[name="dispatch-type"]:checked')?.value || '';
+      document.getElementById('dispatch-users')?.classList.toggle('hide', type !== 'บางคน');
+      document.getElementById('dispatch-priority')?.classList.toggle('hide', !type || type === 'ยุติเรื่อง');
+      ensureAcknowledgementBox();
+    };
+    document.querySelectorAll('input[name="dispatch-type"]').forEach((radio) => radio.onchange = refreshDispatchUi);
+    document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = refreshDispatchUi);
     document.getElementById('dispatch-submit').onclick = async () => {
       const selected = document.querySelector('input[name="dispatch-type"]:checked');
       if (!selected) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกรูปแบบการส่งเรื่อง', 'warning'); return; }
       const userIds = [...document.querySelectorAll('.dispatch-user:checked')].map((input) => input.value);
-      loading('กำลังจ่ายเรื่อง...');
+      if (selected.value === 'บางคน' && !userIds.length) {
+        Swal.fire('แจ้งเตือน', 'กรุณาเลือกผู้รับอย่างน้อย 1 คน', 'warning');
+        return;
+      }
+      const priority = document.querySelector('input[name="dispatch-priority"]:checked')?.value || 'ปกติ';
+      loading(selected.value === 'ยุติเรื่อง' ? 'กำลังยุติเรื่อง...' : 'กำลังวางกล่องทราบและจ่ายเรื่อง...');
       try {
-        await gasCall('dispatchDocument', state.token, { docId: state.currentDoc.docId, type: selected.value, userIds });
+        let stamped = { base64: '', acknowledgementBox: null };
+        if (selected.value !== 'ยุติเรื่อง') stamped = await captureAcknowledgementBoxForDispatch();
+        await gasCall('dispatchDocument', state.token, {
+          docId: state.currentDoc.docId,
+          type: selected.value,
+          priority,
+          userIds,
+          base64: stamped.base64,
+          acknowledgementBox: stamped.acknowledgementBox,
+        });
         closeWorkspace();
         await loadDashboard();
-        Swal.fire('สำเร็จ', 'จ่ายเรื่องเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวธุรการแล้ว', 'success');
+        Swal.fire('สำเร็จ', selected.value === 'ยุติเรื่อง'
+          ? 'ยุติเรื่องและเก็บเข้าแฟ้มเรียบร้อยแล้ว'
+          : 'วางกล่องทราบและส่งเรื่องเรียบร้อยแล้ว', 'success');
       } catch (error) { showError(error); }
     };
   }
+
 
   function closeWorkspace() {
     document.querySelectorAll('.draggable-stamp').forEach((stamp) => {
