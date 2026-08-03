@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.5.1';
+  const FRONTEND_BUILD_VERSION = '3.5.2';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -212,7 +212,10 @@
   applyDisplaySettings(loadDisplaySettings());
 
   function normalizedUserRole() {
-    return String(state.user?.role || '').normalize('NFC').replace(/[\s\u200B-\u200D\uFEFF]+/g, '');
+    return String(state.user?.role || '')
+      .normalize('NFC')
+      .replace(/[\s\u200B-\u200D\uFEFF]+/g, '')
+      .replace(/[.．·•_()（）\-]/g, '');
   }
 
   function isClericalUser() {
@@ -232,8 +235,12 @@
 
   function guideRoleKey() {
     const role = normalizedUserRole();
-    if (role.includes('รองผู้อำนวยการ')) return 'รองผู้อำนวยการ';
-    if (role.includes('ผู้อำนวยการ')) return 'ผู้อำนวยการ';
+    if (role.includes('รองผู้อำนวยการ') || role.includes('รองผู้อำนวย') || role.includes('รองผอ') || role.includes('รองฯ')) {
+      return 'รองผู้อำนวยการ';
+    }
+    if (role.includes('ผู้อำนวยการ') || role.includes('ผู้อำนวย') || role === 'ผอ' || role.startsWith('ผอ')) {
+      return 'ผู้อำนวยการ';
+    }
     if (role.includes('ธุรการ')) return 'ธุรการ';
     return 'ครู';
   }
@@ -3584,7 +3591,7 @@
       <main class="max-w-7xl mx-auto px-4 py-6">
         <div class="meeting-editor-head">
           <div><span class="meeting-status ${meetingStatusClass(meeting.status)}">${escapeHtml(meeting.status)}</span><small>เวอร์ชันข้อมูล ${meeting.version}</small></div>
-          <div class="meeting-edit-lock ${canEdit ? 'can-edit' : 'read-only'}">${canEdit ? '✏️ คุณสามารถแก้ไขวาระนี้ได้' : '🔒 เปิดดูอย่างเดียว — งานอยู่กับ ' + escapeHtml(meeting.currentRole)}</div>
+          <div class="meeting-edit-lock ${canEdit ? 'can-edit' : 'read-only'}">${canEdit ? '✏️ คุณสามารถแก้ไขวาระนี้ได้' : '🔒 เปิดดูอย่างเดียว — งานอยู่กับ ' + escapeHtml(meeting.currentRole || 'บทบาทอื่น')}</div>
         </div>
         <div class="meeting-editor-tabs">
           <button class="meeting-editor-tab ${state.meetingEditorTab === 'notes' ? 'active' : ''}" data-editor-tab="notes">1. จดวาระการประชุม</button>
