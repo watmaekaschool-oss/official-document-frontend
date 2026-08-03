@@ -2180,7 +2180,7 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
 }
 
 
-/* ==================== Document management: recipients + date PDF downloads (3.5.0) ==================== */
+/* ==================== Document management: recipients + date PDF downloads (3.5.1) ==================== */
 .document-manage-btn {
   border-style: dashed;
   border-color: color-mix(in srgb, var(--theme-primary, #b91c1c) 55%, #fff);
