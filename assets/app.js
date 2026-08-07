@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.7.1';
+  const FRONTEND_BUILD_VERSION = '3.8.0';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -27,6 +27,10 @@
     fontScale: 1,
     reducedMotion: false,
     highContrast: false,
+    backgroundEnabled: false,
+    backgroundUrl: '',
+    backgroundOpacity: 0.12,
+    pageSize: 25,
   };
 
 
@@ -154,6 +158,17 @@
         ['แก้ไขผู้รับ', 'กด “จัดการ” ข้างจดหมายทั้งหมด เพื่อเพิ่มผู้รับที่ตกหล่นหรือลบผู้รับเดิม โดยระบบบันทึกประวัติไว้ใน Audit Log'],
       ],
     },
+    'ผู้ดูแลระบบสารบรรณ': {
+      title: 'คู่มือสำหรับผู้ดูแลระบบสารบรรณ',
+      intro: 'บทบาทพิเศษสำหรับดำเนินงานแทนธุรการ รองผู้อำนวยการ และผู้อำนวยการได้ทุกขั้นตอน โดยระบบยังบันทึก Audit Log ว่าดำเนินการแทนคิวใด',
+      steps: [
+        ['ทำงานทุกคิว', 'แท็บงานรอดำเนินการจะแสดงคิวธุรการ รองผู้อำนวยการ และผู้อำนวยการ สามารถเปิดและดำเนินงานต่อได้ตามสถานะปัจจุบัน'],
+        ['วาระการประชุม', 'สร้าง แก้ไข ตรวจ ส่งต่อ และอัปโหลด PDF วาระการประชุมได้ตามคิวปัจจุบัน'],
+        ['จัดการผู้รับ', 'เพิ่มหรือลบผู้รับเอกสารได้ โดยรักษาสถานะของผู้รับเดิมที่ยังคงเลือกไว้'],
+        ['ปฏิทินเอกสาร', 'ใช้ปุ่ม “จัดเรียงตามปฏิทิน” เพื่อค้นหาเอกสารรายสัปดาห์ รายเดือน และรายปี'],
+        ['แจ้งเตือน', 'ส่ง Web Push เตือนผู้รับรายคน และจัดการสรุป LINE OA รายวันร่วมกับธุรการได้'],
+      ],
+    },
     'ครู': {
       title: 'คู่มือการใช้งานสำหรับครู',
       intro: 'ใช้สำหรับเปิดอ่านหนังสือที่ได้รับ ดาวน์โหลดไฟล์ และยืนยันการรับทราบ',
@@ -212,6 +227,9 @@
     meetingUsers: [],
     pendingDocId: new URLSearchParams(window.location.search).get('doc') || '',
     deepLinkHandled: false,
+    documentPage: 1,
+    calendarFilter: null,
+    calendarReturnTab: 'all',
   };
 
   applyDisplaySettings(loadDisplaySettings());
@@ -223,14 +241,19 @@
       .replace(/[.．·•_()（）\-]/g, '');
   }
 
+  function isSystemDocumentAdmin() {
+    const role = normalizedUserRole();
+    return role.includes('ผู้ดูแลระบบสารบรรณ') || role === 'superadmin' || role === 'systemadmin';
+  }
+
   function isClericalUser() {
     const role = normalizedUserRole();
-    return role === 'ธุรการ' || role.includes('ธุรการ');
+    return role === 'ธุรการ' || role.includes('ธุรการ') || isSystemDocumentAdmin();
   }
 
   function canManageDocumentRecipients() {
     const role = guideRoleKey();
-    return ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(role);
+    return ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ', 'ผู้ดูแลระบบสารบรรณ'].includes(role);
   }
 
 
@@ -240,6 +263,9 @@
 
   function guideRoleKey() {
     const role = normalizedUserRole();
+    if (role.includes('ผู้ดูแลระบบสารบรรณ') || role === 'superadmin' || role === 'systemadmin') {
+      return 'ผู้ดูแลระบบสารบรรณ';
+    }
     if (role.includes('รองผู้อำนวยการ') || role.includes('รองผู้อำนวย') || role.includes('รองผอ') || role.includes('รองฯ')) {
       return 'รองผู้อำนวยการ';
     }
@@ -283,6 +309,10 @@
     merged.fontScale = [0.9, 1, 1.15].includes(Number(merged.fontScale)) ? Number(merged.fontScale) : 1;
     merged.reducedMotion = !!merged.reducedMotion;
     merged.highContrast = !!merged.highContrast;
+    merged.backgroundEnabled = !!merged.backgroundEnabled;
+    merged.backgroundUrl = String(merged.backgroundUrl || '').trim();
+    merged.backgroundOpacity = Math.max(0, Math.min(0.45, Number(merged.backgroundOpacity ?? 0.12)));
+    merged.pageSize = [15, 25, 50, 100].includes(Number(merged.pageSize)) ? Number(merged.pageSize) : 25;
     return merged;
   }
 
@@ -300,6 +330,9 @@
     rootStyle.fontSize = `${16 * Number(next.fontScale || 1)}px`;
     document.documentElement.classList.toggle('reduced-motion', !!next.reducedMotion);
     document.documentElement.classList.toggle('high-contrast', !!next.highContrast);
+    document.documentElement.classList.toggle('custom-app-background', !!next.backgroundEnabled && !!String(next.backgroundUrl || '').trim());
+    rootStyle.setProperty('--app-background-image', next.backgroundEnabled && next.backgroundUrl ? `url("${String(next.backgroundUrl).replace(/"/g, '%22')}")` : 'none');
+    rootStyle.setProperty('--app-background-opacity', String(Math.max(0, Math.min(0.45, Number(next.backgroundOpacity ?? 0.12)))));
     document.documentElement.dataset.themePreset = next.preset || 'custom';
     state.displaySettings = next;
   }
@@ -742,6 +775,7 @@
 
   function renderDashboard() {
     const isTeacher = guideRoleKey() === 'ครู';
+    if (state.tab === 'all' && !state.calendarFilter) state.calendarFilter = currentMonthCalendarFilter_();
     root.innerHTML = `
       <div class="app-shell">
         <header class="topbar">
@@ -771,6 +805,7 @@
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
               ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สรุปการรับทราบสำหรับส่ง LINE" title="สรุปการรับทราบสำหรับส่ง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
               <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
+              <button id="calendar-sort-btn" class="btn calendar-sort-btn" type="button" aria-label="จัดเรียงเอกสารตามปฏิทิน" title="จัดเรียงตามปฏิทิน">📅 <span>จัดเรียงตามปฏิทิน</span></button>
             </div>
             <div class="flex gap-2 items-center">
               <input id="search-input" class="input w-64 max-w-full" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง">
@@ -788,12 +823,14 @@
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
               <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
               ${isTeacher ? `<button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button><button class="tab-button ${state.tab === 'completed' ? 'active' : ''}" data-tab="completed">ดำเนินการเสร็จสิ้น (${state.completedDocs.length})</button>` : ''}
-              ${!isTeacher ? `<button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>` : ''}
+              <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
               ${!isTeacher ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
             </div>
             <div id="workflow-mascot-slot" class="workflow-mascot-slot">${workflowMascotMarkup()}</div>
           </div>
+          <div id="calendar-active-filter"></div>
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
+          <div id="document-pagination" class="document-pagination"></div>
         </main>
       </div>`;
 
@@ -820,11 +857,17 @@
     const documentManageBtn = document.getElementById('document-manage-btn');
     if (documentManageBtn) documentManageBtn.onclick = openDocumentManagementMenu;
     document.getElementById('meeting-module-btn').onclick = openMeetingModule;
+    document.getElementById('calendar-sort-btn').onclick = openCalendarSortModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
-      button.onclick = () => { state.tab = button.dataset.tab; renderDashboard(); };
+      button.onclick = () => {
+        state.tab = button.dataset.tab;
+        state.documentPage = 1;
+        if (state.tab === 'all' && !state.calendarFilter) state.calendarFilter = currentMonthCalendarFilter_();
+        renderDashboard();
+      };
     });
-    document.getElementById('search-input').addEventListener('input', renderDocumentRows);
-    document.getElementById('doc-filter').addEventListener('change', renderDocumentRows);
+    document.getElementById('search-input').addEventListener('input', () => { state.documentPage = 1; renderDocumentRows(); });
+    document.getElementById('doc-filter').addEventListener('change', () => { state.documentPage = 1; renderDocumentRows(); });
     renderDocumentRows();
   }
 
@@ -854,6 +897,196 @@
     });
   }
 
+
+  function bangkokDateParts_(value) {
+    const date = value instanceof Date ? value : new Date(value || Date.now());
+    if (Number.isNaN(date.getTime())) return null;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Bangkok',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const map = {};
+    parts.forEach((part) => { if (part.type !== 'literal') map[part.type] = part.value; });
+    return {
+      year: Number(map.year),
+      month: Number(map.month),
+      day: Number(map.day),
+      key: `${map.year}-${map.month}-${map.day}`,
+      monthKey: `${map.year}-${map.month}`,
+    };
+  }
+
+  function currentMonthCalendarFilter_() {
+    const parts = bangkokDateParts_(new Date()) || { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    return { mode: 'month', year: parts.year, month: parts.month };
+  }
+
+  function addUtcDaysToYmd_(ymd, delta) {
+    const match = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return '';
+    const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + Number(delta || 0)));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  function weekRangeFromYmd_(ymd) {
+    const match = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const d = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    const day = d.getUTCDay() || 7; // Monday=1 ... Sunday=7
+    const start = addUtcDaysToYmd_(ymd, 1 - day);
+    const end = addUtcDaysToYmd_(start, 6);
+    return { start, end };
+  }
+
+  function filterDocumentsByCalendar_(documents) {
+    const docs = [...(documents || [])];
+    if (state.tab !== 'all') return docs;
+    const filter = state.calendarFilter || currentMonthCalendarFilter_();
+    return docs.filter((doc) => {
+      const parts = bangkokDateParts_(doc.createdAt || doc.updatedAt);
+      if (!parts) return false;
+      if (filter.mode === 'year') return parts.year === Number(filter.year);
+      if (filter.mode === 'week') {
+        const range = weekRangeFromYmd_(filter.anchor);
+        return !!range && parts.key >= range.start && parts.key <= range.end;
+      }
+      return parts.year === Number(filter.year) && parts.month === Number(filter.month);
+    });
+  }
+
+  function thaiMonthName_(month) {
+    return ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'][Number(month) - 1] || '';
+  }
+
+  function calendarFilterLabel_() {
+    const filter = state.calendarFilter || currentMonthCalendarFilter_();
+    if (filter.mode === 'year') return `รายปี พ.ศ. ${Number(filter.year) + 543}`;
+    if (filter.mode === 'week') {
+      const range = weekRangeFromYmd_(filter.anchor);
+      if (!range) return 'รายสัปดาห์';
+      const [sy, sm, sd] = range.start.split('-').map(Number);
+      const [ey, em, ed] = range.end.split('-').map(Number);
+      return `รายสัปดาห์ ${sd} ${thaiMonthName_(sm)} ${sy + 543} – ${ed} ${thaiMonthName_(em)} ${ey + 543}`;
+    }
+    return `รายเดือน ${thaiMonthName_(filter.month)} ${Number(filter.year) + 543}`;
+  }
+
+  function renderCalendarActiveFilter_() {
+    const host = document.getElementById('calendar-active-filter');
+    if (!host) return;
+    if (state.tab !== 'all') {
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = `<div class="calendar-filter-chip"><span>📅 ${escapeHtml(calendarFilterLabel_())}</span><button id="calendar-change-filter" type="button">เปลี่ยนช่วง</button></div>`;
+    document.getElementById('calendar-change-filter')?.addEventListener('click', openCalendarSortModal);
+  }
+
+  async function openCalendarSortModal() {
+    const allDocs = state.allDocs || [];
+    const years = Array.from(new Set(allDocs.map((doc) => bangkokDateParts_(doc.createdAt || doc.updatedAt)?.year).filter(Boolean))).sort((a, b) => b - a);
+    const nowParts = bangkokDateParts_(new Date());
+    if (nowParts && !years.includes(nowParts.year)) years.unshift(nowParts.year);
+    const current = state.calendarFilter || currentMonthCalendarFilter_();
+    const defaultAnchor = current.mode === 'week' && current.anchor ? current.anchor : (nowParts?.key || new Date().toISOString().slice(0, 10));
+    const defaultMonth = `${Number(current.year || nowParts.year)}-${String(Number(current.month || nowParts.month)).padStart(2, '0')}`;
+    const defaultYear = Number(current.year || nowParts.year);
+    let selectedMode = current.mode || 'month';
+
+    const result = await Swal.fire({
+      title: '📅 จัดเรียงตามปฏิทิน',
+      html: `<div class="calendar-sort-dialog">
+        <div class="calendar-mode-buttons">
+          <button type="button" data-calendar-mode="week">รายสัปดาห์</button>
+          <button type="button" data-calendar-mode="month">รายเดือน</button>
+          <button type="button" data-calendar-mode="year">รายปี</button>
+        </div>
+        <div id="calendar-sort-input-host"></div>
+        <p class="calendar-sort-note">เอกสารจะอ้างอิงวันที่ลงรับ และจดหมายทั้งหมดจะแสดงรายเดือนเป็นค่าเริ่มต้น</p>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'แสดงเอกสาร',
+      cancelButtonText: 'ยกเลิก',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const host = popup.querySelector('#calendar-sort-input-host');
+        const buttons = [...popup.querySelectorAll('[data-calendar-mode]')];
+        const renderInput = () => {
+          buttons.forEach((button) => button.classList.toggle('active', button.dataset.calendarMode === selectedMode));
+          if (selectedMode === 'week') {
+            host.innerHTML = `<label>เลือกวันที่ในสัปดาห์<input id="calendar-week-anchor" type="date" class="input" value="${escapeHtml(defaultAnchor)}"></label>`;
+          } else if (selectedMode === 'year') {
+            host.innerHTML = `<label>เลือกปี<select id="calendar-year" class="input">${years.map((year) => `<option value="${year}" ${year === defaultYear ? 'selected' : ''}>พ.ศ. ${year + 543}</option>`).join('')}</select></label>`;
+          } else {
+            host.innerHTML = `<label>เลือกเดือน<input id="calendar-month" type="month" class="input" value="${escapeHtml(defaultMonth)}"></label>`;
+          }
+        };
+        buttons.forEach((button) => button.addEventListener('click', () => {
+          selectedMode = button.dataset.calendarMode;
+          renderInput();
+        }));
+        renderInput();
+      },
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        if (selectedMode === 'week') {
+          const anchor = popup.querySelector('#calendar-week-anchor')?.value || '';
+          if (!anchor) {
+            Swal.showValidationMessage('กรุณาเลือกวันที่');
+            return false;
+          }
+          return { mode: 'week', anchor };
+        }
+        if (selectedMode === 'year') {
+          return { mode: 'year', year: Number(popup.querySelector('#calendar-year')?.value || defaultYear) };
+        }
+        const monthValue = popup.querySelector('#calendar-month')?.value || '';
+        const match = monthValue.match(/^(\d{4})-(\d{2})$/);
+        if (!match) {
+          Swal.showValidationMessage('กรุณาเลือกเดือน');
+          return false;
+        }
+        return { mode: 'month', year: Number(match[1]), month: Number(match[2]) };
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    state.calendarFilter = result.value;
+    state.tab = 'all';
+    state.documentPage = 1;
+    renderDashboard();
+  }
+
+  function renderDocumentPagination_(totalCount) {
+    const host = document.getElementById('document-pagination');
+    if (!host) return;
+    const pageSize = Number(state.displaySettings?.pageSize || 25);
+    const totalPages = Math.max(1, Math.ceil(Number(totalCount || 0) / pageSize));
+    state.documentPage = Math.max(1, Math.min(totalPages, Number(state.documentPage || 1)));
+    if (totalPages <= 1) {
+      host.innerHTML = totalCount ? `<span class="pagination-info">แสดง ${totalCount} รายการ</span>` : '';
+      return;
+    }
+    const visible = [];
+    const start = Math.max(1, state.documentPage - 2);
+    const end = Math.min(totalPages, state.documentPage + 2);
+    for (let page = start; page <= end; page += 1) visible.push(page);
+    host.innerHTML = `<button type="button" class="btn-page" data-doc-page="${state.documentPage - 1}" ${state.documentPage <= 1 ? 'disabled' : ''}>← ก่อนหน้า</button>
+      ${visible.map((page) => `<button type="button" class="btn-page ${page === state.documentPage ? 'active' : ''}" data-doc-page="${page}">${page}</button>`).join('')}
+      <button type="button" class="btn-page" data-doc-page="${state.documentPage + 1}" ${state.documentPage >= totalPages ? 'disabled' : ''}>ถัดไป →</button>
+      <span class="pagination-info">หน้า ${state.documentPage}/${totalPages} · ${totalCount} รายการ</span>`;
+    host.querySelectorAll('[data-doc-page]').forEach((button) => {
+      button.onclick = () => {
+        const page = Number(button.dataset.docPage);
+        if (!Number.isFinite(page) || page < 1 || page > totalPages) return;
+        state.documentPage = page;
+        renderDocumentRows();
+        document.querySelector('.table-wrap')?.scrollIntoView({ behavior: state.displaySettings?.reducedMotion ? 'auto' : 'smooth', block: 'start' });
+      };
+    });
+  }
+
   function acknowledgementButtonClass(doc) {
     const circular = doc?.dispatchMode === 'เวียนคณะครู' || doc?.dispatchType === 'เวียนคณะครู';
     const urgent = doc?.priority === 'ด่วน';
@@ -869,7 +1102,8 @@
     const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
     const filter = document.getElementById('doc-filter')?.value || 'all';
     let sourceDocs = currentDocuments();
-    if (state.tab === 'all') sourceDocs = sortDocumentsByReceiveNumberDesc(sourceDocs);
+    if (state.tab === 'all') sourceDocs = sortDocumentsByReceiveNumberDesc(filterDocumentsByCalendar_(sourceDocs));
+    renderCalendarActiveFilter_();
     let docs = sourceDocs.filter((doc) => {
       const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''} ${doc.priority || ''} ${doc.dispatchMode || ''}`.toLowerCase();
       if (query && !text.includes(query)) return false;
@@ -880,10 +1114,16 @@
       if (filter === 'complete') return doc.recipientCount > 0 && doc.ackCount === doc.recipientCount;
       return true;
     });
+    const totalFiltered = docs.length;
+    renderDocumentPagination_(totalFiltered);
     if (!docs.length) {
       tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-8">ไม่มีเอกสารในรายการนี้</td></tr>';
       return;
     }
+    const pageSize = Number(state.displaySettings?.pageSize || 25);
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+    state.documentPage = Math.max(1, Math.min(totalPages, Number(state.documentPage || 1)));
+    docs = docs.slice((state.documentPage - 1) * pageSize, state.documentPage * pageSize);
     tbody.innerHTML = docs.map((doc) => {
       const isAckComplete = Number(doc.recipientCount || 0) > 0 && Number(doc.ackCount || 0) >= Number(doc.recipientCount || 0);
       const showAckCompletionColor = ['inbox', 'acknowledged', 'completed', 'all'].includes(state.tab);
@@ -911,12 +1151,15 @@
       const replaceButton = isClericalUser()
         ? `<button class="btn btn-warning text-xs replace-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">เปลี่ยน PDF</button>`
         : '';
+      const reminderButton = isClericalUser() && recipientCount
+        ? `<button class="btn btn-reminder text-xs reminder-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">🔔 ส่งการแจ้งเตือน</button>`
+        : '';
       return `<tr>
         <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
         <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
         <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}</div><div class="mt-2">${recipientText}</div></td>
-        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${completeButton}${waitingMessage}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
+        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${completeButton}${waitingMessage}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
 
@@ -927,6 +1170,7 @@
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
     tbody.querySelectorAll('.replace-doc-btn').forEach((button) => button.onclick = () => openReplaceDocumentModal(button.dataset.docId));
+    tbody.querySelectorAll('.reminder-doc-btn').forEach((button) => button.onclick = () => openDocumentReminderModal(button.dataset.docId));
   }
 
 
@@ -1537,6 +1781,52 @@
     Swal.fire({ title: 'สถานะการรับทราบและดำเนินการ', html: `<div class="text-left max-h-80 overflow-auto">${html}</div>`, confirmButtonText: 'ปิด' });
   }
 
+
+  async function openDocumentReminderModal(docId) {
+    if (!isClericalUser()) return;
+    const doc = findDoc(docId);
+    if (!doc) return;
+    const recipients = Array.isArray(doc.recipients) ? doc.recipients : [];
+    if (!recipients.length) {
+      Swal.fire('ยังไม่มีผู้รับ', 'เอกสารฉบับนี้ยังไม่ได้ส่งให้ผู้รับ', 'info');
+      return;
+    }
+    const result = await Swal.fire({
+      title: '🔔 ส่งการแจ้งเตือน',
+      html: `<div class="reminder-recipient-list">
+        <p>เลือกผู้รับที่ต้องการส่ง Web Push เตือนให้เปิดเอกสาร</p>
+        <div class="reminder-actions"><button type="button" id="reminder-select-pending">เลือกผู้ยังไม่รับทราบ</button><button type="button" id="reminder-select-all">เลือกทั้งหมด</button></div>
+        <div class="reminder-checkboxes">${recipients.map((item) => `<label><input type="checkbox" value="${escapeHtml(item.userId)}" ${item.acknowledgedAt ? '' : 'checked'}><span><b>${escapeHtml(item.name)}</b><small>${item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ'}${item.completedAt ? ' · ดำเนินการเสร็จแล้ว' : ''}</small></span></label>`).join('')}</div>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'ส่งการแจ้งเตือน',
+      cancelButtonText: 'ยกเลิก',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        const checks = () => [...popup.querySelectorAll('.reminder-checkboxes input')];
+        popup.querySelector('#reminder-select-pending').onclick = () => {
+          const pending = new Set(recipients.filter((item) => !item.acknowledgedAt).map((item) => item.userId));
+          checks().forEach((input) => { input.checked = pending.has(input.value); });
+        };
+        popup.querySelector('#reminder-select-all').onclick = () => checks().forEach((input) => { input.checked = true; });
+      },
+      preConfirm: () => {
+        const ids = [...Swal.getPopup().querySelectorAll('.reminder-checkboxes input:checked')].map((input) => input.value);
+        if (!ids.length) {
+          Swal.showValidationMessage('กรุณาเลือกผู้รับอย่างน้อย 1 คน');
+          return false;
+        }
+        return ids;
+      },
+    });
+    if (!result.isConfirmed || !result.value) return;
+    loading('กำลังส่งการแจ้งเตือน...');
+    try {
+      const response = await gasCall('sendDocumentReminder', state.token, docId, result.value);
+      Swal.fire('ส่งแล้ว', `ส่ง Web Push ไปยังผู้รับที่พร้อมรับแจ้งเตือน ${Number(response.result?.sent || 0)} คน`, 'success');
+    } catch (error) { showError(error); }
+  }
+
   function openAttachments(docId) {
     const doc = findDoc(docId);
     if (!doc) return;
@@ -1709,7 +1999,7 @@
   function renderWorkspace() {
     const doc = state.currentDoc;
     const permissions = state.currentPermissions || {};
-    const role = permissions.role || guideRoleKey();
+    const role = permissions.actingRole || permissions.role || guideRoleKey();
     const canStamp = permissions.canStamp === true;
     const showDispatch = permissions.canDispatch === true;
     const accessLabel = canStamp
@@ -2658,6 +2948,7 @@
   function collectStampMeta() {
     const meta = {
       role: state.user.role,
+      actingRole: state.currentPermissions?.actingRole || state.currentPermissions?.role || state.user.role,
       operationMode: state.currentDoc?.operationMode || '',
       options: [],
       department: '',
@@ -3026,7 +3317,7 @@
       account: `<section class="settings-content-section"><h2>👤 บัญชีของฉัน</h2><p class="settings-lead">ข้อมูลบัญชีที่อ่านจากชีต Users</p><div class="settings-info-grid"><div><span>ชื่อ</span><b>${escapeHtml(user.name)}</b></div><div><span>ชื่อผู้ใช้</span><b>${escapeHtml(user.username)}</b></div><div><span>บทบาท</span><b>${escapeHtml(user.role)}</b></div><div><span>ฝ่าย/งาน</span><b>${escapeHtml(user.department || 'ยังไม่ระบุ')}</b></div><div><span>อีเมล</span><b>${escapeHtml(user.email || 'ยังไม่ระบุ')}</b></div><div><span>ลายเซ็น</span><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าแล้ว' : 'ยังไม่ตั้งค่า'}</b></div></div></section>`,
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
-      display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-toggle-list"><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
+      display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-background-block"><h3>พื้นหลังหน้าเว็บ</h3><label class="switch-row"><span>เปิดภาพพื้นหลัง</span><input id="display-background-enabled" type="checkbox" ${display.backgroundEnabled ? 'checked' : ''}></label><label>URL รูปภาพพื้นหลัง<input id="display-background-url" class="input" placeholder="https://..." value="${escapeHtml(display.backgroundUrl || '')}"></label><label>ความเข้มพื้นหลัง<input id="display-background-opacity" type="range" min="0" max="0.45" step="0.01" value="${Number(display.backgroundOpacity ?? 0.12)}"></label><p class="text-xs text-slate-500">ระบบใช้ภาพพื้นหลังแบบ fixed layer เพียงชั้นเดียว ไม่ทำ animation เพื่อช่วยลดอาการหน่วง</p></div><div class="settings-toggle-list"><label>จำนวนเอกสารต่อหน้า<select id="display-page-size" class="input"><option value="15" ${display.pageSize === 15 ? 'selected' : ''}>15 รายการ</option><option value="25" ${display.pageSize === 25 ? 'selected' : ''}>25 รายการ</option><option value="50" ${display.pageSize === 50 ? 'selected' : ''}>50 รายการ</option><option value="100" ${display.pageSize === 100 ? 'selected' : ''}>100 รายการ</option></select></label><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
       workflowMascot: `<section class="settings-content-section"><h2>🐥 มาสคอตแจ้งเตือนงาน</h2><p class="settings-lead">สำหรับครู รองผู้อำนวยการ และผู้อำนวยการ สามารถซ่อนหรือแสดงเป็ด กระต่าย หมี และแพนด้าได้ตามต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>แสดงมาสคอตแจ้งเตือนงาน</b><small>เมื่อปิด มาสคอตจะไม่แสดงบนหน้ารายการเอกสาร แต่จำนวนงานและการแจ้งเตือนอื่นยังทำงานตามปกติ</small></span><input id="workflow-mascot-enabled" type="checkbox" ${workflowMascot.enabled ? 'checked' : ''}></label><div class="mascot-preview-box"><b>ตัวอย่างมาสคอต</b><div class="mascot-settings-preview"><span title="เป็ดแจ้งงานใหม่">${mascotArt('duck')}</span><span title="กระต่ายบันทึกสำเร็จ">${mascotArt('bunny')}</span><span title="หมีงานเสร็จแล้ว">${mascotArt('bear')}</span><span title="แพนด้าพักสายตา">${mascotArt('panda')}</span></div><small>การตั้งค่านี้บันทึกแยกตามชื่อผู้ใช้ใน Browser เครื่องที่กำลังใช้งาน</small></div></div><div class="settings-actions"><button id="reset-workflow-mascot-settings" class="btn btn-muted" type="button">เปิดค่าเริ่มต้น</button><button id="save-workflow-mascot-settings" class="btn btn-primary" type="button">บันทึกการตั้งค่า</button></div></section>`,
       mascots: `<section class="settings-content-section"><h2>🎀 มาสคอตและตัวละคร</h2><p class="settings-lead">แสดงเฉพาะบัญชีที่มีบทบาท “ธุรการ” เลือกตัวละครได้สูงสุด 10 ตัว และเลือกตำแหน่งที่ต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>เปิดใช้งานมาสคอต</b><small>ปิดได้ทุกเมื่อหากต้องการหน้าเว็บแบบเรียบ</small></span><input id="mascot-enabled" type="checkbox" ${(state.mascotSettings || loadMascotSettings()).enabled ? 'checked' : ''}></label><div class="mascot-settings-block"><h3>เลือกตัวละคร <small>เลือกได้ไม่เกิน 10 ตัว</small></h3><div id="mascot-choice-grid" class="mascot-choice-grid">${ADMIN_MASCOT_CATALOG.map((item) => `<label class="mascot-choice-card"><input type="checkbox" value="${item.id}" ${(state.mascotSettings || loadMascotSettings()).selected.includes(item.id) ? 'checked' : ''}><span class="mascot-choice-icon">${item.icon}</span><b>${escapeHtml(item.name)}</b></label>`).join('')}</div></div><div class="mascot-settings-options"><fieldset><legend>ตำแหน่งแสดงผล</legend><label><input type="radio" name="mascotPosition" value="top" ${(state.mascotSettings || loadMascotSettings()).position === 'top' ? 'checked' : ''}> วิ่งบริเวณด้านบนของหน้าเว็บ</label><label><input type="radio" name="mascotPosition" value="page" ${(state.mascotSettings || loadMascotSettings()).position === 'page' ? 'checked' : ''}> วิ่งภายในพื้นที่หน้าเว็บ</label></fieldset><label>ความเร็ว<select id="mascot-speed" class="input"><option value="slow" ${(state.mascotSettings || loadMascotSettings()).speed === 'slow' ? 'selected' : ''}>ช้า</option><option value="normal" ${(state.mascotSettings || loadMascotSettings()).speed === 'normal' ? 'selected' : ''}>ปกติ</option><option value="fast" ${(state.mascotSettings || loadMascotSettings()).speed === 'fast' ? 'selected' : ''}>เร็ว</option></select></label></div><div class="mascot-preview-box"><b>ตัวอย่างที่เลือก</b><div id="mascot-settings-preview" class="mascot-settings-preview"></div><small>เมื่อแตะตัวละครในหน้าเว็บ จะสุ่มแอนิเมชันและแสดงหัวใจ ดาว หรือข้อความสั้น ๆ</small></div></div><div class="settings-actions"><button id="reset-mascot-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-mascot-settings" class="btn btn-primary" type="button">บันทึกมาสคอต</button></div></section>`,
       users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
@@ -3118,6 +3409,10 @@
           overlay.querySelectorAll('[data-theme-preset]').forEach((item) => item.classList.toggle('selected', item === button));
           updateThemePreview();
         });
+        overlay.querySelector('#display-page-size').onchange = (event) => { displayDraft.pageSize = Number(event.target.value); state.documentPage = 1; };
+        overlay.querySelector('#display-background-enabled').onchange = (event) => { displayDraft.backgroundEnabled = event.target.checked; updateThemePreview(); };
+        overlay.querySelector('#display-background-url').onchange = (event) => { displayDraft.backgroundUrl = String(event.target.value || '').trim(); updateThemePreview(); };
+        overlay.querySelector('#display-background-opacity').oninput = (event) => { displayDraft.backgroundOpacity = Number(event.target.value); updateThemePreview(); };
         overlay.querySelector('#display-font-scale').onchange = (event) => { displayDraft.fontScale = Number(event.target.value); updateThemePreview(); };
         overlay.querySelector('#display-reduced-motion').onchange = (event) => { displayDraft.reducedMotion = event.target.checked; updateThemePreview(); };
         overlay.querySelector('#display-high-contrast').onchange = (event) => { displayDraft.highContrast = event.target.checked; updateThemePreview(); };
@@ -4195,7 +4490,10 @@
     const details = state.currentMeetingDetails;
     const meeting = details.meeting;
     if (!details.permissions.canEdit) return '';
-    const role = guideRoleKey();
+    let role = guideRoleKey();
+    if (role === 'ผู้ดูแลระบบสารบรรณ') {
+      role = details.permissions?.currentRole || meeting.currentRole || 'ธุรการ';
+    }
     if (role === 'ธุรการ') {
       const returned = ['ส่งคืนธุรการ'].includes(meeting.status);
       return `<div class="card meeting-workflow-card"><div><b>ขั้นตอนถัดไปของธุรการ</b><p>${returned ? 'ตรวจข้อความพร้อมคัดลอก แล้วเปลี่ยนเป็นสถานะรออัปโหลด PDF' : 'ตรวจร่างครบแล้วจึงส่งให้รองผู้อำนวยการ'}</p></div><div>${returned ? '<button class="btn btn-primary meeting-transition-btn" data-transition="CLERK_WAITING_PDF">พร้อมจัดทำ/อัปโหลด PDF</button>' : '<button class="btn btn-primary meeting-transition-btn" data-transition="CLERK_TO_DEPUTY">ส่งให้รองผู้อำนวยการตรวจและแก้ไข</button>'}</div></div>`;
