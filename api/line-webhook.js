@@ -1,75 +1,92 @@
 import crypto from "node:crypto";
 
-function secureEqual(a, b) {
-  const aBuf = Buffer.from(a || "", "utf8");
-  const bBuf = Buffer.from(b || "", "utf8");
-  if (aBuf.length !== bBuf.length) return false;
-  return crypto.timingSafeEqual(aBuf, bBuf);
+function hasEnv(name) {
+  return typeof process.env[name] === "string" && process.env[name].trim() !== "";
 }
 
-export async function POST(request) {
-  const channelSecret = process.env.LINE_CHANNEL_SECRET;
-  const gasWebhookUrl = process.env.GAS_LINE_WEBHOOK_URL;
-
-  if (!channelSecret || !gasWebhookUrl) {
-    console.error("Missing LINE_CHANNEL_SECRET or GAS_LINE_WEBHOOK_URL");
-    return new Response("Server configuration missing", { status: 500 });
-  }
-
-  // LINE signature verification MUST use the exact raw request body.
-  const rawBody = await request.text();
-  const lineSignature = request.headers.get("x-line-signature") || "";
-
-  const expectedSignature = crypto
+function verifyLineSignature(rawBody, receivedSignature, channelSecret) {
+  const expected = crypto
     .createHmac("sha256", channelSecret)
     .update(rawBody, "utf8")
     .digest("base64");
 
-  if (!secureEqual(lineSignature, expectedSignature)) {
-    console.warn("Invalid LINE signature");
-    return new Response("Invalid signature", { status: 401 });
-  }
-
-  try {
-    // Forward the exact LINE JSON body to Google Apps Script.
-    // fetch() follows Google's ContentService redirects automatically.
-    const gasResponse = await fetch(gasWebhookUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-line-signature": lineSignature,
-        "x-wmk-relay": "vercel-line-webhook-v3.8.1"
-      },
-      body: rawBody,
-      redirect: "follow"
-    });
-
-    const responseText = await gasResponse.text().catch(() => "");
-
-    if (!gasResponse.ok) {
-      console.error(
-        "Google Apps Script relay failed:",
-        gasResponse.status,
-        responseText.slice(0, 500)
-      );
-      return new Response("Upstream webhook failed", { status: 502 });
-    }
-
-    // LINE requires an HTTP 200 response.
-    return new Response("OK", {
-      status: 200,
-      headers: { "content-type": "text/plain; charset=utf-8" }
-    });
-  } catch (error) {
-    console.error("Webhook relay error:", error);
-    return new Response("Webhook relay error", { status: 502 });
-  }
+  const a = Buffer.from(receivedSignature || "", "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export function GET() {
-  // Useful for checking that the Vercel route exists in a browser.
-  return new Response("WMK LINE webhook relay is running", {
-    status: 200,
-    headers: { "content-type": "text/plain; charset=utf-8" }
-  });
+export async function GET() {
+  // Shows only whether variables exist; never reveals secret values.
+  const status = {
+    relay: "running",
+    LINE_CHANNEL_SECRET: hasEnv("LINE_CHANNEL_SECRET") ? "SET" : "MISSING",
+    GAS_LINE_WEBHOOK_URL: hasEnv("GAS_LINE_WEBHOOK_URL") ? "SET" : "MISSING"
+  };
+  return Response.json(status, { status: 200 });
+}
+
+export async function POST(request) {
+  try {
+    if (!hasEnv("LINE_CHANNEL_SECRET") || !hasEnv("GAS_LINE_WEBHOOK_URL")) {
+      console.error("Missing required environment variables", {
+        LINE_CHANNEL_SECRET: hasEnv("LINE_CHANNEL_SECRET"),
+        GAS_LINE_WEBHOOK_URL: hasEnv("GAS_LINE_WEBHOOK_URL")
+      });
+      return new Response("Missing server configuration", { status: 500 });
+    }
+
+    const rawBody = await request.text();
+    const receivedSignature = request.headers.get("x-line-signature") || "";
+
+    if (!verifyLineSignature(rawBody, receivedSignature, process.env.LINE_CHANNEL_SECRET)) {
+      console.error("LINE signature verification failed");
+      return new Response("Invalid signature", { status: 401 });
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+
+    // LINE's Verify button sends events: [].
+    // Returning 200 here avoids an unnecessary Apps Script round trip.
+    if (Array.isArray(payload.events) && payload.events.length === 0) {
+      return new Response("OK", { status: 200 });
+    }
+
+    // Real webhook event: forward to Apps Script so it can capture groupId.
+    try {
+      const upstream = await fetch(process.env.GAS_LINE_WEBHOOK_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "x-line-signature": receivedSignature,
+          "x-wmk-relay": "vercel-line-webhook-v3.8.2"
+        },
+        body: rawBody,
+        redirect: "follow"
+      });
+
+      const upstreamText = await upstream.text().catch(() => "");
+
+      // Log upstream trouble, but acknowledge LINE after a valid signed webhook.
+      // LINE recommends quick 200 responses; processing can be asynchronous.
+      if (!upstream.ok) {
+        console.error("Apps Script upstream returned non-2xx", {
+          status: upstream.status,
+          preview: upstreamText.slice(0, 300)
+        });
+      }
+
+      return new Response("OK", { status: 200 });
+    } catch (err) {
+      console.error("Apps Script forwarding error", err);
+      return new Response("OK", { status: 200 });
+    }
+  } catch (err) {
+    console.error("Unhandled LINE webhook error", err);
+    return new Response("Internal Server Error", { status: 500 });
+  }
 }
