@@ -16,22 +16,17 @@ function verifyLineSignature(rawBody, receivedSignature, channelSecret) {
 }
 
 export async function GET() {
-  // Shows only whether variables exist; never reveals secret values.
-  const status = {
+  return Response.json({
     relay: "running",
     LINE_CHANNEL_SECRET: hasEnv("LINE_CHANNEL_SECRET") ? "SET" : "MISSING",
-    GAS_LINE_WEBHOOK_URL: hasEnv("GAS_LINE_WEBHOOK_URL") ? "SET" : "MISSING"
-  };
-  return Response.json(status, { status: 200 });
+    mode: "capture-group-id"
+  }, { status: 200 });
 }
 
 export async function POST(request) {
   try {
-    if (!hasEnv("LINE_CHANNEL_SECRET") || !hasEnv("GAS_LINE_WEBHOOK_URL")) {
-      console.error("Missing required environment variables", {
-        LINE_CHANNEL_SECRET: hasEnv("LINE_CHANNEL_SECRET"),
-        GAS_LINE_WEBHOOK_URL: hasEnv("GAS_LINE_WEBHOOK_URL")
-      });
+    if (!hasEnv("LINE_CHANNEL_SECRET")) {
+      console.error("Missing LINE_CHANNEL_SECRET");
       return new Response("Missing server configuration", { status: 500 });
     }
 
@@ -50,41 +45,22 @@ export async function POST(request) {
       return new Response("Invalid JSON", { status: 400 });
     }
 
-    // LINE's Verify button sends events: [].
-    // Returning 200 here avoids an unnecessary Apps Script round trip.
-    if (Array.isArray(payload.events) && payload.events.length === 0) {
+    const events = Array.isArray(payload.events) ? payload.events : [];
+
+    // LINE Verify sends an empty events array.
+    if (events.length === 0) {
       return new Response("OK", { status: 200 });
     }
 
-    // Real webhook event: forward to Apps Script so it can capture groupId.
-    try {
-      const upstream = await fetch(process.env.GAS_LINE_WEBHOOK_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json; charset=utf-8",
-          "x-line-signature": receivedSignature,
-          "x-wmk-relay": "vercel-line-webhook-v3.8.2"
-        },
-        body: rawBody,
-        redirect: "follow"
-      });
-
-      const upstreamText = await upstream.text().catch(() => "");
-
-      // Log upstream trouble, but acknowledge LINE after a valid signed webhook.
-      // LINE recommends quick 200 responses; processing can be asynchronous.
-      if (!upstream.ok) {
-        console.error("Apps Script upstream returned non-2xx", {
-          status: upstream.status,
-          preview: upstreamText.slice(0, 300)
-        });
+    for (const event of events) {
+      const source = event && event.source ? event.source : {};
+      if (source.type === "group" && source.groupId) {
+        // Intentionally log only the groupId for manual one-time setup.
+        console.log("WMK_LINE_GROUP_ID_CAPTURED:", source.groupId);
       }
-
-      return new Response("OK", { status: 200 });
-    } catch (err) {
-      console.error("Apps Script forwarding error", err);
-      return new Response("OK", { status: 200 });
     }
+
+    return new Response("OK", { status: 200 });
   } catch (err) {
     console.error("Unhandled LINE webhook error", err);
     return new Response("Internal Server Error", { status: 500 });
