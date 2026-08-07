@@ -464,7 +464,6 @@ button, input, select, textarea { font: inherit; }
 body,
 .app-shell {
   background: linear-gradient(145deg, var(--app-primary-soft), #ffffff 48%, var(--app-secondary-soft));
-  background-attachment: fixed;
 }
 .topbar { background: linear-gradient(135deg, var(--app-primary-dark), var(--app-primary) 58%, var(--app-secondary)); }
 .card,
@@ -2411,3 +2410,133 @@ html[data-theme-preset="dark"] .workflow-mascot-bubble b { color:#fbbf24; }
   .web-push-guide-grid { grid-template-columns: 1fr; }
   .web-push-header-btn { width: 38px; height: 38px; }
 }
+
+
+/* ==================== รุ่น 3.8.0 ปฏิทิน / หลายหน้า / พื้นหลังเบา / แจ้งเตือน ==================== */
+:root {
+  --app-background-image: none;
+  --app-background-opacity: .12;
+}
+
+/* ใช้ fixed pseudo layer เพียงชั้นเดียว ไม่มี animation เพื่อลด repaint ตอนเลื่อน */
+html.custom-app-background body {
+  position: relative;
+  background: transparent !important;
+}
+html.custom-app-background body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,calc(1 - var(--app-background-opacity))), rgba(255,255,255,calc(1 - var(--app-background-opacity)))),
+    var(--app-background-image);
+  background-repeat: no-repeat, no-repeat;
+  background-position: center, center;
+  background-size: cover, cover;
+  transform: translateZ(0);
+}
+html.custom-app-background #app-root {
+  position: relative;
+  z-index: 1;
+}
+html.custom-app-background .app-shell { background: transparent; }
+html.custom-app-background .card,
+html.custom-app-background .table-wrap,
+html.custom-app-background .meeting-shell { backdrop-filter: none; }
+
+.settings-background-block {
+  margin-top: 1.15rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #f8fafc;
+  display: grid;
+  gap: .75rem;
+}
+.settings-background-block label:not(.switch-row) { display:grid; gap:.4rem; font-weight:700; color:#334155; }
+.settings-background-block input[type='range'] { width:100%; }
+
+.calendar-sort-btn {
+  background: #fff;
+  color: var(--app-primary-dark);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 28%, #e2e8f0);
+  font-weight: 800;
+}
+.calendar-sort-btn:hover { background: var(--app-primary-soft); }
+.calendar-sort-dialog { display:grid; gap:1rem; text-align:left; }
+.calendar-sort-dialog h3 { margin:0; color:var(--app-primary-dark); }
+.calendar-mode-buttons { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; }
+.calendar-mode-buttons .btn.active { background:var(--app-primary); color:#fff; }
+.calendar-picker-panel { display:grid; gap:.65rem; padding:1rem; border:1px solid #e2e8f0; border-radius:1rem; background:#f8fafc; }
+.calendar-picker-panel label { display:grid; gap:.4rem; font-weight:800; color:#334155; }
+.calendar-filter-chip {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  margin: .5rem 0 1rem;
+  padding:.7rem .9rem;
+  border-radius:.9rem;
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+  color:#1e40af;
+  font-weight:800;
+}
+.calendar-filter-chip .btn { padding:.4rem .7rem; font-size:.8rem; }
+
+.document-pagination {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:.4rem;
+  padding:1rem .5rem .25rem;
+}
+.document-pagination .btn-page {
+  min-width:2.35rem;
+  height:2.35rem;
+  padding:0 .65rem;
+  border:1px solid #e2e8f0;
+  border-radius:.7rem;
+  background:#fff;
+  color:#334155;
+  font-weight:800;
+}
+.document-pagination .btn-page.active { background:var(--app-primary); border-color:var(--app-primary); color:#fff; }
+.document-pagination .pagination-info { color:#64748b; font-size:.82rem; margin:0 .35rem; }
+
+.btn-reminder {
+  border:1px solid #93c5fd;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-weight:800;
+}
+.btn-reminder:hover { background:#dbeafe; }
+.reminder-dialog { text-align:left; display:grid; gap:1rem; }
+.reminder-document-card { padding:.85rem 1rem; border-radius:.9rem; background:#f8fafc; border:1px solid #e2e8f0; }
+.reminder-recipient-actions { display:flex; flex-wrap:wrap; gap:.55rem; }
+.reminder-recipient-list { max-height:min(48vh,420px); overflow:auto; border:1px solid #e2e8f0; border-radius:1rem; background:#fff; }
+.reminder-recipient-row { display:grid; grid-template-columns:auto 1fr auto; gap:.7rem; align-items:center; padding:.75rem .85rem; border-bottom:1px solid #f1f5f9; }
+.reminder-recipient-row:last-child { border-bottom:0; }
+.reminder-recipient-row small { color:#64748b; }
+.reminder-status-pending { color:#b91c1c; font-weight:800; }
+.reminder-status-done { color:#15803d; font-weight:800; }
+
+@media (max-width: 760px) {
+  .calendar-mode-buttons { grid-template-columns:1fr; }
+  .calendar-sort-btn span { display:none; }
+  .calendar-filter-chip { align-items:flex-start; flex-direction:column; }
+  .reminder-recipient-row { grid-template-columns:auto 1fr; }
+  .reminder-recipient-row > :last-child { grid-column:2; }
+}
+.reminder-recipient-list > p { margin:.1rem 0 .8rem; color:#475569; line-height:1.55; }
+.reminder-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.75rem; }
+.reminder-actions button { border:1px solid #bfdbfe; border-radius:.65rem; background:#eff6ff; color:#1d4ed8; padding:.48rem .7rem; font-weight:800; cursor:pointer; }
+.reminder-checkboxes { max-height:min(46vh,390px); overflow:auto; border:1px solid #e2e8f0; border-radius:.9rem; background:#fff; }
+.reminder-checkboxes label { display:grid; grid-template-columns:auto 1fr; gap:.7rem; align-items:flex-start; padding:.72rem .8rem; border-bottom:1px solid #f1f5f9; cursor:pointer; }
+.reminder-checkboxes label:last-child { border-bottom:0; }
+.reminder-checkboxes input { margin-top:.25rem; }
+.reminder-checkboxes span { display:grid; gap:.14rem; }
+.reminder-checkboxes small { color:#64748b; }
