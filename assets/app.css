@@ -2540,3 +2540,102 @@ html.custom-app-background .meeting-shell { backdrop-filter: none; }
 .reminder-checkboxes input { margin-top:.25rem; }
 .reminder-checkboxes span { display:grid; gap:.14rem; }
 .reminder-checkboxes small { color:#64748b; }
+/* =========================================================
+   Wat Maeka Sarabun 3.9.1
+   กล่อง “ทราบ” แบบโปร่งใส + ย้าย/ย่อ/ขยายได้
+   ให้วางส่วนนี้ "ท้ายสุด" ของ assets/app.css
+   ========================================================= */
+
+/* 1) ตัวกล่องต้องโปร่งใสจริง เพื่อไม่บังข้อความใน PDF */
+.acknowledgement-box-stamp,
+.acknowledgement-box-stamp .stamp-content,
+.acknowledgement-box-stamp .acknowledgement-box-card,
+.acknowledgement-box-stamp .acknowledgement-slot-grid,
+.acknowledgement-box-stamp .ack-sign-slot,
+.acknowledgement-box-stamp .ack-signature-target {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* ตอนเลือกกล่องก็ห้ามมีพื้นเหลือง/ขาวมาทับ PDF */
+.acknowledgement-box-stamp.selected,
+.acknowledgement-box-stamp.draggable-stamp.selected {
+  background: transparent !important;
+}
+
+/* 2) เส้นกรอบบางลงและโปร่ง เพื่อให้อ่านข้อความเดิมใต้กล่องได้ */
+.acknowledgement-box-stamp .acknowledgement-box-card {
+  border: 1.35px solid rgba(17, 24, 39, .62) !important;
+  color: rgba(17, 24, 39, .82) !important;
+  box-shadow: none !important;
+  padding: 4px !important;
+}
+
+.acknowledgement-box-stamp .acknowledgement-box-title {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(17, 24, 39, .52) !important;
+  color: rgba(17, 24, 39, .82) !important;
+}
+
+.acknowledgement-box-stamp .ack-sign-slot {
+  background: transparent !important;
+  border-bottom-color: rgba(17, 24, 39, .42) !important;
+}
+
+.acknowledgement-box-stamp .ack-columns-2 .ack-sign-slot:nth-child(2n) {
+  border-left-color: rgba(17, 24, 39, .42) !important;
+}
+
+.acknowledgement-box-stamp .ack-slot-number {
+  color: rgba(17, 24, 39, .72) !important;
+}
+
+/* 3) ย้ายได้ชัดเจน */
+.acknowledgement-box-stamp {
+  cursor: move !important;
+  touch-action: none !important;
+  user-select: none !important;
+}
+
+/* 4) จุดย่อ/ขยาย: แสดงชัดเมื่อเลือกกล่อง */
+.acknowledgement-box-stamp.selected .stamp-resize-handle {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 24px !important;
+  height: 24px !important;
+  right: -12px !important;
+  bottom: -12px !important;
+  cursor: nwse-resize !important;
+  z-index: 50 !important;
+}
+
+/* ป้ายเปอร์เซ็นต์และโหมดอยู่เหนือ PDF ไม่ปิดเนื้อหาในกล่อง */
+.acknowledgement-box-stamp .stamp-scale-label,
+.acknowledgement-box-stamp .stamp-mode-label {
+  pointer-events: none !important;
+}
+
+/* 5) ลดความสูงช่องเล็กน้อย เพื่อไม่กินพื้นที่เอกสารเกินจำเป็น */
+.acknowledgement-box-stamp .ack-sign-slot {
+  min-height: 38px !important;
+}
+
+.acknowledgement-box-stamp .ack-signature-target {
+  height: 34px !important;
+  min-width: 60px !important;
+}
+
+/* 6) มือถือ/แท็บเล็ต */
+@media (max-width: 720px) {
+  .acknowledgement-box-stamp {
+    max-width: 92vw !important;
+  }
+  .acknowledgement-box-stamp.selected .stamp-resize-handle {
+    width: 28px !important;
+    height: 28px !important;
+    right: -14px !important;
+    bottom: -14px !important;
+  }
+}
+
