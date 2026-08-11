@@ -4782,3 +4782,29 @@
 
   bootstrap();
 })();
+/* Wat Maeka Sarabun 3.9.1 — acknowledgement-box UX helper
+   วางท้าย assets/app.js ได้ (ไม่บังคับ แต่ช่วยให้คำแนะนำบนหน้าจอชัดเจนขึ้น)
+*/
+(function () {
+  'use strict';
+
+  function enhanceAckBox() {
+    const instruction = document.getElementById('ack-box-instruction');
+    if (instruction && instruction.dataset.v391 !== '1') {
+      instruction.dataset.v391 = '1';
+      instruction.textContent =
+        '3. กล่อง “ทราบ” เป็นแบบโปร่งใส ไม่บังข้อความใน PDF • ลากตัวกล่องเพื่อย้ายตำแหน่ง • คลิกกล่องแล้วลากจุดมุมขวาล่างเพื่อย่อ/ขยาย';
+    }
+
+    const box = document.getElementById('acknowledgement-box-stamp');
+    if (!box || box.dataset.v391 === '1') return;
+    box.dataset.v391 = '1';
+    box.title = 'ลากเพื่อย้าย • เลือกกล่องแล้วลากจุดมุมขวาล่างเพื่อย่อ/ขยาย';
+    box.setAttribute('aria-label', 'กล่องทราบแบบโปร่งใส สามารถย้ายและย่อขยายได้');
+  }
+
+  const observer = new MutationObserver(enhanceAckBox);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', enhanceAckBox);
+  enhanceAckBox();
+})();
