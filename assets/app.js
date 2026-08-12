@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.9.5';
+  const FRONTEND_BUILD_VERSION = '3.9.6';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -39,7 +39,7 @@
   // 3.9.4 — cache PDF สำหรับเปิดเอกสารแบบด่วน
   const quickPdfCache = new Map();
   const quickPdfPrefetch = new Map();
-  const QUICK_PDF_CACHE_LIMIT = 3;
+  const QUICK_PDF_CACHE_LIMIT = 2;
 
   function rememberQuickPdf_(docId, result) {
     if (!docId || !result?.file?.base64) return result;
@@ -90,6 +90,29 @@
     const bytes = base64ToUint8Array(base64);
     const blob = new Blob([bytes], { type: 'application/pdf' });
     return URL.createObjectURL(blob);
+  }
+
+
+  let quickPrimeTimer_ = 0;
+
+  function primeFirstVisiblePdf_() {
+    clearTimeout(quickPrimeTimer_);
+
+    // ไม่ prefetch เมื่อผู้ใช้เปิดโหมดประหยัดข้อมูล
+    if (navigator.connection?.saveData) return;
+
+    quickPrimeTimer_ = window.setTimeout(() => {
+      const button = document.querySelector('.quick-view-btn[data-doc-id]');
+      const docId = button?.dataset?.docId;
+      if (!docId || quickPdfCache.has(docId) || quickPdfPrefetch.has(docId)) return;
+
+      const run = () => prefetchDocumentFile_(docId);
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(run, { timeout: 1200 });
+      } else {
+        window.setTimeout(run, 250);
+      }
+    }, 180);
   }
 
   function mascotArt(type) {
@@ -823,7 +846,9 @@
     window.setTimeout(() => {
       const doc = findDoc(docId);
       if (doc) {
-        openWorkspace(docId, false);
+        const isActionDoc = (state.actionDocs || []).some((item) => item.docId === docId);
+        if (isActionDoc) openWorkspace(docId, false);
+        else openQuickDocumentViewer(docId);
       } else {
         Swal.fire('ไม่พบเอกสาร', 'เอกสารจากการแจ้งเตือนอาจถูกย้ายสถานะ หรือบัญชีนี้ไม่ได้เป็นผู้รับ กรุณาค้นหาจากเลขรับ', 'info');
       }
@@ -1232,7 +1257,7 @@
       let hoverTimer = null;
       const warm = () => {
         clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 120);
+        hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 20);
       };
       button.addEventListener('mouseenter', warm, { passive: true });
       button.addEventListener('focus', warm, { passive: true });
@@ -1244,6 +1269,9 @@
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
     tbody.querySelectorAll('.replace-doc-btn').forEach((button) => button.onclick = () => openReplaceDocumentModal(button.dataset.docId));
     tbody.querySelectorAll('.reminder-doc-btn').forEach((button) => button.onclick = () => openDocumentReminderModal(button.dataset.docId));
+
+    // เตรียม PDF รายการแรกแบบเงียบ ๆ หลังตารางขึ้นแล้ว เพื่อให้กดเปิดได้เร็วขึ้น
+    primeFirstVisiblePdf_();
   }
 
 
@@ -1409,32 +1437,42 @@
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
 
-    overlay.innerHTML = `<div class="modal-panel">
+    const fileMeta = new Map();
+
+    const fileKey_ = (file) =>
+      `${file.name || ''}|${Number(file.size || 0)}|${Number(file.lastModified || 0)}`;
+
+    const subjectFromFileName_ = (name) =>
+      String(name || '')
+        .replace(/\.pdf$/i, '')
+        .replace(/^\s*\d+\s*[-_.]?\s*/, '')
+        .replace(/[_]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    overlay.innerHTML = `<div class="modal-panel upload-single-window-panel">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
-        <button class="text-2xl close-modal">×</button>
+        <div>
+          <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
+          <p class="text-xs text-slate-500 mt-1">เลือก PDF หลายไฟล์ได้ • PDF 1 ไฟล์ = หนังสือ 1 ฉบับ</p>
+        </div>
+        <button type="button" class="text-2xl close-modal">×</button>
       </div>
 
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
 
         <div>
-          <label class="font-semibold text-sm">จาก</label>
-          <input class="input mt-1" name="fromSender" value="${escapeHtml(defaultSender)}" required>
-        </div>
-
-        <div>
-          <label class="font-semibold text-sm">เรื่อง</label>
-          <input class="input mt-1" name="subject" required>
-        </div>
-
-        <div>
           <label class="font-semibold text-sm">ไฟล์ PDF</label>
           <input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required>
-          <p class="text-xs text-slate-500 mt-1">เลือก PDF 1 ไฟล์ หรือเลือกหลายไฟล์เพื่อรวมเป็นหนังสือฉบับเดียวเหมือนระบบเดิม</p>
+          <p class="text-xs text-slate-500 mt-1">
+            หลังเลือกไฟล์ ให้กดที่ชื่อไฟล์แต่ละรายการเพื่อแก้ “เรื่อง” และ “จาก”
+          </p>
         </div>
 
-        <div id="new-document-pdf-order" class="pdf-selection-summary"></div>
+        <div id="new-document-file-list" class="multi-file-click-list">
+          <div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>
+        </div>
 
         <fieldset class="operation-picker">
           <legend>การดำเนินงาน</legend>
@@ -1452,15 +1490,11 @@
           </label>
         </fieldset>
 
-        <div id="queued-books-wrap" class="queued-books-wrap hide">
-          <div class="queued-books-title">หนังสือที่เตรียมเพิ่ม</div>
-          <div id="queued-books-list"></div>
-        </div>
-
-        <div class="upload-footer-actions">
+        <div class="upload-two-actions">
           <button type="button" class="btn btn-muted close-modal">ยกเลิก</button>
-          <button id="add-another-book-btn" type="button" class="btn btn-add-book">＋ เพิ่มหนังสือ</button>
-          <button id="upload-submit-btn" class="btn btn-primary" type="submit">บันทึกหนังสือ</button>
+          <button id="multi-file-upload-submit" class="btn btn-add-book upload-add-book-blue" type="submit">
+            ＋ เพิ่มหนังสือ
+          </button>
         </div>
       </form>
     </div>`;
@@ -1468,117 +1502,257 @@
     document.body.appendChild(overlay);
 
     const form = overlay.querySelector('#upload-form');
-    const pdfInput = overlay.querySelector('#new-document-pdf-files');
-    const pdfSummary = overlay.querySelector('#new-document-pdf-order');
-    const addBookBtn = overlay.querySelector('#add-another-book-btn');
-    const submitBtn = overlay.querySelector('#upload-submit-btn');
-    const queueWrap = overlay.querySelector('#queued-books-wrap');
-    const queueList = overlay.querySelector('#queued-books-list');
-    const queuedBooks = [];
+    const input = overlay.querySelector('#new-document-pdf-files');
+    const listHost = overlay.querySelector('#new-document-file-list');
+    const submitBtn = overlay.querySelector('#multi-file-upload-submit');
 
-    pdfInput.onchange = () => renderPdfSelection(pdfInput, pdfSummary);
-    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
+    overlay.querySelectorAll('.close-modal').forEach((button) => {
+      button.onclick = () => overlay.remove();
+    });
 
-    function currentBookData_() {
-      const files = validatePdfFiles(selectedFiles(pdfInput));
-      const subject = String(form.elements.subject.value || '').trim();
-      const sender = String(form.elements.fromSender.value || '').trim();
-      const operationMode = form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
-      if (!sender) throw new Error('กรุณากรอกหน่วยงานผู้ส่ง');
-      if (!subject) throw new Error('กรุณากรอกเรื่อง');
-      return { files, subject, sender, operationMode };
+    function syncMetaFromEditors_() {
+      listHost.querySelectorAll('.selected-file-card').forEach((card) => {
+        const key = card.dataset.fileKey;
+        if (!key || !fileMeta.has(key)) return;
+        const meta = fileMeta.get(key);
+        const subject = card.querySelector('.selected-file-subject');
+        const sender = card.querySelector('.selected-file-sender');
+        if (subject) meta.subject = String(subject.value || '').trim();
+        if (sender) meta.sender = String(sender.value || '').trim();
+      });
     }
 
-    function resetCurrentBook_() {
-      form.elements.subject.value = '';
-      form.elements.fromSender.value = defaultSender;
-      pdfInput.value = '';
-      pdfSummary.innerHTML = '';
-      const defaultRadio = form.querySelector(`input[name="operationMode"][value="${defaultOperationMode}"]`) || form.querySelector('input[name="operationMode"][value="normal"]');
-      if (defaultRadio) defaultRadio.checked = true;
-      form.elements.subject.focus();
-    }
+    function renderSelectedFiles_() {
+      syncMetaFromEditors_();
 
-    function renderQueue_() {
-      if (!queuedBooks.length) {
-        queueWrap.classList.add('hide');
-        queueList.innerHTML = '';
-        submitBtn.textContent = 'บันทึกหนังสือ';
+      let files;
+      try {
+        files = validatePdfFiles(selectedFiles(input), false);
+      } catch (error) {
+        input.value = '';
+        listHost.innerHTML = '<div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>';
+        showError(error);
         return;
       }
-      queueWrap.classList.remove('hide');
-      queueList.innerHTML = queuedBooks.map((book, index) => `
-        <div class="queued-book-item">
-          <div class="queued-book-number">${index + 1}</div>
-          <div class="queued-book-info">
-            <b>${escapeHtml(book.subject)}</b>
-            <small>${escapeHtml(book.sender)} • ${book.files.length} PDF</small>
-          </div>
-          <button type="button" class="queued-book-remove" data-index="${index}" title="ลบรายการนี้">×</button>
-        </div>`).join('');
-      queueList.querySelectorAll('.queued-book-remove').forEach((button) => {
-        button.onclick = () => { queuedBooks.splice(Number(button.dataset.index), 1); renderQueue_(); };
+
+      const activeKeys = new Set(files.map(fileKey_));
+      [...fileMeta.keys()].forEach((key) => {
+        if (!activeKeys.has(key)) fileMeta.delete(key);
       });
-      submitBtn.textContent = `บันทึกทั้งหมด ${queuedBooks.length + 1} ฉบับ`;
+
+      files.forEach((file) => {
+        const key = fileKey_(file);
+        if (!fileMeta.has(key)) {
+          fileMeta.set(key, {
+            subject: subjectFromFileName_(file.name),
+            sender: defaultSender,
+            expanded: false,
+          });
+        }
+      });
+
+      if (!files.length) {
+        listHost.innerHTML = '<div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>';
+        submitBtn.textContent = '＋ เพิ่มหนังสือ';
+        return;
+      }
+
+      submitBtn.textContent = files.length > 1
+        ? `＋ เพิ่มหนังสือ ${files.length} ฉบับ`
+        : '＋ เพิ่มหนังสือ';
+
+      listHost.innerHTML = files.map((file, index) => {
+        const key = fileKey_(file);
+        const meta = fileMeta.get(key);
+        return `<div class="selected-file-card ${meta.expanded ? 'expanded' : ''}" data-file-key="${escapeHtml(key)}">
+          <button type="button" class="selected-file-summary" aria-expanded="${meta.expanded ? 'true' : 'false'}">
+            <span class="selected-file-number">${index + 1}</span>
+            <span class="selected-file-main">
+              <b>${escapeHtml(file.name)}</b>
+              <small>${(Number(file.size || 0) / (1024 * 1024)).toFixed(2)} MB • กดเพื่อแก้ชื่อเรื่องและจาก</small>
+            </span>
+            <span class="selected-file-chevron">${meta.expanded ? '▲' : '▼'}</span>
+          </button>
+
+          <div class="selected-file-editor ${meta.expanded ? '' : 'hide'}">
+            <label>
+              <span>เรื่อง</span>
+              <input class="input selected-file-subject" value="${escapeHtml(meta.subject)}" autocomplete="off">
+            </label>
+            <label>
+              <span>จาก</span>
+              <input class="input selected-file-sender" value="${escapeHtml(meta.sender)}" autocomplete="off">
+            </label>
+          </div>
+        </div>`;
+      }).join('');
+
+      listHost.querySelectorAll('.selected-file-summary').forEach((button) => {
+        button.onclick = () => {
+          syncMetaFromEditors_();
+          const card = button.closest('.selected-file-card');
+          const key = card?.dataset.fileKey;
+          if (!key || !fileMeta.has(key)) return;
+
+          // เปิดทีละกล่องเดียวเพื่อลดความสูงของหน้าต่างและไม่ทำให้เลื่อนช้า
+          fileMeta.forEach((meta, otherKey) => {
+            meta.expanded = otherKey === key ? !meta.expanded : false;
+          });
+          renderSelectedFiles_();
+
+          requestAnimationFrame(() => {
+            const opened = listHost.querySelector(`.selected-file-card[data-file-key="${CSS.escape(key)}"].expanded`);
+            opened?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            opened?.querySelector('.selected-file-subject')?.focus({ preventScroll: true });
+          });
+        };
+      });
+
+      listHost.querySelectorAll('.selected-file-subject, .selected-file-sender').forEach((field) => {
+        field.addEventListener('input', () => syncMetaFromEditors_());
+        field.addEventListener('click', (event) => event.stopPropagation());
+      });
     }
 
-    addBookBtn.onclick = () => {
-      try {
-        const book = currentBookData_();
-        queuedBooks.push({ files: [...book.files], subject: book.subject, sender: book.sender, operationMode: book.operationMode });
-        renderQueue_();
-        resetCurrentBook_();
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `เพิ่มเข้ารายการแล้ว ${queuedBooks.length} ฉบับ`, showConfirmButton: false, timer: 1200 });
-      } catch (error) { showError(error); }
-    };
+    input.onchange = renderSelectedFiles_;
+    renderSelectedFiles_();
 
     form.onsubmit = async (event) => {
       event.preventDefault();
-      try {
-        const current = currentBookData_();
-        const allBooks = [...queuedBooks, { files: [...current.files], subject: current.subject, sender: current.sender, operationMode: current.operationMode }];
 
-        const specialModes = allBooks.filter((book) => book.operationMode !== 'normal');
-        if (specialModes.length) {
-          const c = await Swal.fire({ icon: 'warning', title: 'ยืนยันรูปแบบการดำเนินงาน', text: `มีหนังสือ ${specialModes.length} ฉบับที่ไม่ได้ใช้โหมดปกติ กรุณาตรวจสอบก่อนบันทึก`, showCancelButton: true, confirmButtonText: 'ยืนยันและบันทึก', cancelButtonText: 'กลับไปตรวจสอบ', confirmButtonColor: '#b91c1c' });
-          if (!c.isConfirmed) return;
+      try {
+        syncMetaFromEditors_();
+        const files = validatePdfFiles(selectedFiles(input));
+        const operationMode =
+          form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
+
+        const jobs = files.map((file, index) => {
+          const meta = fileMeta.get(fileKey_(file));
+          const subject = String(meta?.subject || subjectFromFileName_(file.name)).trim();
+          const sender = String(meta?.sender || defaultSender).trim();
+          if (!subject) throw new Error(`ไฟล์ที่ ${index + 1}: กรุณากรอกชื่อเรื่อง`);
+          if (!sender) throw new Error(`ไฟล์ที่ ${index + 1}: กรุณากรอก "จาก"`);
+          return { file, subject, sender };
+        });
+
+        if (operationMode !== 'normal') {
+          const detail = operationMode === 'acting'
+            ? 'หนังสือทั้งหมดจะใช้โหมดรองรักษาการ'
+            : 'หนังสือทั้งหมดจะข้ามคิวรองผู้อำนวยการและส่งตรงผู้อำนวยการ';
+
+          const specialConfirm = await Swal.fire({
+            icon: 'warning',
+            title: 'ยืนยันการดำเนินงาน',
+            text: detail,
+            showCancelButton: true,
+            confirmButtonText: 'ยืนยัน',
+            cancelButtonText: 'กลับไปตรวจสอบ',
+            confirmButtonColor: '#b91c1c',
+          });
+          if (!specialConfirm.isConfirmed) return;
         }
 
-        const c = await Swal.fire({
+        const confirmation = await Swal.fire({
           icon: 'question',
-          title: allBooks.length > 1 ? `บันทึกหนังสือ ${allBooks.length} ฉบับ?` : 'บันทึกหนังสือฉบับนี้?',
-          html: allBooks.length > 1 ? `<div class="text-left"><p>ระบบจะบันทึกหนังสือทีละฉบับ และออกเลขรับต่อเนื่องให้อัตโนมัติ</p><div class="batch-upload-confirm-list">${allBooks.slice(0,10).map((book,i)=>`<div><b>${i+1}.</b> ${escapeHtml(book.subject)}</div>`).join('')}${allBooks.length>10?`<div><b>และอีก ${allBooks.length-10} ฉบับ</b></div>`:''}</div></div>` : `<div>${escapeHtml(current.subject)}</div>`,
-          showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก'
+          title: jobs.length > 1
+            ? `เพิ่มหนังสือ ${jobs.length} ฉบับ?`
+            : 'เพิ่มหนังสือฉบับนี้?',
+          html: `<div class="text-left">
+            <p>ระบบจะบันทึก PDF แต่ละไฟล์เป็นหนังสือแยกฉบับ และออกเลขรับต่อเนื่องอัตโนมัติ</p>
+            <div class="batch-upload-confirm-list">
+              ${jobs.slice(0, 10).map((job, index) =>
+                `<div><b>${index + 1}.</b> ${escapeHtml(job.subject)}<br><small>${escapeHtml(job.sender)}</small></div>`
+              ).join('')}
+              ${jobs.length > 10 ? `<div><b>และอีก ${jobs.length - 10} ฉบับ</b></div>` : ''}
+            </div>
+          </div>`,
+          showCancelButton: true,
+          confirmButtonText: `＋ เพิ่มหนังสือ ${jobs.length} ฉบับ`,
+          cancelButtonText: 'ยกเลิก',
         });
-        if (!c.isConfirmed) return;
+        if (!confirmation.isConfirmed) return;
 
-        Swal.fire({ title: allBooks.length > 1 ? 'กำลังบันทึกหนังสือหลายฉบับ' : 'กำลังบันทึกหนังสือ', html: `<div id="batch-upload-progress-text">กำลังเตรียม...</div><div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`, allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({
+          title: 'กำลังเพิ่มหนังสือ',
+          html: `<div id="batch-upload-progress-text">กำลังเตรียม...</div>
+                 <div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: () => Swal.showLoading(),
+        });
 
-        const success = [], failed = [];
-        for (let i=0;i<allBooks.length;i++) {
-          const book = allBooks[i];
+        const success = [];
+        const failed = [];
+
+        // ทำทีละไฟล์เพื่อให้เลขรับเรียงต่อเนื่อง และไม่ยิง Apps Script/Drive พร้อมกันจนหน่วง
+        for (let i = 0; i < jobs.length; i += 1) {
+          const job = jobs[i];
           const textEl = document.getElementById('batch-upload-progress-text');
           const barEl = document.getElementById('ack-all-progress-bar');
-          if (textEl) textEl.textContent = `กำลังบันทึก ${i+1}/${allBooks.length} — ${book.subject}`;
-          if (barEl) barEl.style.width = `${Math.round((i/allBooks.length)*100)}%`;
+
+          if (textEl) {
+            textEl.textContent = `กำลังเพิ่ม ${i + 1}/${jobs.length} — ${job.subject}`;
+          }
+          if (barEl) {
+            barEl.style.width = `${Math.round((i / jobs.length) * 100)}%`;
+          }
+
           try {
-            const merged = await mergePdfFiles(book.files, { fileName: `${book.subject || 'หนังสือรับ'}-${Date.now()}-${i+1}.pdf` });
-            const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, { sessionToken: state.token, fromSender: book.sender, subject: book.subject, operationMode: book.operationMode, sourceNames: JSON.stringify(book.files.map((file)=>file.name)) });
-            success.push({ book, result, pageCount: merged.pageCount });
-          } catch (error) { failed.push({ book, message: String(error?.message || error || 'ไม่ทราบสาเหตุ') }); }
-          if (barEl) barEl.style.width = `${Math.round(((i+1)/allBooks.length)*100)}%`;
+            // ไม่ใช้ PDFLib merge ในโหมดนี้: ส่งไฟล์ต้นฉบับตรง เพื่อลด RAM และเพิ่มความเสถียร
+            const result = await uploadFileForm('uploadNewDocument', 'pdfFile', job.file, {
+              sessionToken: state.token,
+              fromSender: job.sender,
+              subject: job.subject,
+              operationMode,
+              sourceNames: JSON.stringify([job.file.name]),
+            });
+            success.push({ job, result });
+          } catch (error) {
+            failed.push({
+              job,
+              message: String(error?.message || error || 'ไม่ทราบสาเหตุ'),
+            });
+          }
+
+          if (barEl) {
+            barEl.style.width = `${Math.round(((i + 1) / jobs.length) * 100)}%`;
+          }
         }
 
         overlay.remove();
         await loadDashboard();
+
         if (!failed.length) {
           const firstNo = success[0]?.result?.recvNo || '';
-          const lastNo = success[success.length-1]?.result?.recvNo || '';
-          Swal.fire({ icon:'success', title:'บันทึกเรียบร้อย', html: success.length>1 ? `เพิ่มหนังสือทั้งหมด <b>${success.length} ฉบับ</b><br>เลขรับ ${escapeHtml(firstNo)} ถึง ${escapeHtml(lastNo)}` : `อัปโหลดเรียบร้อย เลขรับ <b>${escapeHtml(firstNo)}</b>` });
-        } else {
-          Swal.fire({ icon:'warning', title:'บันทึกเสร็จแล้วบางส่วน', html:`<div class="text-left"><p>สำเร็จ <b>${success.length}</b> ฉบับ / ไม่สำเร็จ <b>${failed.length}</b> ฉบับ</p><div class="batch-upload-failed-list">${failed.slice(0,8).map((item)=>`<div>• ${escapeHtml(item.book.subject)}<br><small>${escapeHtml(item.message)}</small></div>`).join('')}</div></div>` });
+          const lastNo = success[success.length - 1]?.result?.recvNo || '';
+
+          Swal.fire({
+            icon: 'success',
+            title: 'เพิ่มหนังสือเรียบร้อย',
+            html: success.length > 1
+              ? `เพิ่มสำเร็จ <b>${success.length} ฉบับ</b><br>เลขรับ ${escapeHtml(firstNo)} ถึง ${escapeHtml(lastNo)}`
+              : `เลขรับ <b>${escapeHtml(firstNo)}</b>`,
+          });
+          return;
         }
-      } catch (error) { showError(error); }
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'เพิ่มหนังสือเสร็จแล้วบางส่วน',
+          html: `<div class="text-left">
+            <p>สำเร็จ <b>${success.length}</b> ฉบับ / ไม่สำเร็จ <b>${failed.length}</b> ฉบับ</p>
+            <div class="batch-upload-failed-list">
+              ${failed.slice(0, 8).map((item) =>
+                `<div>• ${escapeHtml(item.job.subject)}<br><small>${escapeHtml(item.message)}</small></div>`
+              ).join('')}
+            </div>
+            <p class="text-xs mt-2">ฉบับที่สำเร็จถูกบันทึกแล้ว สามารถนำเข้าใหม่เฉพาะรายการที่ไม่สำเร็จ</p>
+          </div>`,
+        });
+      } catch (error) {
+        showError(error);
+      }
     };
   }
 
@@ -3094,6 +3268,30 @@
     await renderAllPdfPages();
   }
 
+  async function renderPdfPageView_(view, generation) {
+    if (!view || view.rendered || view.rendering) return;
+    if (generation !== state.pdfRenderGeneration) return;
+
+    view.rendering = true;
+    try {
+      await view.page.render({
+        canvasContext: view.canvas.getContext('2d'),
+        viewport: view.viewport,
+      }).promise;
+      if (generation === state.pdfRenderGeneration) {
+        view.rendered = true;
+        view.shell.classList.add('pdf-page-rendered');
+      }
+    } catch (error) {
+      // ถ้าเปลี่ยน zoom/เอกสารระหว่าง render ให้ปล่อยงานเก่าจบโดยไม่รบกวนผู้ใช้
+      if (generation === state.pdfRenderGeneration) {
+        console.warn('PDF page render failed', view.pageNumber, error);
+      }
+    } finally {
+      view.rendering = false;
+    }
+  }
+
   async function renderAllPdfPages() {
     if (!state.currentPdf) return;
     const placements = captureStampPlacements();
@@ -3101,15 +3299,27 @@
     const container = document.getElementById('pdf-container');
     if (!pagesHost || !container) return;
 
+    if (state.pdfPageObserver) {
+      try { state.pdfPageObserver.disconnect(); } catch (_) {}
+      state.pdfPageObserver = null;
+    }
+
+    state.pdfRenderGeneration = Number(state.pdfRenderGeneration || 0) + 1;
+    const generation = state.pdfRenderGeneration;
+
     pagesHost.innerHTML = '';
     state.pdfPageViews = [];
     let maxWidth = 0;
 
+    // สร้างโครงทุกหน้าก่อน แต่ยังไม่ render canvas ทุกหน้า
+    // ทำให้เอกสารยาว ๆ เปิดหน้าแรกได้เร็วและไม่ล็อก UI
     for (let pageNumber = 1; pageNumber <= state.currentPdf.numPages; pageNumber += 1) {
       const page = await state.currentPdf.getPage(pageNumber);
+      if (generation !== state.pdfRenderGeneration) return;
+
       const viewport = page.getViewport({ scale: state.currentScale });
       const shell = document.createElement('section');
-      shell.className = 'pdf-page-shell';
+      shell.className = 'pdf-page-shell pdf-page-pending';
       shell.dataset.pageIndex = String(pageNumber - 1);
       shell.style.width = `${viewport.width}px`;
       shell.style.height = `${viewport.height}px`;
@@ -3126,14 +3336,13 @@
       canvas.style.width = `${viewport.width}px`;
       canvas.style.height = `${viewport.height}px`;
 
-      shell.append(label, canvas);
+      const placeholder = document.createElement('div');
+      placeholder.className = 'pdf-page-loading';
+      placeholder.textContent = pageNumber === 1 ? 'กำลังเปิดหน้าแรก…' : 'กำลังเตรียมหน้า…';
+
+      shell.append(label, canvas, placeholder);
       pagesHost.appendChild(shell);
       maxWidth = Math.max(maxWidth, viewport.width);
-
-      await page.render({
-        canvasContext: canvas.getContext('2d'),
-        viewport,
-      }).promise;
 
       state.pdfPageViews.push({
         pageIndex: pageNumber - 1,
@@ -3141,12 +3350,52 @@
         shell,
         canvas,
         viewport,
+        page,
+        rendered: false,
+        rendering: false,
       });
     }
 
     container.style.width = `${maxWidth}px`;
     const label = document.getElementById('zoom-label');
     if (label) label.textContent = `${Math.round(state.currentScale * 100)}%`;
+
+    // หน้าแรกต้องพร้อมก่อน แล้วปล่อย UI ให้ผู้ใช้ใช้งานได้
+    const first = state.pdfPageViews[0];
+    if (first) await renderPdfPageView_(first, generation);
+
+    // หน้าที่เข้ามาใกล้ viewport จะถูก render ก่อน
+    if ('IntersectionObserver' in window) {
+      const scrollRoot = document.getElementById('pdf-scroll-area');
+      state.pdfPageObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const pageIndex = Number(entry.target?.dataset?.pageIndex);
+          const view = state.pdfPageViews?.[pageIndex];
+          if (view) renderPdfPageView_(view, generation);
+        });
+      }, {
+        root: scrollRoot || null,
+        rootMargin: '900px 0px',
+        threshold: 0.01,
+      });
+
+      state.pdfPageViews.forEach((view) => state.pdfPageObserver.observe(view.shell));
+    }
+
+    // เตรียมหน้า 2–3 แบบ background เพื่อให้เลื่อนต่อได้ลื่น
+    const warmNextPages = async () => {
+      for (let i = 1; i < Math.min(3, state.pdfPageViews.length); i += 1) {
+        if (generation !== state.pdfRenderGeneration) return;
+        await renderPdfPageView_(state.pdfPageViews[i], generation);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    };
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => warmNextPages(), { timeout: 700 });
+    } else {
+      setTimeout(() => warmNextPages(), 50);
+    }
 
     document.querySelectorAll('.draggable-stamp').forEach((stamp) => {
       refreshStampBounds(stamp);
