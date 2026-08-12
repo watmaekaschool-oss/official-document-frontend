@@ -2540,13 +2540,111 @@ html.custom-app-background .meeting-shell { backdrop-filter: none; }
 .reminder-checkboxes input { margin-top:.25rem; }
 .reminder-checkboxes span { display:grid; gap:.14rem; }
 .reminder-checkboxes small { color:#64748b; }
+
+
 /* =========================================================
-   Wat Maeka Sarabun 3.9.1
-   กล่อง “ทราบ” แบบโปร่งใส + ย้าย/ย่อ/ขยายได้
-   ให้วางส่วนนี้ "ท้ายสุด" ของ assets/app.css
+   Wat Maeka Sarabun 3.9.4
+   รับทราบทั้งหมด + Quick PDF Viewer
    ========================================================= */
 
-/* 1) ตัวกล่องต้องโปร่งใสจริง เพื่อไม่บังข้อความใน PDF */
+.btn-ack-all {
+  background: linear-gradient(135deg,#15803d,#16a34a);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(21,128,61,.18);
+}
+.btn-ack-all:hover { filter: brightness(.98); }
+
+.quick-view-btn {
+  position: relative;
+  overflow: hidden;
+}
+.quick-view-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);
+  transition: transform .35s ease;
+}
+.quick-view-btn:hover::after { transform: translateX(120%); }
+
+.quick-pdf-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: #111827;
+  display: flex;
+  flex-direction: column;
+}
+.quick-pdf-toolbar {
+  flex: 0 0 auto;
+  min-height: 64px;
+  padding: .7rem 1rem;
+  background: linear-gradient(135deg,var(--brand-red-dark),var(--brand-red));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  flex-wrap: wrap;
+}
+.quick-pdf-title {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+.quick-pdf-title b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(70vw,900px);
+}
+.quick-pdf-title small { opacity: .82; }
+.quick-pdf-actions {
+  display: flex;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+.quick-pdf-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #e5e7eb;
+}
+
+.ack-all-preview {
+  margin-top: .75rem;
+  max-height: 240px;
+  overflow: auto;
+  background: #fff8e6;
+  border: 1px solid rgba(245,158,11,.35);
+  border-radius: .75rem;
+  padding: .75rem;
+}
+.ack-all-progress {
+  width: 100%;
+  height: 12px;
+  margin-top: 1rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+#ack-all-progress-bar {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg,#15803d,#22c55e);
+  transition: width .2s ease;
+}
+.ack-all-failed-list {
+  margin: .5rem 0;
+  padding-left: 1.2rem;
+  max-height: 230px;
+  overflow: auto;
+}
+
+/* กล่อง “ทราบ” โปร่งใส: คงการแก้ไขจาก 3.9.1 */
 .acknowledgement-box-stamp,
 .acknowledgement-box-stamp .stamp-content,
 .acknowledgement-box-stamp .acknowledgement-box-card,
@@ -2556,48 +2654,16 @@ html.custom-app-background .meeting-shell { backdrop-filter: none; }
   background: transparent !important;
   background-color: transparent !important;
 }
-
-/* ตอนเลือกกล่องก็ห้ามมีพื้นเหลือง/ขาวมาทับ PDF */
 .acknowledgement-box-stamp.selected,
 .acknowledgement-box-stamp.draggable-stamp.selected {
   background: transparent !important;
 }
-
-/* 2) เส้นกรอบบางลงและโปร่ง เพื่อให้อ่านข้อความเดิมใต้กล่องได้ */
 .acknowledgement-box-stamp .acknowledgement-box-card {
-  border: 1.35px solid rgba(17, 24, 39, .62) !important;
-  color: rgba(17, 24, 39, .82) !important;
+  border: 1.35px solid rgba(17,24,39,.62) !important;
+  color: rgba(17,24,39,.82) !important;
   box-shadow: none !important;
-  padding: 4px !important;
 }
-
-.acknowledgement-box-stamp .acknowledgement-box-title {
-  background: transparent !important;
-  border-bottom: 1px solid rgba(17, 24, 39, .52) !important;
-  color: rgba(17, 24, 39, .82) !important;
-}
-
-.acknowledgement-box-stamp .ack-sign-slot {
-  background: transparent !important;
-  border-bottom-color: rgba(17, 24, 39, .42) !important;
-}
-
-.acknowledgement-box-stamp .ack-columns-2 .ack-sign-slot:nth-child(2n) {
-  border-left-color: rgba(17, 24, 39, .42) !important;
-}
-
-.acknowledgement-box-stamp .ack-slot-number {
-  color: rgba(17, 24, 39, .72) !important;
-}
-
-/* 3) ย้ายได้ชัดเจน */
-.acknowledgement-box-stamp {
-  cursor: move !important;
-  touch-action: none !important;
-  user-select: none !important;
-}
-
-/* 4) จุดย่อ/ขยาย: แสดงชัดเมื่อเลือกกล่อง */
+.acknowledgement-box-stamp { cursor: move !important; touch-action: none !important; user-select: none !important; }
 .acknowledgement-box-stamp.selected .stamp-resize-handle {
   display: block !important;
   visibility: visible !important;
@@ -2610,32 +2676,253 @@ html.custom-app-background .meeting-shell { backdrop-filter: none; }
   z-index: 50 !important;
 }
 
-/* ป้ายเปอร์เซ็นต์และโหมดอยู่เหนือ PDF ไม่ปิดเนื้อหาในกล่อง */
-.acknowledgement-box-stamp .stamp-scale-label,
-.acknowledgement-box-stamp .stamp-mode-label {
-  pointer-events: none !important;
-}
-
-/* 5) ลดความสูงช่องเล็กน้อย เพื่อไม่กินพื้นที่เอกสารเกินจำเป็น */
-.acknowledgement-box-stamp .ack-sign-slot {
-  min-height: 38px !important;
-}
-
-.acknowledgement-box-stamp .ack-signature-target {
-  height: 34px !important;
-  min-width: 60px !important;
-}
-
-/* 6) มือถือ/แท็บเล็ต */
 @media (max-width: 720px) {
-  .acknowledgement-box-stamp {
-    max-width: 92vw !important;
-  }
-  .acknowledgement-box-stamp.selected .stamp-resize-handle {
-    width: 28px !important;
-    height: 28px !important;
-    right: -14px !important;
-    bottom: -14px !important;
+  .quick-pdf-toolbar { align-items: stretch; }
+  .quick-pdf-actions .btn { flex: 1 1 auto; }
+  .quick-pdf-title b { max-width: 92vw; }
+}
+
+
+/* =========================================================
+   Wat Maeka Sarabun 3.9.5
+   แผง “ส่งให้ทุกคน” ย้ายมาไว้เหนือเอกสาร
+   ========================================================= */
+
+.dispatch-panel-top {
+  order: -1;
+  width: min(1100px, calc(100% - 1rem));
+  margin: .75rem auto 1.25rem;
+  position: relative;
+  z-index: 35;
+  box-shadow: 0 12px 32px rgba(0,0,0,.20);
+}
+
+.dispatch-top-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  flex-wrap: wrap;
+  padding-bottom: .75rem;
+  margin-bottom: .35rem;
+  border-bottom: 1px solid #f2d59b;
+}
+
+.dispatch-top-note {
+  margin-top: .25rem;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: #6b4f2c;
+}
+
+.dispatch-choice-grid-top {
+  grid-template-columns: repeat(4, minmax(0,1fr));
+}
+
+.dispatch-choice-grid-top label {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+.dispatch-all-choice {
+  border: 2px solid #16a34a !important;
+  background: #f0fdf4 !important;
+  color: #14532d !important;
+  font-weight: 800 !important;
+}
+
+.dispatch-all-choice:has(input:checked) {
+  background: #dcfce7 !important;
+  box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+}
+
+#dispatch-submit {
+  min-width: 220px;
+}
+
+/* ไม่ให้แผงด้านบนบีบ PDF */
+.pdf-scroll-area > .dispatch-panel-top + .pdf-stage-wrap {
+  margin-top: 0;
+}
+
+html[data-theme-preset="dark"] .dispatch-top-note {
+  color: #d1d5db;
+}
+html[data-theme-preset="dark"] .dispatch-all-choice {
+  background: #153322 !important;
+  color: #dcfce7 !important;
+  border-color: #22c55e !important;
+}
+
+@media (max-width: 900px) {
+  .dispatch-choice-grid-top {
+    grid-template-columns: repeat(2, minmax(0,1fr));
   }
 }
 
+@media (max-width: 560px) {
+  .dispatch-panel-top {
+    width: calc(100% - .5rem);
+    margin: .35rem auto .8rem;
+    padding: .9rem;
+  }
+  .dispatch-choice-grid-top {
+    grid-template-columns: 1fr;
+  }
+  .dispatch-top-head {
+    align-items: stretch;
+  }
+  #dispatch-jump-document,
+  #dispatch-submit {
+    width: 100%;
+  }
+}
+
+
+/* =========================================================
+   Wat Maeka Sarabun 3.9.5 — เพิ่มหนังสือหลายฉบับพร้อมกัน
+   ========================================================= */
+
+.upload-multi-panel {
+  width: min(880px, 100%);
+}
+
+.multi-upload-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: .75rem;
+}
+
+.multi-upload-mode-card {
+  border: 1px solid #e7c985;
+  border-radius: .85rem;
+  padding: .8rem;
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  cursor: pointer;
+  background: #fffdf7;
+  transition: .15s ease;
+}
+
+.multi-upload-mode-card.active {
+  border: 2px solid var(--brand-red);
+  background: #fff7ed;
+  box-shadow: 0 0 0 3px rgba(185,28,28,.08);
+}
+
+.multi-upload-mode-card input {
+  margin-top: .25rem;
+}
+
+.multi-upload-mode-card span {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+}
+
+.multi-upload-mode-card small {
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.multi-document-fields {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  max-height: 390px;
+  overflow: auto;
+  padding-right: .25rem;
+}
+
+.multi-document-empty {
+  padding: 1rem;
+  border: 1px dashed #d6b56e;
+  border-radius: .75rem;
+  text-align: center;
+  color: #64748b;
+  background: #fffdf7;
+}
+
+.multi-document-row {
+  border: 1px solid #ead7a8;
+  border-radius: .85rem;
+  padding: .75rem;
+  background: #fff;
+}
+
+.multi-document-row-head {
+  display: flex;
+  gap: .65rem;
+  align-items: center;
+  margin-bottom: .65rem;
+}
+
+.multi-document-row-head > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.multi-document-row-head b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.multi-document-row-head small {
+  color: #64748b;
+}
+
+.multi-document-number {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-red);
+  color: #fff;
+  font-weight: 800;
+}
+
+.multi-document-row-fields {
+  display: grid;
+  grid-template-columns: minmax(180px,.8fr) minmax(260px,1.5fr);
+  gap: .65rem;
+}
+
+.multi-document-row-fields label {
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.multi-document-row-fields .input {
+  margin-top: .25rem;
+  font-weight: 400;
+}
+
+.batch-upload-confirm-list,
+.batch-upload-failed-list {
+  margin-top: .65rem;
+  max-height: 250px;
+  overflow: auto;
+  padding: .7rem;
+  border-radius: .7rem;
+  background: #fff8e6;
+  border: 1px solid rgba(245,158,11,.3);
+  line-height: 1.65;
+}
+
+@media (max-width: 720px) {
+  .multi-upload-mode,
+  .multi-document-row-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .multi-document-fields {
+    max-height: 330px;
+  }
+}
