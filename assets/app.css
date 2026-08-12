@@ -2926,3 +2926,19 @@ html[data-theme-preset="dark"] .dispatch-all-choice {
     max-height: 330px;
   }
 }
+
+
+/* 3.9.5 — Upload แบบเดิม + ปุ่มเพิ่มหนังสือสีฟ้า */
+.upload-footer-actions{display:flex;justify-content:flex-end;align-items:center;gap:.55rem;flex-wrap:wrap;padding-top:.25rem}
+.btn-add-book{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border:1px solid #1d4ed8;box-shadow:0 6px 16px rgba(37,99,235,.18)}
+.btn-add-book:hover{filter:brightness(.98)}
+.queued-books-wrap{border:1px solid #bfdbfe;background:#eff6ff;border-radius:.8rem;padding:.75rem}
+.queued-books-title{font-weight:800;color:#1e40af;margin-bottom:.5rem}
+#queued-books-list{display:flex;flex-direction:column;gap:.45rem;max-height:210px;overflow:auto}
+.queued-book-item{display:flex;align-items:center;gap:.55rem;background:#fff;border:1px solid #dbeafe;border-radius:.65rem;padding:.5rem .6rem}
+.queued-book-number{width:26px;height:26px;flex:0 0 26px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#2563eb;color:#fff;font-weight:800;font-size:.78rem}
+.queued-book-info{min-width:0;flex:1;display:flex;flex-direction:column}
+.queued-book-info b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queued-book-info small{color:#64748b}
+.queued-book-remove{border:0;background:transparent;color:#b91c1c;font-size:1.25rem;cursor:pointer}
+@media(max-width:560px){.upload-footer-actions{display:grid;grid-template-columns:1fr 1fr}.upload-footer-actions #upload-submit-btn{grid-column:1/-1}}
