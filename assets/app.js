@@ -1408,59 +1408,33 @@
     const defaultOperationMode = state.appSettings?.defaults?.operationMode || 'normal';
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
-    overlay.innerHTML = `<div class="modal-panel upload-multi-panel">
+
+    overlay.innerHTML = `<div class="modal-panel">
       <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
-          <p class="text-xs text-slate-500 mt-1">เพิ่มได้หลายฉบับในครั้งเดียว โดยระบบออกเลขรับต่อเนื่องให้อัตโนมัติ</p>
-        </div>
+        <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
         <button class="text-2xl close-modal">×</button>
       </div>
 
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
 
-        <div class="multi-upload-mode">
-          <label class="multi-upload-mode-card active">
-            <input type="radio" name="uploadMode" value="separate" checked>
-            <span>
-              <b>📚 เพิ่มหลายฉบับ</b>
-              <small>PDF แต่ละไฟล์ = หนังสือคนละฉบับ เหมาะกับการนำเข้าหลายเรื่องพร้อมกัน</small>
-            </span>
-          </label>
-          <label class="multi-upload-mode-card">
-            <input type="radio" name="uploadMode" value="merge">
-            <span>
-              <b>📎 รวมเป็นฉบับเดียว</b>
-              <small>รวม PDF หลายไฟล์ตามลำดับให้เป็นหนังสือฉบับเดียว</small>
-            </span>
-          </label>
+        <div>
+          <label class="font-semibold text-sm">จาก</label>
+          <input class="input mt-1" name="fromSender" value="${escapeHtml(defaultSender)}" required>
+        </div>
+
+        <div>
+          <label class="font-semibold text-sm">เรื่อง</label>
+          <input class="input mt-1" name="subject" required>
         </div>
 
         <div>
           <label class="font-semibold text-sm">ไฟล์ PDF</label>
           <input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required>
-          <p id="new-document-file-help" class="text-xs text-slate-500 mt-1">
-            เลือก PDF ได้หลายไฟล์ แต่ละไฟล์จะถูกสร้างเป็นหนังสือคนละฉบับ
-          </p>
+          <p class="text-xs text-slate-500 mt-1">เลือก PDF 1 ไฟล์ หรือเลือกหลายไฟล์เพื่อรวมเป็นหนังสือฉบับเดียวเหมือนระบบเดิม</p>
         </div>
 
         <div id="new-document-pdf-order" class="pdf-selection-summary"></div>
-
-        <div id="multi-document-fields" class="multi-document-fields">
-          <div class="multi-document-empty">เลือกไฟล์ PDF เพื่อกรอกชื่อเรื่องของแต่ละฉบับ</div>
-        </div>
-
-        <div id="single-document-fields" class="hide space-y-3">
-          <div>
-            <label class="font-semibold text-sm">จาก</label>
-            <input class="input mt-1" name="fromSenderMerged" value="${escapeHtml(defaultSender)}">
-          </div>
-          <div>
-            <label class="font-semibold text-sm">เรื่อง</label>
-            <input class="input mt-1" name="subjectMerged">
-          </div>
-        </div>
 
         <fieldset class="operation-picker">
           <legend>การดำเนินงาน</legend>
@@ -1478,9 +1452,15 @@
           </label>
         </fieldset>
 
-        <div class="flex justify-end gap-2">
+        <div id="queued-books-wrap" class="queued-books-wrap hide">
+          <div class="queued-books-title">หนังสือที่เตรียมเพิ่ม</div>
+          <div id="queued-books-list"></div>
+        </div>
+
+        <div class="upload-footer-actions">
           <button type="button" class="btn btn-muted close-modal">ยกเลิก</button>
-          <button id="multi-upload-submit" class="btn btn-primary" type="submit">📚 เพิ่มหนังสือ</button>
+          <button id="add-another-book-btn" type="button" class="btn btn-add-book">＋ เพิ่มหนังสือ</button>
+          <button id="upload-submit-btn" class="btn btn-primary" type="submit">บันทึกหนังสือ</button>
         </div>
       </form>
     </div>`;
@@ -1490,251 +1470,115 @@
     const form = overlay.querySelector('#upload-form');
     const pdfInput = overlay.querySelector('#new-document-pdf-files');
     const pdfSummary = overlay.querySelector('#new-document-pdf-order');
-    const multiFields = overlay.querySelector('#multi-document-fields');
-    const singleFields = overlay.querySelector('#single-document-fields');
-    const fileHelp = overlay.querySelector('#new-document-file-help');
-    const submitButton = overlay.querySelector('#multi-upload-submit');
+    const addBookBtn = overlay.querySelector('#add-another-book-btn');
+    const submitBtn = overlay.querySelector('#upload-submit-btn');
+    const queueWrap = overlay.querySelector('#queued-books-wrap');
+    const queueList = overlay.querySelector('#queued-books-list');
+    const queuedBooks = [];
 
-    const makeSubjectFromFileName = (name) =>
-      String(name || '')
-        .replace(/\.pdf$/i, '')
-        .replace(/[_-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    pdfInput.onchange = () => renderPdfSelection(pdfInput, pdfSummary);
+    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
 
-    const getUploadMode = () =>
-      form.querySelector('input[name="uploadMode"]:checked')?.value || 'separate';
+    function currentBookData_() {
+      const files = validatePdfFiles(selectedFiles(pdfInput));
+      const subject = String(form.elements.subject.value || '').trim();
+      const sender = String(form.elements.fromSender.value || '').trim();
+      const operationMode = form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
+      if (!sender) throw new Error('กรุณากรอกหน่วยงานผู้ส่ง');
+      if (!subject) throw new Error('กรุณากรอกเรื่อง');
+      return { files, subject, sender, operationMode };
+    }
 
-    const refreshModeCards = () => {
-      overlay.querySelectorAll('.multi-upload-mode-card').forEach((label) => {
-        const radio = label.querySelector('input[type="radio"]');
-        label.classList.toggle('active', !!radio?.checked);
-      });
-    };
+    function resetCurrentBook_() {
+      form.elements.subject.value = '';
+      form.elements.fromSender.value = defaultSender;
+      pdfInput.value = '';
+      pdfSummary.innerHTML = '';
+      const defaultRadio = form.querySelector(`input[name="operationMode"][value="${defaultOperationMode}"]`) || form.querySelector('input[name="operationMode"][value="normal"]');
+      if (defaultRadio) defaultRadio.checked = true;
+      form.elements.subject.focus();
+    }
 
-    const renderMultiRows = () => {
-      const files = selectedFiles(pdfInput);
-      const mode = getUploadMode();
-
-      renderPdfSelection(pdfInput, pdfSummary);
-      refreshModeCards();
-
-      const isSeparate = mode === 'separate';
-      multiFields.classList.toggle('hide', !isSeparate);
-      singleFields.classList.toggle('hide', isSeparate);
-
-      if (isSeparate) {
-        fileHelp.textContent = 'เลือก PDF ได้หลายไฟล์ แต่ละไฟล์จะถูกสร้างเป็นหนังสือคนละฉบับ และออกเลขรับต่อเนื่องให้อัตโนมัติ';
-        submitButton.textContent = files.length > 1 ? `📚 เพิ่มหนังสือ ${files.length} ฉบับ` : '📚 เพิ่มหนังสือ';
-
-        if (!files.length) {
-          multiFields.innerHTML = '<div class="multi-document-empty">เลือกไฟล์ PDF เพื่อกรอกชื่อเรื่องของแต่ละฉบับ</div>';
-          return;
-        }
-
-        const oldValues = {};
-        multiFields.querySelectorAll('[data-file-key]').forEach((row) => {
-          oldValues[row.dataset.fileKey] = {
-            subject: row.querySelector('.batch-subject')?.value || '',
-            sender: row.querySelector('.batch-sender')?.value || '',
-          };
-        });
-
-        multiFields.innerHTML = files.map((file, index) => {
-          const key = `${file.name}|${file.size}|${file.lastModified}`;
-          const previous = oldValues[key] || {};
-          return `<div class="multi-document-row" data-file-key="${escapeHtml(key)}">
-            <div class="multi-document-row-head">
-              <span class="multi-document-number">${index + 1}</span>
-              <div>
-                <b>${escapeHtml(file.name)}</b>
-                <small>${formatFileSize(file.size)}</small>
-              </div>
-            </div>
-            <div class="multi-document-row-fields">
-              <label>จาก
-                <input class="input batch-sender" value="${escapeHtml(previous.sender || defaultSender)}" required>
-              </label>
-              <label>เรื่อง
-                <input class="input batch-subject" value="${escapeHtml(previous.subject || makeSubjectFromFileName(file.name))}" required>
-              </label>
-            </div>
-          </div>`;
-        }).join('');
-      } else {
-        fileHelp.textContent = 'ระบบจะรวมไฟล์ตามลำดับที่เลือกเป็นเอกสารฉบับเดียว ขนาดรวมไม่เกิน 15 MB';
-        submitButton.textContent = '📎 รวมและอัปโหลด';
+    function renderQueue_() {
+      if (!queuedBooks.length) {
+        queueWrap.classList.add('hide');
+        queueList.innerHTML = '';
+        submitBtn.textContent = 'บันทึกหนังสือ';
+        return;
       }
+      queueWrap.classList.remove('hide');
+      queueList.innerHTML = queuedBooks.map((book, index) => `
+        <div class="queued-book-item">
+          <div class="queued-book-number">${index + 1}</div>
+          <div class="queued-book-info">
+            <b>${escapeHtml(book.subject)}</b>
+            <small>${escapeHtml(book.sender)} • ${book.files.length} PDF</small>
+          </div>
+          <button type="button" class="queued-book-remove" data-index="${index}" title="ลบรายการนี้">×</button>
+        </div>`).join('');
+      queueList.querySelectorAll('.queued-book-remove').forEach((button) => {
+        button.onclick = () => { queuedBooks.splice(Number(button.dataset.index), 1); renderQueue_(); };
+      });
+      submitBtn.textContent = `บันทึกทั้งหมด ${queuedBooks.length + 1} ฉบับ`;
+    }
+
+    addBookBtn.onclick = () => {
+      try {
+        const book = currentBookData_();
+        queuedBooks.push({ files: [...book.files], subject: book.subject, sender: book.sender, operationMode: book.operationMode });
+        renderQueue_();
+        resetCurrentBook_();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `เพิ่มเข้ารายการแล้ว ${queuedBooks.length} ฉบับ`, showConfirmButton: false, timer: 1200 });
+      } catch (error) { showError(error); }
     };
-
-    pdfInput.onchange = renderMultiRows;
-    form.querySelectorAll('input[name="uploadMode"]').forEach((radio) => {
-      radio.onchange = renderMultiRows;
-    });
-
-    overlay.querySelectorAll('.close-modal').forEach((button) => {
-      button.onclick = () => overlay.remove();
-    });
-
-    renderMultiRows();
 
     form.onsubmit = async (event) => {
       event.preventDefault();
-
-      const selectedMode = form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
-      const uploadMode = getUploadMode();
-
-      if (selectedMode !== 'normal') {
-        const detail = selectedMode === 'acting'
-          ? 'หนังสือทั้งหมดที่กำลังนำเข้าจะส่งให้รองผู้อำนวยการในฐานะผู้รักษาการ และเมื่อรองฯ บันทึกแล้วจะกลับไปคิวธุรการโดยไม่ผ่านบัญชีผู้อำนวยการ'
-          : 'หนังสือทั้งหมดที่กำลังนำเข้าจะข้ามคิวรองผู้อำนวยการและส่งตรงไปยังผู้อำนวยการ';
-
-        const confirmation = await Swal.fire({
-          icon: 'warning',
-          title: 'ยืนยันรูปแบบการดำเนินงาน',
-          text: detail,
-          showCancelButton: true,
-          confirmButtonText: 'ยืนยัน',
-          cancelButtonText: 'กลับไปตรวจสอบ',
-          confirmButtonColor: '#b91c1c',
-        });
-        if (!confirmation.isConfirmed) return;
-      }
-
       try {
-        const files = validatePdfFiles(selectedFiles(pdfInput));
+        const current = currentBookData_();
+        const allBooks = [...queuedBooks, { files: [...current.files], subject: current.subject, sender: current.sender, operationMode: current.operationMode }];
 
-        if (uploadMode === 'merge') {
-          const subject = String(form.elements.subjectMerged.value || '').trim();
-          const sender = String(form.elements.fromSenderMerged.value || '').trim();
-          if (!subject || !sender) throw new Error('กรุณากรอกเรื่องและหน่วยงานผู้ส่งให้ครบ');
-
-          loading('กำลังรวมและอัปโหลด PDF...', 'บันทึกไฟล์ลง Google Drive');
-          const merged = await mergePdfFiles(files, {
-            fileName: `${subject || 'หนังสือรับ'}-${Date.now()}.pdf`,
-          });
-
-          const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, {
-            sessionToken: state.token,
-            fromSender: sender,
-            subject,
-            operationMode: selectedMode,
-            sourceNames: JSON.stringify(files.map((file) => file.name)),
-          });
-
-          overlay.remove();
-          await loadDashboard();
-          Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo} รวมทั้งหมด ${merged.pageCount} หน้า`, 'success');
-          return;
+        const specialModes = allBooks.filter((book) => book.operationMode !== 'normal');
+        if (specialModes.length) {
+          const c = await Swal.fire({ icon: 'warning', title: 'ยืนยันรูปแบบการดำเนินงาน', text: `มีหนังสือ ${specialModes.length} ฉบับที่ไม่ได้ใช้โหมดปกติ กรุณาตรวจสอบก่อนบันทึก`, showCancelButton: true, confirmButtonText: 'ยืนยันและบันทึก', cancelButtonText: 'กลับไปตรวจสอบ', confirmButtonColor: '#b91c1c' });
+          if (!c.isConfirmed) return;
         }
 
-        // โหมดเพิ่มหลายฉบับ: แต่ละ PDF เป็นหนังสือคนละฉบับ
-        const rows = Array.from(multiFields.querySelectorAll('.multi-document-row'));
-        if (rows.length !== files.length) throw new Error('รายการไฟล์ไม่ตรงกัน กรุณาเลือกไฟล์ใหม่อีกครั้ง');
-
-        const jobs = rows.map((row, index) => ({
-          file: files[index],
-          sender: String(row.querySelector('.batch-sender')?.value || '').trim(),
-          subject: String(row.querySelector('.batch-subject')?.value || '').trim(),
-        }));
-
-        jobs.forEach((job, index) => {
-          if (!job.sender) throw new Error(`ฉบับที่ ${index + 1}: กรุณากรอกหน่วยงานผู้ส่ง`);
-          if (!job.subject) throw new Error(`ฉบับที่ ${index + 1}: กรุณากรอกชื่อเรื่อง`);
-        });
-
-        const confirmBatch = await Swal.fire({
+        const c = await Swal.fire({
           icon: 'question',
-          title: `เพิ่มหนังสือ ${jobs.length} ฉบับ?`,
-          html: `<div class="text-left">
-            <p>ระบบจะสร้างหนังสือแยกฉบับ และออกเลขรับต่อเนื่องตามลำดับไฟล์</p>
-            <div class="batch-upload-confirm-list">
-              ${jobs.slice(0, 10).map((job, index) =>
-                `<div><b>${index + 1}.</b> ${escapeHtml(job.subject)}</div>`
-              ).join('')}
-              ${jobs.length > 10 ? `<div><b>และอีก ${jobs.length - 10} ฉบับ</b></div>` : ''}
-            </div>
-          </div>`,
-          showCancelButton: true,
-          confirmButtonText: `📚 เพิ่ม ${jobs.length} ฉบับ`,
-          cancelButtonText: 'กลับไปแก้ไข',
+          title: allBooks.length > 1 ? `บันทึกหนังสือ ${allBooks.length} ฉบับ?` : 'บันทึกหนังสือฉบับนี้?',
+          html: allBooks.length > 1 ? `<div class="text-left"><p>ระบบจะบันทึกหนังสือทีละฉบับ และออกเลขรับต่อเนื่องให้อัตโนมัติ</p><div class="batch-upload-confirm-list">${allBooks.slice(0,10).map((book,i)=>`<div><b>${i+1}.</b> ${escapeHtml(book.subject)}</div>`).join('')}${allBooks.length>10?`<div><b>และอีก ${allBooks.length-10} ฉบับ</b></div>`:''}</div></div>` : `<div>${escapeHtml(current.subject)}</div>`,
+          showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก'
         });
-        if (!confirmBatch.isConfirmed) return;
+        if (!c.isConfirmed) return;
 
-        Swal.fire({
-          title: 'กำลังเพิ่มหนังสือหลายฉบับ',
-          html: `<div id="batch-upload-progress-text">กำลังเตรียม...</div>
-                 <div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showConfirmButton: false,
-          didOpen: () => Swal.showLoading(),
-        });
+        Swal.fire({ title: allBooks.length > 1 ? 'กำลังบันทึกหนังสือหลายฉบับ' : 'กำลังบันทึกหนังสือ', html: `<div id="batch-upload-progress-text">กำลังเตรียม...</div><div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`, allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
 
-        const success = [];
-        const failed = [];
-
-        // ทำทีละฉบับเพื่อให้เลขรับเรียงต่อเนื่องและลดภาระ Apps Script/Drive
-        for (let i = 0; i < jobs.length; i += 1) {
-          const job = jobs[i];
+        const success = [], failed = [];
+        for (let i=0;i<allBooks.length;i++) {
+          const book = allBooks[i];
           const textEl = document.getElementById('batch-upload-progress-text');
           const barEl = document.getElementById('ack-all-progress-bar');
-
-          if (textEl) textEl.textContent = `กำลังเพิ่มฉบับที่ ${i + 1}/${jobs.length} — ${job.subject}`;
-          if (barEl) barEl.style.width = `${Math.round((i / jobs.length) * 100)}%`;
-
+          if (textEl) textEl.textContent = `กำลังบันทึก ${i+1}/${allBooks.length} — ${book.subject}`;
+          if (barEl) barEl.style.width = `${Math.round((i/allBooks.length)*100)}%`;
           try {
-            const result = await uploadFileForm('uploadNewDocument', 'pdfFile', job.file, {
-              sessionToken: state.token,
-              fromSender: job.sender,
-              subject: job.subject,
-              operationMode: selectedMode,
-              sourceNames: JSON.stringify([job.file.name]),
-            });
-            success.push({ ...job, result });
-          } catch (error) {
-            failed.push({
-              ...job,
-              message: String(error?.message || error || 'ไม่ทราบสาเหตุ'),
-            });
-          }
-
-          if (barEl) barEl.style.width = `${Math.round(((i + 1) / jobs.length) * 100)}%`;
+            const merged = await mergePdfFiles(book.files, { fileName: `${book.subject || 'หนังสือรับ'}-${Date.now()}-${i+1}.pdf` });
+            const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, { sessionToken: state.token, fromSender: book.sender, subject: book.subject, operationMode: book.operationMode, sourceNames: JSON.stringify(book.files.map((file)=>file.name)) });
+            success.push({ book, result, pageCount: merged.pageCount });
+          } catch (error) { failed.push({ book, message: String(error?.message || error || 'ไม่ทราบสาเหตุ') }); }
+          if (barEl) barEl.style.width = `${Math.round(((i+1)/allBooks.length)*100)}%`;
         }
 
         overlay.remove();
         await loadDashboard();
-
         if (!failed.length) {
           const firstNo = success[0]?.result?.recvNo || '';
-          const lastNo = success[success.length - 1]?.result?.recvNo || '';
-          Swal.fire({
-            icon: 'success',
-            title: 'เพิ่มหนังสือสำเร็จ',
-            html: `<div>
-              เพิ่มทั้งหมด <b>${success.length} ฉบับ</b><br>
-              ${success.length > 1 ? `เลขรับตั้งแต่ <b>${escapeHtml(firstNo)}</b> ถึง <b>${escapeHtml(lastNo)}</b>` : `เลขรับ <b>${escapeHtml(firstNo)}</b>`}
-            </div>`,
-          });
-          return;
+          const lastNo = success[success.length-1]?.result?.recvNo || '';
+          Swal.fire({ icon:'success', title:'บันทึกเรียบร้อย', html: success.length>1 ? `เพิ่มหนังสือทั้งหมด <b>${success.length} ฉบับ</b><br>เลขรับ ${escapeHtml(firstNo)} ถึง ${escapeHtml(lastNo)}` : `อัปโหลดเรียบร้อย เลขรับ <b>${escapeHtml(firstNo)}</b>` });
+        } else {
+          Swal.fire({ icon:'warning', title:'บันทึกเสร็จแล้วบางส่วน', html:`<div class="text-left"><p>สำเร็จ <b>${success.length}</b> ฉบับ / ไม่สำเร็จ <b>${failed.length}</b> ฉบับ</p><div class="batch-upload-failed-list">${failed.slice(0,8).map((item)=>`<div>• ${escapeHtml(item.book.subject)}<br><small>${escapeHtml(item.message)}</small></div>`).join('')}</div></div>` });
         }
-
-        Swal.fire({
-          icon: 'warning',
-          title: 'เพิ่มหนังสือเสร็จแล้วบางส่วน',
-          html: `<div class="text-left">
-            <p>สำเร็จ <b>${success.length}</b> ฉบับ / ไม่สำเร็จ <b>${failed.length}</b> ฉบับ</p>
-            <div class="batch-upload-failed-list">
-              ${failed.slice(0, 8).map((item) =>
-                `<div>• ${escapeHtml(item.subject)}<br><small>${escapeHtml(item.message)}</small></div>`
-              ).join('')}
-            </div>
-            <p class="text-xs mt-2">ฉบับที่สำเร็จถูกบันทึกแล้ว ส่วนรายการที่ไม่สำเร็จสามารถนำเข้าใหม่เฉพาะฉบับนั้นได้</p>
-          </div>`,
-        });
-      } catch (error) {
-        showError(error);
-      }
+      } catch (error) { showError(error); }
     };
   }
 
