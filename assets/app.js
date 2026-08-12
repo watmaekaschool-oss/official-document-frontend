@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.8.0';
+  const FRONTEND_BUILD_VERSION = '3.9.5';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -34,6 +34,63 @@
   };
 
 
+
+
+  // 3.9.4 — cache PDF สำหรับเปิดเอกสารแบบด่วน
+  const quickPdfCache = new Map();
+  const quickPdfPrefetch = new Map();
+  const QUICK_PDF_CACHE_LIMIT = 3;
+
+  function rememberQuickPdf_(docId, result) {
+    if (!docId || !result?.file?.base64) return result;
+    quickPdfCache.delete(docId);
+    quickPdfCache.set(docId, result);
+    while (quickPdfCache.size > QUICK_PDF_CACHE_LIMIT) {
+      const oldestKey = quickPdfCache.keys().next().value;
+      quickPdfCache.delete(oldestKey);
+    }
+    return result;
+  }
+
+  async function prefetchDocumentFile_(docId) {
+    if (!docId || quickPdfCache.has(docId)) return quickPdfCache.get(docId);
+    if (quickPdfPrefetch.has(docId)) return quickPdfPrefetch.get(docId);
+
+    const promise = gasCall('getDocumentFile', state.token, docId, false)
+      .then((result) => rememberQuickPdf_(docId, result))
+      .catch(() => null)
+      .finally(() => quickPdfPrefetch.delete(docId));
+
+    quickPdfPrefetch.set(docId, promise);
+    return promise;
+  }
+
+  async function getDocumentFileQuick_(docId) {
+    const cached = quickPdfCache.get(docId);
+    if (cached?.file?.base64) {
+      // PDF ถูกโหลดไว้ล่วงหน้าแล้ว จึง mark opened แยกเพื่อไม่โหลดไฟล์ซ้ำ
+      try { await gasCall('markDocumentOpenedFast', state.token, docId); } catch (_) {}
+      return cached;
+    }
+
+    const pending = quickPdfPrefetch.get(docId);
+    if (pending) {
+      const result = await pending;
+      if (result?.file?.base64) {
+        try { await gasCall('markDocumentOpenedFast', state.token, docId); } catch (_) {}
+        return result;
+      }
+    }
+
+    const result = await gasCall('getDocumentFile', state.token, docId, true);
+    return rememberQuickPdf_(docId, result);
+  }
+
+  function base64PdfToBlobUrl_(base64) {
+    const bytes = base64ToUint8Array(base64);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    return URL.createObjectURL(blob);
+  }
 
   function mascotArt(type) {
     const colors = {
@@ -122,7 +179,7 @@
       title: 'คู่มือการใช้งานสำหรับธุรการ',
       intro: 'ใช้สำหรับนำเข้าหนังสือ ส่งต่อผู้บริหาร จ่ายเรื่องให้ผู้รับ และดูแลบัญชีผู้ใช้งาน',
       steps: [
-        ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน สามารถเลือก PDF หลายไฟล์เพื่อรวมเป็นฉบับเดียวได้'],
+        ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน สามารถเพิ่มหนังสือหลายฉบับพร้อมกัน โดยแต่ละ PDF เป็นคนละหนังสือ หรือเลือกโหมดรวม PDF เป็นฉบับเดียวได้'],
         ['เปลี่ยนไฟล์หลังลงรับ', 'กด “เปลี่ยน PDF” ที่รายการเอกสาร ระบบจะเก็บไฟล์เดิมไว้ใน Drive และรีเซ็ตงานกลับเข้าคิวธุรการเพื่อประทับตราใหม่'],
         ['รวม PDF เพิ่มเติม', 'กด “ไฟล์แนบ” แล้วเลือก “รวม PDF เข้ากับเอกสารหลัก” สามารถเลือกหลายไฟล์ตามลำดับที่ต้องการต่อท้าย'],
         ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
@@ -803,6 +860,10 @@
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
+              ${state.inboxDocs.some((doc) => {
+                const own = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+                return own && !own.acknowledgedAt;
+              }) ? '<button id="acknowledge-all-btn" class="btn btn-ack-all" type="button">✅ รับทราบทั้งหมด</button>' : ''}
               ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สรุปการรับทราบสำหรับส่ง LINE" title="สรุปการรับทราบสำหรับส่ง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
               <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
               <button id="calendar-sort-btn" class="btn calendar-sort-btn" type="button" aria-label="จัดเรียงเอกสารตามปฏิทิน" title="จัดเรียงตามปฏิทิน">📅 <span>จัดเรียงตามปฏิทิน</span></button>
@@ -845,6 +906,8 @@
       loading('กำลังรีเฟรช...');
       try { await loadDashboard(); Swal.close(); } catch (error) { showError(error); }
     };
+    const acknowledgeAllBtn = document.getElementById('acknowledge-all-btn');
+    if (acknowledgeAllBtn) acknowledgeAllBtn.onclick = acknowledgeAllPendingDocuments;
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
     document.getElementById('settings-btn').onclick = openSettingsPanel;
     document.getElementById('web-push-btn').onclick = openWebPushPanel;
@@ -1147,7 +1210,7 @@
         ? '<span class="badge badge-circular">เวียนคณะครู</span>' : '';
       const actionButton = state.tab === 'action'
         ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
-        : `<button class="btn btn-muted text-xs view-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดูเอกสาร</button>`;
+        : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`;
       const replaceButton = isClericalUser()
         ? `<button class="btn btn-warning text-xs replace-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">เปลี่ยน PDF</button>`
         : '';
@@ -1164,7 +1227,17 @@
     }).join('');
 
     tbody.querySelectorAll('.action-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, true));
-    tbody.querySelectorAll('.view-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, false));
+    tbody.querySelectorAll('.view-doc-btn').forEach((button) => {
+      button.onclick = () => openQuickDocumentViewer(button.dataset.docId);
+      let hoverTimer = null;
+      const warm = () => {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 120);
+      };
+      button.addEventListener('mouseenter', warm, { passive: true });
+      button.addEventListener('focus', warm, { passive: true });
+      button.addEventListener('touchstart', () => prefetchDocumentFile_(button.dataset.docId), { passive: true, once: true });
+    });
     tbody.querySelectorAll('.acknowledge-btn').forEach((button) => button.onclick = () => acknowledge(button.dataset.docId));
     tbody.querySelectorAll('.complete-doc-btn').forEach((button) => button.onclick = () => completeDocument(button.dataset.docId));
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
@@ -1335,36 +1408,187 @@
     const defaultOperationMode = state.appSettings?.defaults?.operationMode || 'normal';
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop';
-    overlay.innerHTML = `<div class="modal-panel max-w-md">
-      <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2><button class="text-2xl close-modal">×</button></div>
+    overlay.innerHTML = `<div class="modal-panel upload-multi-panel">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
+          <p class="text-xs text-slate-500 mt-1">เพิ่มได้หลายฉบับในครั้งเดียว โดยระบบออกเลขรับต่อเนื่องให้อัตโนมัติ</p>
+        </div>
+        <button class="text-2xl close-modal">×</button>
+      </div>
+
       <form id="upload-form" class="space-y-4">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
-        <div><label class="font-semibold text-sm">ไฟล์ PDF (เลือกได้หลายไฟล์)</label><input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required><p class="text-xs text-slate-500 mt-1">ระบบจะรวมไฟล์ตามลำดับที่เลือกเป็นเอกสารฉบับเดียว ขนาดรวมไม่เกิน 15 MB</p></div>
+
+        <div class="multi-upload-mode">
+          <label class="multi-upload-mode-card active">
+            <input type="radio" name="uploadMode" value="separate" checked>
+            <span>
+              <b>📚 เพิ่มหลายฉบับ</b>
+              <small>PDF แต่ละไฟล์ = หนังสือคนละฉบับ เหมาะกับการนำเข้าหลายเรื่องพร้อมกัน</small>
+            </span>
+          </label>
+          <label class="multi-upload-mode-card">
+            <input type="radio" name="uploadMode" value="merge">
+            <span>
+              <b>📎 รวมเป็นฉบับเดียว</b>
+              <small>รวม PDF หลายไฟล์ตามลำดับให้เป็นหนังสือฉบับเดียว</small>
+            </span>
+          </label>
+        </div>
+
+        <div>
+          <label class="font-semibold text-sm">ไฟล์ PDF</label>
+          <input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required>
+          <p id="new-document-file-help" class="text-xs text-slate-500 mt-1">
+            เลือก PDF ได้หลายไฟล์ แต่ละไฟล์จะถูกสร้างเป็นหนังสือคนละฉบับ
+          </p>
+        </div>
+
         <div id="new-document-pdf-order" class="pdf-selection-summary"></div>
-        <div><label class="font-semibold text-sm">จาก</label><input class="input mt-1" name="fromSender" value="${escapeHtml(defaultSender)}" required></div>
-        <div><label class="font-semibold text-sm">เรื่อง</label><input class="input mt-1" name="subject" required></div>
+
+        <div id="multi-document-fields" class="multi-document-fields">
+          <div class="multi-document-empty">เลือกไฟล์ PDF เพื่อกรอกชื่อเรื่องของแต่ละฉบับ</div>
+        </div>
+
+        <div id="single-document-fields" class="hide space-y-3">
+          <div>
+            <label class="font-semibold text-sm">จาก</label>
+            <input class="input mt-1" name="fromSenderMerged" value="${escapeHtml(defaultSender)}">
+          </div>
+          <div>
+            <label class="font-semibold text-sm">เรื่อง</label>
+            <input class="input mt-1" name="subjectMerged">
+          </div>
+        </div>
+
         <fieldset class="operation-picker">
           <legend>การดำเนินงาน</legend>
-          <label class="operation-option operation-normal"><input type="radio" name="operationMode" value="normal" ${defaultOperationMode === 'normal' ? 'checked' : ''}><span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span></label>
-          <label class="operation-option operation-acting-option"><input type="radio" name="operationMode" value="acting" ${defaultOperationMode === 'acting' ? 'checked' : ''}><span><b>2. รองรักษาการ</b><small>รองผู้อำนวยการรักษาการแทนผู้อำนวยการ</small></span></label>
-          <label class="operation-option operation-director-option"><input type="radio" name="operationMode" value="director" ${defaultOperationMode === 'director' ? 'checked' : ''}><span><b>3. รองผู้อำนวยการไม่อยู่</b><small>ส่งตรงให้ผู้อำนวยการดำเนินงาน</small></span></label>
+          <label class="operation-option operation-normal">
+            <input type="radio" name="operationMode" value="normal" ${defaultOperationMode === 'normal' ? 'checked' : ''}>
+            <span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span>
+          </label>
+          <label class="operation-option operation-acting-option">
+            <input type="radio" name="operationMode" value="acting" ${defaultOperationMode === 'acting' ? 'checked' : ''}>
+            <span><b>2. รองรักษาการ</b><small>รองผู้อำนวยการรักษาการแทนผู้อำนวยการ</small></span>
+          </label>
+          <label class="operation-option operation-director-option">
+            <input type="radio" name="operationMode" value="director" ${defaultOperationMode === 'director' ? 'checked' : ''}>
+            <span><b>3. รองผู้อำนวยการไม่อยู่</b><small>ส่งตรงให้ผู้อำนวยการดำเนินงาน</small></span>
+          </label>
         </fieldset>
-        <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-primary" type="submit">อัปโหลด</button></div>
-      </form></div>`;
+
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn btn-muted close-modal">ยกเลิก</button>
+          <button id="multi-upload-submit" class="btn btn-primary" type="submit">📚 เพิ่มหนังสือ</button>
+        </div>
+      </form>
+    </div>`;
+
     document.body.appendChild(overlay);
+
+    const form = overlay.querySelector('#upload-form');
     const pdfInput = overlay.querySelector('#new-document-pdf-files');
     const pdfSummary = overlay.querySelector('#new-document-pdf-order');
-    renderPdfSelection(pdfInput, pdfSummary);
-    pdfInput.onchange = () => renderPdfSelection(pdfInput, pdfSummary);
-    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
-    overlay.querySelector('#upload-form').onsubmit = async (event) => {
+    const multiFields = overlay.querySelector('#multi-document-fields');
+    const singleFields = overlay.querySelector('#single-document-fields');
+    const fileHelp = overlay.querySelector('#new-document-file-help');
+    const submitButton = overlay.querySelector('#multi-upload-submit');
+
+    const makeSubjectFromFileName = (name) =>
+      String(name || '')
+        .replace(/\.pdf$/i, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const getUploadMode = () =>
+      form.querySelector('input[name="uploadMode"]:checked')?.value || 'separate';
+
+    const refreshModeCards = () => {
+      overlay.querySelectorAll('.multi-upload-mode-card').forEach((label) => {
+        const radio = label.querySelector('input[type="radio"]');
+        label.classList.toggle('active', !!radio?.checked);
+      });
+    };
+
+    const renderMultiRows = () => {
+      const files = selectedFiles(pdfInput);
+      const mode = getUploadMode();
+
+      renderPdfSelection(pdfInput, pdfSummary);
+      refreshModeCards();
+
+      const isSeparate = mode === 'separate';
+      multiFields.classList.toggle('hide', !isSeparate);
+      singleFields.classList.toggle('hide', isSeparate);
+
+      if (isSeparate) {
+        fileHelp.textContent = 'เลือก PDF ได้หลายไฟล์ แต่ละไฟล์จะถูกสร้างเป็นหนังสือคนละฉบับ และออกเลขรับต่อเนื่องให้อัตโนมัติ';
+        submitButton.textContent = files.length > 1 ? `📚 เพิ่มหนังสือ ${files.length} ฉบับ` : '📚 เพิ่มหนังสือ';
+
+        if (!files.length) {
+          multiFields.innerHTML = '<div class="multi-document-empty">เลือกไฟล์ PDF เพื่อกรอกชื่อเรื่องของแต่ละฉบับ</div>';
+          return;
+        }
+
+        const oldValues = {};
+        multiFields.querySelectorAll('[data-file-key]').forEach((row) => {
+          oldValues[row.dataset.fileKey] = {
+            subject: row.querySelector('.batch-subject')?.value || '',
+            sender: row.querySelector('.batch-sender')?.value || '',
+          };
+        });
+
+        multiFields.innerHTML = files.map((file, index) => {
+          const key = `${file.name}|${file.size}|${file.lastModified}`;
+          const previous = oldValues[key] || {};
+          return `<div class="multi-document-row" data-file-key="${escapeHtml(key)}">
+            <div class="multi-document-row-head">
+              <span class="multi-document-number">${index + 1}</span>
+              <div>
+                <b>${escapeHtml(file.name)}</b>
+                <small>${formatFileSize(file.size)}</small>
+              </div>
+            </div>
+            <div class="multi-document-row-fields">
+              <label>จาก
+                <input class="input batch-sender" value="${escapeHtml(previous.sender || defaultSender)}" required>
+              </label>
+              <label>เรื่อง
+                <input class="input batch-subject" value="${escapeHtml(previous.subject || makeSubjectFromFileName(file.name))}" required>
+              </label>
+            </div>
+          </div>`;
+        }).join('');
+      } else {
+        fileHelp.textContent = 'ระบบจะรวมไฟล์ตามลำดับที่เลือกเป็นเอกสารฉบับเดียว ขนาดรวมไม่เกิน 15 MB';
+        submitButton.textContent = '📎 รวมและอัปโหลด';
+      }
+    };
+
+    pdfInput.onchange = renderMultiRows;
+    form.querySelectorAll('input[name="uploadMode"]').forEach((radio) => {
+      radio.onchange = renderMultiRows;
+    });
+
+    overlay.querySelectorAll('.close-modal').forEach((button) => {
+      button.onclick = () => overlay.remove();
+    });
+
+    renderMultiRows();
+
+    form.onsubmit = async (event) => {
       event.preventDefault();
-      const form = event.currentTarget;
+
       const selectedMode = form.querySelector('input[name="operationMode"]:checked')?.value || 'normal';
+      const uploadMode = getUploadMode();
+
       if (selectedMode !== 'normal') {
         const detail = selectedMode === 'acting'
-          ? 'หนังสือจะส่งให้รองผู้อำนวยการในฐานะผู้รักษาการ และเมื่อรองฯ บันทึกแล้วจะกลับไปคิวธุรการโดยไม่ผ่านบัญชีผู้อำนวยการ'
-          : 'หนังสือจะข้ามคิวรองผู้อำนวยการและส่งตรงไปยังผู้อำนวยการ';
+          ? 'หนังสือทั้งหมดที่กำลังนำเข้าจะส่งให้รองผู้อำนวยการในฐานะผู้รักษาการ และเมื่อรองฯ บันทึกแล้วจะกลับไปคิวธุรการโดยไม่ผ่านบัญชีผู้อำนวยการ'
+          : 'หนังสือทั้งหมดที่กำลังนำเข้าจะข้ามคิวรองผู้อำนวยการและส่งตรงไปยังผู้อำนวยการ';
+
         const confirmation = await Swal.fire({
           icon: 'warning',
           title: 'ยืนยันรูปแบบการดำเนินงาน',
@@ -1376,23 +1600,141 @@
         });
         if (!confirmation.isConfirmed) return;
       }
-      loading('กำลังรวมและอัปโหลด PDF...', 'บันทึกไฟล์ลง Google Drive');
+
       try {
         const files = validatePdfFiles(selectedFiles(pdfInput));
-        const merged = await mergePdfFiles(files, {
-          fileName: `${form.elements.subject.value || 'หนังสือรับ'}-${Date.now()}.pdf`,
+
+        if (uploadMode === 'merge') {
+          const subject = String(form.elements.subjectMerged.value || '').trim();
+          const sender = String(form.elements.fromSenderMerged.value || '').trim();
+          if (!subject || !sender) throw new Error('กรุณากรอกเรื่องและหน่วยงานผู้ส่งให้ครบ');
+
+          loading('กำลังรวมและอัปโหลด PDF...', 'บันทึกไฟล์ลง Google Drive');
+          const merged = await mergePdfFiles(files, {
+            fileName: `${subject || 'หนังสือรับ'}-${Date.now()}.pdf`,
+          });
+
+          const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, {
+            sessionToken: state.token,
+            fromSender: sender,
+            subject,
+            operationMode: selectedMode,
+            sourceNames: JSON.stringify(files.map((file) => file.name)),
+          });
+
+          overlay.remove();
+          await loadDashboard();
+          Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo} รวมทั้งหมด ${merged.pageCount} หน้า`, 'success');
+          return;
+        }
+
+        // โหมดเพิ่มหลายฉบับ: แต่ละ PDF เป็นหนังสือคนละฉบับ
+        const rows = Array.from(multiFields.querySelectorAll('.multi-document-row'));
+        if (rows.length !== files.length) throw new Error('รายการไฟล์ไม่ตรงกัน กรุณาเลือกไฟล์ใหม่อีกครั้ง');
+
+        const jobs = rows.map((row, index) => ({
+          file: files[index],
+          sender: String(row.querySelector('.batch-sender')?.value || '').trim(),
+          subject: String(row.querySelector('.batch-subject')?.value || '').trim(),
+        }));
+
+        jobs.forEach((job, index) => {
+          if (!job.sender) throw new Error(`ฉบับที่ ${index + 1}: กรุณากรอกหน่วยงานผู้ส่ง`);
+          if (!job.subject) throw new Error(`ฉบับที่ ${index + 1}: กรุณากรอกชื่อเรื่อง`);
         });
-        const result = await uploadFileForm('uploadNewDocument', 'pdfFile', merged.file, {
-          sessionToken: state.token,
-          fromSender: form.elements.fromSender.value,
-          subject: form.elements.subject.value,
-          operationMode: selectedMode,
-          sourceNames: JSON.stringify(files.map((file) => file.name)),
+
+        const confirmBatch = await Swal.fire({
+          icon: 'question',
+          title: `เพิ่มหนังสือ ${jobs.length} ฉบับ?`,
+          html: `<div class="text-left">
+            <p>ระบบจะสร้างหนังสือแยกฉบับ และออกเลขรับต่อเนื่องตามลำดับไฟล์</p>
+            <div class="batch-upload-confirm-list">
+              ${jobs.slice(0, 10).map((job, index) =>
+                `<div><b>${index + 1}.</b> ${escapeHtml(job.subject)}</div>`
+              ).join('')}
+              ${jobs.length > 10 ? `<div><b>และอีก ${jobs.length - 10} ฉบับ</b></div>` : ''}
+            </div>
+          </div>`,
+          showCancelButton: true,
+          confirmButtonText: `📚 เพิ่ม ${jobs.length} ฉบับ`,
+          cancelButtonText: 'กลับไปแก้ไข',
         });
+        if (!confirmBatch.isConfirmed) return;
+
+        Swal.fire({
+          title: 'กำลังเพิ่มหนังสือหลายฉบับ',
+          html: `<div id="batch-upload-progress-text">กำลังเตรียม...</div>
+                 <div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        const success = [];
+        const failed = [];
+
+        // ทำทีละฉบับเพื่อให้เลขรับเรียงต่อเนื่องและลดภาระ Apps Script/Drive
+        for (let i = 0; i < jobs.length; i += 1) {
+          const job = jobs[i];
+          const textEl = document.getElementById('batch-upload-progress-text');
+          const barEl = document.getElementById('ack-all-progress-bar');
+
+          if (textEl) textEl.textContent = `กำลังเพิ่มฉบับที่ ${i + 1}/${jobs.length} — ${job.subject}`;
+          if (barEl) barEl.style.width = `${Math.round((i / jobs.length) * 100)}%`;
+
+          try {
+            const result = await uploadFileForm('uploadNewDocument', 'pdfFile', job.file, {
+              sessionToken: state.token,
+              fromSender: job.sender,
+              subject: job.subject,
+              operationMode: selectedMode,
+              sourceNames: JSON.stringify([job.file.name]),
+            });
+            success.push({ ...job, result });
+          } catch (error) {
+            failed.push({
+              ...job,
+              message: String(error?.message || error || 'ไม่ทราบสาเหตุ'),
+            });
+          }
+
+          if (barEl) barEl.style.width = `${Math.round(((i + 1) / jobs.length) * 100)}%`;
+        }
+
         overlay.remove();
         await loadDashboard();
-        Swal.fire('สำเร็จ', `อัปโหลดเรียบร้อย เลขรับ ${result.recvNo} รวมทั้งหมด ${merged.pageCount} หน้า`, 'success');
-      } catch (error) { showError(error); }
+
+        if (!failed.length) {
+          const firstNo = success[0]?.result?.recvNo || '';
+          const lastNo = success[success.length - 1]?.result?.recvNo || '';
+          Swal.fire({
+            icon: 'success',
+            title: 'เพิ่มหนังสือสำเร็จ',
+            html: `<div>
+              เพิ่มทั้งหมด <b>${success.length} ฉบับ</b><br>
+              ${success.length > 1 ? `เลขรับตั้งแต่ <b>${escapeHtml(firstNo)}</b> ถึง <b>${escapeHtml(lastNo)}</b>` : `เลขรับ <b>${escapeHtml(firstNo)}</b>`}
+            </div>`,
+          });
+          return;
+        }
+
+        Swal.fire({
+          icon: 'warning',
+          title: 'เพิ่มหนังสือเสร็จแล้วบางส่วน',
+          html: `<div class="text-left">
+            <p>สำเร็จ <b>${success.length}</b> ฉบับ / ไม่สำเร็จ <b>${failed.length}</b> ฉบับ</p>
+            <div class="batch-upload-failed-list">
+              ${failed.slice(0, 8).map((item) =>
+                `<div>• ${escapeHtml(item.subject)}<br><small>${escapeHtml(item.message)}</small></div>`
+              ).join('')}
+            </div>
+            <p class="text-xs mt-2">ฉบับที่สำเร็จถูกบันทึกแล้ว ส่วนรายการที่ไม่สำเร็จสามารถนำเข้าใหม่เฉพาะฉบับนั้นได้</p>
+          </div>`,
+        });
+      } catch (error) {
+        showError(error);
+      }
     };
   }
 
@@ -1439,42 +1781,167 @@
     return await pdfDoc.saveAsBase64();
   }
 
+  async function acknowledgeOneDocument_(docId) {
+    let saved = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const signing = await gasCall('getAcknowledgementSigningData', state.token, docId);
+      if (signing.alreadyAcknowledged) {
+        saved = signing;
+        break;
+      }
+      if (signing.legacy) {
+        saved = await gasCall('acknowledgeLegacyDocument', state.token, docId);
+        break;
+      }
+      const base64 = await embedSignatureIntoAcknowledgementSlot(
+        signing.file.base64,
+        signing.signatureDataUrl,
+        signing.slot
+      );
+      try {
+        saved = await gasCall('saveAcknowledgedDocument', state.token, {
+          docId,
+          base64,
+          expectedVersion: signing.expectedVersion,
+        });
+        break;
+      } catch (error) {
+        if (!/ACK_VERSION_CONFLICT/.test(error?.message || '') || attempt >= 2) throw error;
+      }
+    }
+    if (!saved) throw new Error('ไม่สามารถบันทึกลายเซ็นได้ กรุณาลองใหม่');
+    quickPdfCache.delete(docId);
+    return saved;
+  }
+
   async function acknowledge(docId) {
     if (!state.user?.signatureConfigured) {
       Swal.fire('ยังไม่มีลายเซ็น', 'กรุณาส่งลายเซ็นต์ให้ผู้ดูแลระบบ', 'warning');
       return;
     }
+
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: 'ยืนยันรับทราบ',
+      text: 'ยืนยันว่าคุณได้อ่านเอกสารฉบับนี้แล้ว และต้องการใส่ลายเซ็นรับทราบ',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันรับทราบ',
+      cancelButtonText: 'ยกเลิก',
+    });
+    if (!confirm.isConfirmed) return;
+
     loading('กำลังใส่ลายเซ็นและบันทึกรับทราบ...');
     try {
-      let saved = null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const signing = await gasCall('getAcknowledgementSigningData', state.token, docId);
-        if (signing.alreadyAcknowledged) {
-          saved = signing;
-          break;
-        }
-        if (signing.legacy) {
-          saved = await gasCall('acknowledgeLegacyDocument', state.token, docId);
-          break;
-        }
-        const base64 = await embedSignatureIntoAcknowledgementSlot(signing.file.base64, signing.signatureDataUrl, signing.slot);
-        try {
-          saved = await gasCall('saveAcknowledgedDocument', state.token, {
-            docId,
-            base64,
-            expectedVersion: signing.expectedVersion,
-          });
-          break;
-        } catch (error) {
-          if (!/ACK_VERSION_CONFLICT/.test(error?.message || '') || attempt >= 2) throw error;
-        }
-      }
-      if (!saved) throw new Error('ไม่สามารถบันทึกลายเซ็นได้ กรุณาลองใหม่');
+      await acknowledgeOneDocument_(docId);
       triggerWorkflowMascotProgress();
       await loadDashboard();
       Swal.fire('สำเร็จ', 'ใส่ลายเซ็นและบันทึกรับทราบเรียบร้อยแล้ว', 'success');
     } catch (error) { showError(error); }
   }
+
+  async function acknowledgeAllPendingDocuments() {
+    if (!state.user?.signatureConfigured) {
+      Swal.fire('ยังไม่มีลายเซ็น', 'กรุณาส่งลายเซ็นต์ให้ผู้ดูแลระบบก่อนใช้ปุ่มรับทราบทั้งหมด', 'warning');
+      return;
+    }
+
+    const pending = (state.inboxDocs || []).filter((doc) => {
+      const own = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+      return own && !own.acknowledgedAt;
+    });
+
+    if (!pending.length) {
+      Swal.fire('ไม่มีเอกสารค้าง', 'คุณรับทราบเอกสารครบทั้งหมดแล้ว', 'success');
+      return;
+    }
+
+    const preview = pending.slice(0, 8)
+      .map((doc, i) => `${i + 1}. ${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}`)
+      .join('<br>');
+    const more = pending.length > 8 ? `<br><b>และอีก ${pending.length - 8} ฉบับ</b>` : '';
+
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: `รับทราบทั้งหมด ${pending.length} ฉบับ?`,
+      html: `<div class="text-left leading-7">
+        <p><b>การกดปุ่มนี้หมายถึงคุณยืนยันว่าได้อ่านเอกสารทั้งหมดที่ค้างอยู่แล้ว</b></p>
+        <p>ระบบจะใส่ลายเซ็นของคุณลงในกล่อง “ทราบ” ของแต่ละฉบับอัตโนมัติ</p>
+        <div class="ack-all-preview">${preview}${more}</div>
+      </div>`,
+      showCancelButton: true,
+      confirmButtonText: `✅ รับทราบทั้งหมด ${pending.length} ฉบับ`,
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+    });
+    if (!confirm.isConfirmed) return;
+
+    let successCount = 0;
+    const failed = [];
+
+    Swal.fire({
+      title: 'กำลังรับทราบเอกสารทั้งหมด',
+      html: `<div id="ack-all-progress-text">กำลังเตรียม...</div>
+             <div class="ack-all-progress"><div id="ack-all-progress-bar"></div></div>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    for (let i = 0; i < pending.length; i += 1) {
+      const doc = pending[i];
+      const textEl = document.getElementById('ack-all-progress-text');
+      const barEl = document.getElementById('ack-all-progress-bar');
+      if (textEl) {
+        textEl.textContent = `กำลังดำเนินการ ${i + 1}/${pending.length} — ${doc.recvNo}`;
+      }
+      if (barEl) {
+        barEl.style.width = `${Math.round((i / pending.length) * 100)}%`;
+      }
+
+      try {
+        await acknowledgeOneDocument_(doc.docId);
+        successCount += 1;
+      } catch (error) {
+        failed.push({
+          doc,
+          message: String(error?.message || error || 'ไม่ทราบสาเหตุ'),
+        });
+      }
+
+      if (barEl) {
+        barEl.style.width = `${Math.round(((i + 1) / pending.length) * 100)}%`;
+      }
+    }
+
+    triggerWorkflowMascotProgress();
+    await loadDashboard();
+
+    if (!failed.length) {
+      Swal.fire(
+        'สำเร็จ',
+        `รับทราบเอกสารทั้งหมด ${successCount} ฉบับเรียบร้อยแล้ว`,
+        'success'
+      );
+      return;
+    }
+
+    const failedHtml = failed.slice(0, 6)
+      .map((item) => `<li>${escapeHtml(item.doc.recvNo)} — ${escapeHtml(item.doc.subject)}<br><small>${escapeHtml(item.message)}</small></li>`)
+      .join('');
+
+    Swal.fire({
+      icon: 'warning',
+      title: 'ดำเนินการเสร็จแล้วบางส่วน',
+      html: `<div class="text-left">
+        <p>สำเร็จ ${successCount} ฉบับ / ไม่สำเร็จ ${failed.length} ฉบับ</p>
+        <ul class="ack-all-failed-list">${failedHtml}</ul>
+        <p class="text-sm">เอกสารที่ไม่สำเร็จยังคงอยู่ในจดหมายเข้า สามารถกดรับทราบทีละฉบับได้</p>
+      </div>`,
+      confirmButtonText: 'ปิด',
+    });
+  }
+
 
   async function completeDocument(docId) {
     const confirm = await Swal.fire({
@@ -1947,6 +2414,59 @@
     };
   }
 
+  async function openQuickDocumentViewer(docId) {
+    const doc = findDoc(docId);
+    if (!doc) {
+      Swal.fire('ไม่พบเอกสาร', 'กรุณารีเฟรชหน้าแล้วลองใหม่', 'warning');
+      return;
+    }
+
+    loading('กำลังเปิดเอกสารแบบด่วน...');
+    let blobUrl = '';
+    try {
+      const result = await getDocumentFileQuick_(docId);
+      if (!result?.file?.base64) throw new Error('ไม่พบข้อมูล PDF');
+
+      blobUrl = base64PdfToBlobUrl_(result.file.base64);
+
+      const viewer = document.createElement('div');
+      viewer.className = 'quick-pdf-viewer';
+      viewer.innerHTML = `
+        <div class="quick-pdf-toolbar">
+          <div class="quick-pdf-title">
+            <b>⚡ ${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</b>
+            <small>Quick Viewer • ใช้ตัวแสดง PDF ของเบราว์เซอร์เพื่อเปิดได้เร็วขึ้น</small>
+          </div>
+          <div class="quick-pdf-actions">
+            <button type="button" class="btn btn-success" id="quick-pdf-download">⬇ ดาวน์โหลด</button>
+            <button type="button" class="btn btn-muted" id="quick-pdf-full">↗ เปิดเต็มหน้าต่าง</button>
+            <button type="button" class="btn btn-danger" id="quick-pdf-close">✕ ปิด</button>
+          </div>
+        </div>
+        <iframe class="quick-pdf-frame" src="${blobUrl}#toolbar=1&navpanes=0&view=FitH" title="${escapeHtml(doc.subject)}"></iframe>
+      `;
+      document.body.appendChild(viewer);
+
+      const cleanup = () => {
+        viewer.remove();
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      };
+
+      viewer.querySelector('#quick-pdf-close').onclick = cleanup;
+      viewer.querySelector('#quick-pdf-download').onclick = () =>
+        downloadBase64(result.file.base64, buildDocumentDownloadFileName(doc), 'application/pdf');
+      viewer.querySelector('#quick-pdf-full').onclick = () => {
+        const tab = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        if (!tab) Swal.fire('เบราว์เซอร์บล็อกหน้าต่างใหม่', 'กรุณาอนุญาต Pop-up สำหรับเว็บไซต์นี้', 'info');
+      };
+
+      Swal.close();
+    } catch (error) {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      showError(error);
+    }
+  }
+
   async function openWorkspace(docId, requestedAction) {
     const doc = findDoc(docId);
     loading('กำลังโหลด PDF...');
@@ -2021,13 +2541,13 @@
         </div>
       </div>
       <div id="pdf-scroll-area" class="pdf-scroll-area">
+        ${showDispatch ? dispatchMarkup() : ''}
         <div class="pdf-stage-wrap">
           <div id="pdf-container" class="pdf-container">
             <div id="pdf-pages" class="pdf-pages" aria-label="เอกสาร PDF ทุกหน้า"></div>
             ${canStamp ? stampMarkup(role, doc.recvNo) : ''}
           </div>
         </div>
-        ${showDispatch ? dispatchMarkup() : ''}
       </div>`;
     document.body.appendChild(workspace);
     document.getElementById('workspace-close').onclick = closeWorkspace;
@@ -2976,12 +3496,18 @@
   }
 
   function dispatchMarkup() {
-    return `<div id="dispatch-panel" class="dispatch-panel">
-      <h3 class="text-xl font-bold text-red-800 border-b pb-3">ดำเนินการขั้นสุดท้าย</h3>
+    return `<div id="dispatch-panel" class="dispatch-panel dispatch-panel-top">
+      <div class="dispatch-top-head">
+        <div>
+          <h3 class="text-xl font-bold text-red-800">ดำเนินการขั้นสุดท้าย</h3>
+          <div class="dispatch-top-note">เลือกการส่งได้ทันทีจากด้านบนของเอกสาร ไม่ต้องเลื่อนไปท้าย PDF</div>
+        </div>
+        <button id="dispatch-jump-document" type="button" class="btn btn-muted">↓ ไปที่เอกสาร</button>
+      </div>
       <div class="dispatch-section-title">1. เลือกรูปแบบการส่ง</div>
-      <div class="dispatch-choice-grid">
+      <div class="dispatch-choice-grid dispatch-choice-grid-top">
+        <label class="dispatch-all-choice"><input type="radio" name="dispatch-type" value="ทุกคน"> <span>👥 ส่งให้ทุกคน</span></label>
         <label><input type="radio" name="dispatch-type" value="บางคน"> ส่งให้บางคน</label>
-        <label><input type="radio" name="dispatch-type" value="ทุกคน"> ส่งให้ทุกคน</label>
         <label><input type="radio" name="dispatch-type" value="เวียนคณะครู"> เวียนคณะครู</label>
         <label><input type="radio" name="dispatch-type" value="ยุติเรื่อง"> ยุติเรื่อง</label>
       </div>
@@ -2997,7 +3523,7 @@
         <div class="font-bold mb-3">เลือกผู้รับ</div>
         <div id="dispatch-user-grid" class="user-grid"></div>
       </div>
-      <div id="ack-box-instruction" class="ack-box-instruction hide">3. ลากกล่อง “ทราบ” ไปวางบน PDF และปรับขนาดตามต้องการ ก่อนกดยืนยันส่งเรื่อง</div>
+      <div id="ack-box-instruction" class="ack-box-instruction hide">3. กล่อง “ทราบ” จะอยู่บริเวณด้านบนของหน้าแรก • สามารถลากย้าย ย่อ หรือขยายได้ ก่อนกดยืนยันส่งเรื่อง</div>
       <div class="text-right mt-5"><button id="dispatch-submit" class="btn btn-success">ยืนยันตำแหน่งและส่งเรื่อง</button></div>
     </div>`;
   }
@@ -3036,7 +3562,7 @@
     wrapper.innerHTML = stampWrapper('acknowledgement-box-stamp', capacity > 8 ? 330 : 255, acknowledgementBoxContent(capacity));
     const box = wrapper.firstElementChild;
     box.classList.add('acknowledgement-box-stamp');
-    box.style.top = '55px';
+    box.style.top = '28px';
     container.appendChild(box);
     initializeStamps();
     state.stampsInitialized = true;
@@ -3114,9 +3640,26 @@
       document.getElementById('dispatch-users')?.classList.toggle('hide', type !== 'บางคน');
       document.getElementById('dispatch-priority')?.classList.toggle('hide', !type || type === 'ยุติเรื่อง');
       ensureAcknowledgementBox();
+
+      if (type === 'ทุกคน') {
+        window.setTimeout(() => {
+          const box = document.getElementById('acknowledgement-box-stamp');
+          const firstPage = document.querySelector('.pdf-page-shell');
+          (box || firstPage)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+      }
     };
     document.querySelectorAll('input[name="dispatch-type"]').forEach((radio) => radio.onchange = refreshDispatchUi);
     document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = refreshDispatchUi);
+
+    const jumpDocumentButton = document.getElementById('dispatch-jump-document');
+    if (jumpDocumentButton) {
+      jumpDocumentButton.onclick = () => {
+        const firstPage = document.querySelector('.pdf-page-shell') || document.getElementById('pdf-container');
+        firstPage?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+    }
+
     document.getElementById('dispatch-submit').onclick = async () => {
       const selected = document.querySelector('input[name="dispatch-type"]:checked');
       if (!selected) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกรูปแบบการส่งเรื่อง', 'warning'); return; }
@@ -4781,30 +5324,4 @@
   }
 
   bootstrap();
-})();
-/* Wat Maeka Sarabun 3.9.1 — acknowledgement-box UX helper
-   วางท้าย assets/app.js ได้ (ไม่บังคับ แต่ช่วยให้คำแนะนำบนหน้าจอชัดเจนขึ้น)
-*/
-(function () {
-  'use strict';
-
-  function enhanceAckBox() {
-    const instruction = document.getElementById('ack-box-instruction');
-    if (instruction && instruction.dataset.v391 !== '1') {
-      instruction.dataset.v391 = '1';
-      instruction.textContent =
-        '3. กล่อง “ทราบ” เป็นแบบโปร่งใส ไม่บังข้อความใน PDF • ลากตัวกล่องเพื่อย้ายตำแหน่ง • คลิกกล่องแล้วลากจุดมุมขวาล่างเพื่อย่อ/ขยาย';
-    }
-
-    const box = document.getElementById('acknowledgement-box-stamp');
-    if (!box || box.dataset.v391 === '1') return;
-    box.dataset.v391 = '1';
-    box.title = 'ลากเพื่อย้าย • เลือกกล่องแล้วลากจุดมุมขวาล่างเพื่อย่อ/ขยาย';
-    box.setAttribute('aria-label', 'กล่องทราบแบบโปร่งใส สามารถย้ายและย่อขยายได้');
-  }
-
-  const observer = new MutationObserver(enhanceAckBox);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  document.addEventListener('DOMContentLoaded', enhanceAckBox);
-  enhanceAckBox();
 })();
