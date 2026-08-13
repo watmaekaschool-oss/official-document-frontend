@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.9.6';
+  const FRONTEND_BUILD_VERSION = '3.9.7';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -2440,12 +2440,19 @@
     }
 
     loading('กำลังเปิดเอกสารแบบด่วน...');
-    let blobUrl = '';
+    let quickPdf = null;
+    let observer = null;
+    let renderGeneration = Date.now();
+
     try {
       const result = await getDocumentFileQuick_(docId);
       if (!result?.file?.base64) throw new Error('ไม่พบข้อมูล PDF');
 
-      blobUrl = base64PdfToBlobUrl_(result.file.base64);
+      // 3.9.7: ไม่ใช้ <iframe src="blob:..."> อีกต่อไป
+      // Chrome บางเครื่อง/นโยบายองค์กรอาจบล็อก PDF blob ใน iframe
+      // ใช้ PDF.js render ภายในหน้าเว็บโดยตรงแทน
+      const bytes = base64ToUint8Array(result.file.base64);
+      quickPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
 
       const viewer = document.createElement('div');
       viewer.className = 'quick-pdf-viewer';
@@ -2453,37 +2460,196 @@
         <div class="quick-pdf-toolbar">
           <div class="quick-pdf-title">
             <b>⚡ ${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</b>
-            <small>Quick Viewer • ใช้ตัวแสดง PDF ของเบราว์เซอร์เพื่อเปิดได้เร็วขึ้น</small>
+            <small>Quick Viewer • ${quickPdf.numPages} หน้า • โหลดหน้าแรกก่อน แล้วโหลดหน้าถัดไปเมื่อเลื่อน</small>
           </div>
           <div class="quick-pdf-actions">
             <button type="button" class="btn btn-success" id="quick-pdf-download">⬇ ดาวน์โหลด</button>
-            <button type="button" class="btn btn-muted" id="quick-pdf-full">↗ เปิดเต็มหน้าต่าง</button>
+            <button type="button" class="btn btn-muted" id="quick-pdf-fit">พอดีหน้าจอ</button>
             <button type="button" class="btn btn-danger" id="quick-pdf-close">✕ ปิด</button>
           </div>
         </div>
-        <iframe class="quick-pdf-frame" src="${blobUrl}#toolbar=1&navpanes=0&view=FitH" title="${escapeHtml(doc.subject)}"></iframe>
+        <div class="quick-pdf-scroll" id="quick-pdf-scroll">
+          <div class="quick-pdf-pages" id="quick-pdf-pages"></div>
+        </div>
       `;
       document.body.appendChild(viewer);
 
+      const scroll = viewer.querySelector('#quick-pdf-scroll');
+      const pagesHost = viewer.querySelector('#quick-pdf-pages');
+      const pageViews = [];
+      let quickScale = 1.15;
+
       const cleanup = () => {
+        renderGeneration += 1;
+        if (observer) {
+          try { observer.disconnect(); } catch (_) {}
+          observer = null;
+        }
+        try { quickPdf?.destroy?.(); } catch (_) {}
         viewer.remove();
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
       };
+
+      const calcScale = (page) => {
+        const natural = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(320, Math.min(1180, scroll.clientWidth - 34));
+        const fitScale = availableWidth / natural.width;
+        return Math.max(.65, Math.min(1.55, Math.min(quickScale, fitScale)));
+      };
+
+      const renderPage = async (view, generation) => {
+        if (!view || view.rendered || view.rendering || generation !== renderGeneration) return;
+        view.rendering = true;
+        try {
+          const page = view.page || await quickPdf.getPage(view.pageNumber);
+          if (generation !== renderGeneration) return;
+          view.page = page;
+
+          const scale = calcScale(page);
+          const viewport = page.getViewport({ scale });
+          const outputScale = Math.min(window.devicePixelRatio || 1, 1.5);
+
+          view.canvas.width = Math.floor(viewport.width * outputScale);
+          view.canvas.height = Math.floor(viewport.height * outputScale);
+          view.canvas.style.width = `${Math.floor(viewport.width)}px`;
+          view.canvas.style.height = `${Math.floor(viewport.height)}px`;
+          view.shell.style.width = `${Math.floor(viewport.width)}px`;
+          view.shell.style.minHeight = `${Math.floor(viewport.height)}px`;
+
+          const ctx = view.canvas.getContext('2d', { alpha: false });
+          const transform = outputScale !== 1
+            ? [outputScale, 0, 0, outputScale, 0, 0]
+            : null;
+
+          await page.render({
+            canvasContext: ctx,
+            viewport,
+            transform,
+          }).promise;
+
+          if (generation === renderGeneration) {
+            view.rendered = true;
+            view.shell.classList.add('rendered');
+            view.loading.textContent = '';
+          }
+        } catch (error) {
+          if (generation === renderGeneration) {
+            view.loading.textContent = 'โหลดหน้านี้ไม่สำเร็จ';
+            console.warn('Quick PDF page render failed', view.pageNumber, error);
+          }
+        } finally {
+          view.rendering = false;
+        }
+      };
+
+      // สร้าง placeholder ทุกหน้าแบบเบา ๆ ก่อน
+      for (let pageNumber = 1; pageNumber <= quickPdf.numPages; pageNumber += 1) {
+        const shell = document.createElement('section');
+        shell.className = 'quick-pdf-page';
+        shell.dataset.pageIndex = String(pageNumber - 1);
+
+        const label = document.createElement('div');
+        label.className = 'quick-pdf-page-label';
+        label.textContent = `หน้า ${pageNumber} / ${quickPdf.numPages}`;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'quick-pdf-canvas';
+
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'quick-pdf-page-loading';
+        loadingEl.textContent = pageNumber === 1 ? 'กำลังเปิดหน้าแรก…' : 'รอโหลดเมื่อเลื่อนมาถึง';
+
+        shell.append(label, canvas, loadingEl);
+        pagesHost.appendChild(shell);
+
+        pageViews.push({
+          pageNumber,
+          shell,
+          canvas,
+          loading: loadingEl,
+          page: null,
+          rendered: false,
+          rendering: false,
+        });
+      }
+
+      // หน้าแรก render ก่อนเสมอ
+      if (pageViews[0]) {
+        pageViews[0].page = await quickPdf.getPage(1);
+        await renderPage(pageViews[0], renderGeneration);
+      }
+
+      // หน้าใกล้ viewport render อัตโนมัติ
+      if ('IntersectionObserver' in window) {
+        observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const idx = Number(entry.target?.dataset?.pageIndex);
+            renderPage(pageViews[idx], renderGeneration);
+          });
+        }, {
+          root: scroll,
+          rootMargin: '1000px 0px',
+          threshold: 0.01,
+        });
+
+        pageViews.forEach((view) => observer.observe(view.shell));
+      } else {
+        // browser เก่ามาก: render ทีละหน้าแบบ background
+        (async () => {
+          for (let i = 1; i < pageViews.length; i += 1) {
+            if (!document.body.contains(viewer)) break;
+            await renderPage(pageViews[i], renderGeneration);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        })();
+      }
+
+      // เตรียมหน้า 2 แบบ background เพื่อให้เลื่อนครั้งแรกไม่สะดุด
+      if (pageViews[1]) {
+        const warm = () => renderPage(pageViews[1], renderGeneration);
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(warm, { timeout: 600 });
+        } else {
+          setTimeout(warm, 60);
+        }
+      }
 
       viewer.querySelector('#quick-pdf-close').onclick = cleanup;
       viewer.querySelector('#quick-pdf-download').onclick = () =>
         downloadBase64(result.file.base64, buildDocumentDownloadFileName(doc), 'application/pdf');
-      viewer.querySelector('#quick-pdf-full').onclick = () => {
-        const tab = window.open(blobUrl, '_blank', 'noopener,noreferrer');
-        if (!tab) Swal.fire('เบราว์เซอร์บล็อกหน้าต่างใหม่', 'กรุณาอนุญาต Pop-up สำหรับเว็บไซต์นี้', 'info');
+
+      viewer.querySelector('#quick-pdf-fit').onclick = async () => {
+        quickScale = quickScale === 1.15 ? 1.55 : 1.15;
+
+        // reset เฉพาะหน้าที่ render แล้ว แล้ว render ใหม่เมื่อจำเป็น
+        const visibleTop = scroll.scrollTop;
+        renderGeneration += 1;
+        const generation = renderGeneration;
+
+        pageViews.forEach((view) => {
+          view.rendered = false;
+          view.rendering = false;
+          view.shell.classList.remove('rendered');
+          view.loading.textContent = 'กำลังปรับขนาด…';
+        });
+
+        if (pageViews[0]) await renderPage(pageViews[0], generation);
+        scroll.scrollTop = visibleTop;
+
+        if (observer) {
+          observer.disconnect();
+          pageViews.forEach((view) => observer.observe(view.shell));
+        }
       };
 
       Swal.close();
     } catch (error) {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      try { observer?.disconnect?.(); } catch (_) {}
+      try { quickPdf?.destroy?.(); } catch (_) {}
       showError(error);
     }
   }
+
 
   async function openWorkspace(docId, requestedAction) {
     const doc = findDoc(docId);
