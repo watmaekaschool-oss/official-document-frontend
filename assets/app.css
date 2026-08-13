@@ -3104,3 +3104,85 @@ html[data-theme-preset="dark"] .dispatch-all-choice {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   Wat Maeka Sarabun 3.9.7
+   Fix Chrome blocked PDF — Quick Viewer ใช้ PDF.js โดยตรง
+   ========================================================= */
+
+.quick-pdf-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: #3f4650;
+  padding: 18px;
+}
+
+.quick-pdf-pages {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.quick-pdf-page {
+  position: relative;
+  width: min(100%, 900px);
+  min-height: 880px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(0,0,0,.34);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.quick-pdf-page-label {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15,23,42,.72);
+  color: #fff;
+  font-size: .72rem;
+  pointer-events: none;
+}
+
+.quick-pdf-canvas {
+  display: block;
+  max-width: 100%;
+  background: #fff;
+}
+
+.quick-pdf-page-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: .9rem;
+  pointer-events: none;
+}
+
+.quick-pdf-page.rendered .quick-pdf-page-loading {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .quick-pdf-scroll {
+    padding: 8px;
+  }
+
+  .quick-pdf-pages {
+    gap: 10px;
+  }
+
+  .quick-pdf-page {
+    min-height: 620px;
+  }
+}
