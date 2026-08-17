@@ -3186,3 +3186,184 @@ html[data-theme-preset="dark"] .dispatch-all-choice {
     min-height: 620px;
   }
 }
+
+
+/* =========================================================
+   Wat Maeka Sarabun 3.9.8
+   ผู้ดูแลระบบสารบรรณ = Document Maintenance Editor
+   ========================================================= */
+
+.btn-admin-edit {
+  background: linear-gradient(135deg,#0f766e,#0891b2);
+  color:#fff;
+  border:1px solid #0e7490;
+  box-shadow:0 7px 18px rgba(8,145,178,.18);
+}
+
+.btn-admin-edit:hover {
+  filter:brightness(.98);
+}
+
+.admin-document-editor-panel {
+  width:min(760px,100%);
+}
+
+.admin-editor-kicker {
+  display:inline-flex;
+  align-items:center;
+  padding:.25rem .6rem;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#0e7490;
+  font-size:.72rem;
+  font-weight:800;
+  margin-bottom:.35rem;
+}
+
+.admin-editor-grid {
+  display:grid;
+  grid-template-columns:1.4fr 1fr;
+  gap:.7rem;
+}
+
+.admin-editor-grid label,
+.admin-editor-pdf-revision label {
+  display:flex;
+  flex-direction:column;
+  gap:.35rem;
+  font-size:.82rem;
+  font-weight:800;
+  color:#334155;
+}
+
+.admin-editor-status {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:.65rem;
+}
+
+.admin-editor-status > div {
+  border:1px solid #dbeafe;
+  background:#f8fbff;
+  border-radius:.7rem;
+  padding:.7rem;
+  display:flex;
+  flex-direction:column;
+  gap:.2rem;
+}
+
+.admin-editor-status span {
+  color:#64748b;
+  font-size:.72rem;
+}
+
+.admin-editor-tools {
+  display:flex;
+  gap:.55rem;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:.75rem;
+  border:1px dashed #a5f3fc;
+  background:#f0fdff;
+  border-radius:.8rem;
+}
+
+.admin-editor-note {
+  font-size:.78rem;
+  color:#64748b;
+  line-height:1.55;
+}
+
+.admin-editor-footer {
+  display:flex;
+  justify-content:flex-end;
+  gap:.55rem;
+}
+
+@media (max-width:640px) {
+  .admin-editor-grid,
+  .admin-editor-status {
+    grid-template-columns:1fr;
+  }
+
+  .admin-editor-footer {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+
+/* =========================================================
+   Wat Maeka Sarabun 4.0.0
+   Fast startup / Fast PDF / Compact acknowledgement box
+   ========================================================= */
+
+/* กล่องทราบขนาดกะทัดรัด ~ 1/10 A4 */
+.acknowledgement-box-compact {
+  width: 178px !important;
+  max-width: 178px !important;
+}
+
+.acknowledgement-box-compact .acknowledgement-box-card {
+  border-width: 1px !important;
+  padding: 2px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.acknowledgement-box-compact .acknowledgement-box-title {
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  padding: 1px 2px 2px !important;
+  background: transparent !important;
+  border-bottom-width: 1px !important;
+}
+
+.acknowledgement-box-compact .ack-sign-slot {
+  grid-template-columns: 15px minmax(0,1fr) !important;
+  min-height: 22px !important;
+  height: 22px !important;
+  border-bottom-width: 1px !important;
+}
+
+.acknowledgement-box-compact .ack-slot-number {
+  font-size: 8px !important;
+  line-height: 1 !important;
+  padding-left: 2px !important;
+  padding-top: 3px !important;
+}
+
+.acknowledgement-box-compact .ack-signature-target {
+  height: 20px !important;
+  min-width: 32px !important;
+  background: transparent !important;
+}
+
+.acknowledgement-box-compact .stamp-scale-label {
+  font-size: 9px !important;
+}
+
+.acknowledgement-box-compact .stamp-mode-label {
+  font-size: 8px !important;
+}
+
+/* จุด resize ยังจับง่าย แม้ตัวกล่องเล็ก */
+.acknowledgement-box-compact.selected .stamp-resize-handle {
+  width: 22px !important;
+  height: 22px !important;
+  right: -11px !important;
+  bottom: -11px !important;
+}
+
+/* PDF: ลด transition ที่ไม่จำเป็นใน viewer */
+.quick-pdf-canvas,
+.pdf-page-canvas {
+  image-rendering: auto;
+}
+
+@media (max-width: 720px) {
+  .acknowledgement-box-compact {
+    width: 160px !important;
+    max-width: 160px !important;
+  }
+}
