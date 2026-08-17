@@ -3,7 +3,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = '3.9.7';
+  const FRONTEND_BUILD_VERSION = '4.0.0';
   const MEETING_DEFAULTS = Object.freeze({
     meetingTitle: 'รายงานการประชุมประจำสัปดาห์',
     location: 'ห้องประชุม อาคารอำนวยการ โรงเรียนวัดแม่กะ',
@@ -56,7 +56,7 @@
     if (!docId || quickPdfCache.has(docId)) return quickPdfCache.get(docId);
     if (quickPdfPrefetch.has(docId)) return quickPdfPrefetch.get(docId);
 
-    const promise = gasCall('getDocumentFile', state.token, docId, false)
+    const promise = gasCall('getDocumentFileFast', state.token, docId)
       .then((result) => rememberQuickPdf_(docId, result))
       .catch(() => null)
       .finally(() => quickPdfPrefetch.delete(docId));
@@ -66,10 +66,16 @@
   }
 
   async function getDocumentFileQuick_(docId) {
+    const markOpenedLater = () => {
+      // ไม่รอ Sheet write ก่อนแสดง PDF
+      Promise.resolve()
+        .then(() => gasCall('markDocumentOpenedFast', state.token, docId))
+        .catch(() => {});
+    };
+
     const cached = quickPdfCache.get(docId);
     if (cached?.file?.base64) {
-      // PDF ถูกโหลดไว้ล่วงหน้าแล้ว จึง mark opened แยกเพื่อไม่โหลดไฟล์ซ้ำ
-      try { await gasCall('markDocumentOpenedFast', state.token, docId); } catch (_) {}
+      markOpenedLater();
       return cached;
     }
 
@@ -77,13 +83,15 @@
     if (pending) {
       const result = await pending;
       if (result?.file?.base64) {
-        try { await gasCall('markDocumentOpenedFast', state.token, docId); } catch (_) {}
+        markOpenedLater();
         return result;
       }
     }
 
-    const result = await gasCall('getDocumentFile', state.token, docId, true);
-    return rememberQuickPdf_(docId, result);
+    const result = await gasCall('getDocumentFileFast', state.token, docId);
+    rememberQuickPdf_(docId, result);
+    markOpenedLater();
+    return result;
   }
 
   function base64PdfToBlobUrl_(base64) {
@@ -102,17 +110,24 @@
     if (navigator.connection?.saveData) return;
 
     quickPrimeTimer_ = window.setTimeout(() => {
-      const button = document.querySelector('.quick-view-btn[data-doc-id]');
-      const docId = button?.dataset?.docId;
-      if (!docId || quickPdfCache.has(docId) || quickPdfPrefetch.has(docId)) return;
+      const buttons = [...document.querySelectorAll('.quick-view-btn[data-doc-id]')].slice(0, 2);
+      const docIds = buttons.map((button) => button.dataset.docId).filter(Boolean);
+      if (!docIds.length) return;
 
-      const run = () => prefetchDocumentFile_(docId);
+      const run = async () => {
+        for (const docId of docIds) {
+          if (quickPdfCache.has(docId) || quickPdfPrefetch.has(docId)) continue;
+          await prefetchDocumentFile_(docId);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      };
+
       if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(run, { timeout: 1200 });
+        window.requestIdleCallback(run, { timeout: 700 });
       } else {
-        window.setTimeout(run, 250);
+        window.setTimeout(run, 80);
       }
-    }, 180);
+    }, 80);
   }
 
   function mascotArt(type) {
@@ -240,13 +255,13 @@
     },
     'ผู้ดูแลระบบสารบรรณ': {
       title: 'คู่มือสำหรับผู้ดูแลระบบสารบรรณ',
-      intro: 'บทบาทพิเศษสำหรับดำเนินงานแทนธุรการ รองผู้อำนวยการ และผู้อำนวยการได้ทุกขั้นตอน โดยระบบยังบันทึก Audit Log ว่าดำเนินการแทนคิวใด',
+      intro: 'บทบาทนี้ใช้สำหรับตรวจสอบและแก้ไขเอกสารเท่านั้น ไม่รับจดหมายเข้า ไม่รับงานรอดำเนินการ และไม่ถูกเลือกเป็นผู้รับเอกสาร',
       steps: [
-        ['ทำงานทุกคิว', 'แท็บงานรอดำเนินการจะแสดงคิวธุรการ รองผู้อำนวยการ และผู้อำนวยการ สามารถเปิดและดำเนินงานต่อได้ตามสถานะปัจจุบัน'],
-        ['วาระการประชุม', 'สร้าง แก้ไข ตรวจ ส่งต่อ และอัปโหลด PDF วาระการประชุมได้ตามคิวปัจจุบัน'],
-        ['จัดการผู้รับ', 'เพิ่มหรือลบผู้รับเอกสารได้ โดยรักษาสถานะของผู้รับเดิมที่ยังคงเลือกไว้'],
-        ['ปฏิทินเอกสาร', 'ใช้ปุ่ม “จัดเรียงตามปฏิทิน” เพื่อค้นหาเอกสารรายสัปดาห์ รายเดือน และรายปี'],
-        ['แจ้งเตือน', 'ส่ง Web Push เตือนผู้รับรายคน และจัดการสรุป LINE OA รายวันร่วมกับธุรการได้'],
+        ['เปิดจดหมายทั้งหมด', 'ค้นหาเอกสารที่ต้องการจาก “จดหมายทั้งหมด” แล้วกด “แก้ไขเอกสาร”'],
+        ['แก้ข้อความ', 'แก้ชื่อเรื่องและข้อมูล “จาก” ได้ โดยไม่เปลี่ยนสถานะหรือคิวของเอกสาร'],
+        ['แก้ตราประทับ', 'เอกสารที่ยังอยู่ในขั้นธุรการ/รองฯ/ผอ. สามารถเปิดโหมดแก้ตรา ย้าย ย่อ/ขยาย และแก้ข้อความในตรา แล้วบันทึกโดยไม่ส่งต่อ'],
+        ['เปลี่ยน PDF ปัจจุบัน', 'อัปโหลด PDF ฉบับแก้ไขแทนไฟล์ปัจจุบันได้ โดยเลขรับ ผู้รับ และ workflow เดิมยังคงอยู่'],
+        ['ไม่มีการรับแจ้งเอกสาร', 'บัญชีผู้ดูแลระบบสารบรรณจะไม่อยู่ในรายชื่อผู้รับ และไม่มีปุ่มรับทราบเอกสาร'],
       ],
     },
     'ครู': {
@@ -328,7 +343,11 @@
 
   function isClericalUser() {
     const role = normalizedUserRole();
-    return role === 'ธุรการ' || role.includes('ธุรการ') || isSystemDocumentAdmin();
+    return role === 'ธุรการ' || role.includes('ธุรการ');
+  }
+
+  function isDocumentMaintenanceAdmin() {
+    return isSystemDocumentAdmin();
   }
 
   function canManageDocumentRecipients() {
@@ -786,7 +805,7 @@
         state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
         localStorage.setItem('officialDocToken', state.token);
         sessionStorage.removeItem('officialDocToken');
-        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
+        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
         await loadDashboard();
         Swal.close();
       } catch (error) { showError(error); }
@@ -798,17 +817,14 @@
       renderLogin();
       return;
     }
+
+    // 4.0.0: ตัด getSessionInfo รอบแรกออก
+    // getDashboardDocuments ตรวจ session และคืน user อยู่แล้ว จึงลด network round-trip 1 ครั้ง
     loading('กำลังเปิดระบบ...');
     try {
-      const result = await gasCall('getSessionInfo', state.token);
-      state.user = result.user;
+      await loadDashboard();
       localStorage.setItem('officialDocToken', state.token);
       sessionStorage.removeItem('officialDocToken');
-      applyDisplaySettings(loadDisplaySettings(state.user.username));
-      state.mascotSettings = loadMascotSettings(state.user.username);
-      state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
-      state.tab = guideRoleKey() === 'ครู' ? 'inbox' : 'action';
-      await loadDashboard();
       Swal.close();
     } catch (error) {
       clearSession();
@@ -817,25 +833,35 @@
   }
 
   async function loadDashboard() {
-    const [result, appSettings] = await Promise.all([
-      gasCall('getDashboardDocuments', state.token),
-      gasCall('getApplicationSettings', state.token),
-    ]);
+    // 4.0.0: เอกสารเป็น critical path; settings ไม่จำเป็นต่อการวาดหน้าแรก
+    const result = await gasCall('getDashboardDocuments', state.token);
+
     state.actionDocs = result.actionDocs || [];
     state.inboxDocs = result.inboxDocs || [];
     state.acknowledgedDocs = result.acknowledgedDocs || [];
     state.completedDocs = result.completedDocs || [];
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
-    state.appSettings = appSettings || state.appSettings;
-    if (isClericalUser() && !state.mascotSettings) {
-      state.mascotSettings = loadMascotSettings(state.user.username);
+
+    if (state.user) {
+      applyDisplaySettings(loadDisplaySettings(state.user.username));
+      if (!state.mascotSettings) state.mascotSettings = loadMascotSettings(state.user.username);
+      if (!state.workflowMascotSettings) state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
+      if (!state.tab) {
+        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
+      }
     }
-    if (!isClericalUser() && !state.workflowMascotSettings) {
-      state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
-    }
+
+    // แสดง dashboard ทันที
     renderDashboard();
     maybeOpenDeepLinkedDocument_();
+
+    // โหลด settings ภายหลัง ไม่ block การเปิดระบบ
+    if (!state.appSettings) {
+      gasCall('getApplicationSettings', state.token)
+        .then((settings) => { state.appSettings = settings || state.appSettings; })
+        .catch(() => {});
+    }
   }
 
   function maybeOpenDeepLinkedDocument_() {
@@ -857,6 +883,7 @@
 
   function renderDashboard() {
     const isTeacher = guideRoleKey() === 'ครู';
+    const isMaintenanceAdmin = isDocumentMaintenanceAdmin();
     if (state.tab === 'all' && !state.calendarFilter) state.calendarFilter = currentMonthCalendarFilter_();
     root.innerHTML = `
       <div class="app-shell">
@@ -906,11 +933,11 @@
           </div>
           <div class="dashboard-tabs-mascot-row">
             <div class="dashboard-tabs flex gap-2 overflow-auto pb-1">
-              ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
-              <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
+              ${!isTeacher && !isMaintenanceAdmin ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
+              ${!isMaintenanceAdmin ? `<button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>` : ''}
               ${isTeacher ? `<button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button><button class="tab-button ${state.tab === 'completed' ? 'active' : ''}" data-tab="completed">ดำเนินการเสร็จสิ้น (${state.completedDocs.length})</button>` : ''}
               <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
-              ${!isTeacher ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
+              ${!isTeacher && !isMaintenanceAdmin ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
             </div>
             <div id="workflow-mascot-slot" class="workflow-mascot-slot">${workflowMascotMarkup()}</div>
           </div>
@@ -1233,9 +1260,12 @@
       const priorityBadge = doc.priority === 'ด่วน' ? '<span class="badge badge-urgent">ด่วน</span>' : '<span class="badge badge-normal">ปกติ</span>';
       const circularBadge = doc.dispatchMode === 'เวียนคณะครู' || doc.dispatchType === 'เวียนคณะครู'
         ? '<span class="badge badge-circular">เวียนคณะครู</span>' : '';
-      const actionButton = state.tab === 'action'
-        ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
-        : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`;
+      const actionButton = isDocumentMaintenanceAdmin()
+        ? `<button class="btn btn-admin-edit text-xs admin-edit-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">✏️ แก้ไขเอกสาร</button>
+           <button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`
+        : (state.tab === 'action'
+          ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
+          : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`);
       const replaceButton = isClericalUser()
         ? `<button class="btn btn-warning text-xs replace-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">เปลี่ยน PDF</button>`
         : '';
@@ -1252,12 +1282,13 @@
     }).join('');
 
     tbody.querySelectorAll('.action-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, true));
+    tbody.querySelectorAll('.admin-edit-doc-btn').forEach((button) => button.onclick = () => openSystemAdminDocumentEditor(button.dataset.docId));
     tbody.querySelectorAll('.view-doc-btn').forEach((button) => {
       button.onclick = () => openQuickDocumentViewer(button.dataset.docId);
       let hoverTimer = null;
       const warm = () => {
         clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 20);
+        hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 0);
       };
       button.addEventListener('mouseenter', warm, { passive: true });
       button.addEventListener('focus', warm, { passive: true });
@@ -2432,6 +2463,137 @@
     };
   }
 
+
+  async function openSystemAdminDocumentEditor(docId) {
+    if (!isDocumentMaintenanceAdmin()) {
+      Swal.fire('ไม่มีสิทธิ์', 'เมนูนี้ใช้ได้เฉพาะผู้ดูแลระบบสารบรรณ', 'warning');
+      return;
+    }
+
+    const doc = findDoc(docId);
+    if (!doc) {
+      Swal.fire('ไม่พบเอกสาร', 'กรุณารีเฟรชแล้วลองใหม่', 'warning');
+      return;
+    }
+
+    const currentRole = String(doc.currentRole || '');
+    const canEditStamp = ['ธุรการ', 'รองผู้อำนวยการ', 'ผู้อำนวยการ'].includes(currentRole)
+      && doc.status !== 'รอธุรการจ่ายเรื่องให้ผู้รับ';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.innerHTML = `<div class="modal-panel admin-document-editor-panel">
+      <div class="flex justify-between items-start gap-3 mb-4">
+        <div>
+          <div class="admin-editor-kicker">ผู้ดูแลระบบสารบรรณ • โหมดแก้ไขเท่านั้น</div>
+          <h2 class="text-xl font-bold">${escapeHtml(doc.recvNo)} — แก้ไขเอกสาร</h2>
+          <p class="text-xs text-slate-500 mt-1">การบันทึกจากหน้าต่างนี้จะไม่เปลี่ยนสถานะ ไม่เปลี่ยนคิว และไม่ส่งแจ้งเตือนผู้รับ</p>
+        </div>
+        <button type="button" class="text-2xl admin-editor-close">×</button>
+      </div>
+
+      <form id="admin-document-editor-form" class="space-y-4">
+        <div class="admin-editor-grid">
+          <label>เรื่อง
+            <input class="input" name="subject" value="${escapeHtml(doc.subject || '')}" required>
+          </label>
+          <label>จาก
+            <input class="input" name="fromSender" value="${escapeHtml(doc.fromSender || '')}" required>
+          </label>
+        </div>
+
+        <div class="admin-editor-status">
+          <div><span>สถานะเดิม</span><b>${escapeHtml(doc.status || '-')}</b></div>
+          <div><span>คิวเดิม</span><b>${escapeHtml(doc.currentRole || '-')}</b></div>
+        </div>
+
+        <div class="admin-editor-pdf-revision">
+          <label class="font-semibold text-sm">เปลี่ยน PDF ปัจจุบัน (ไม่บังคับ)</label>
+          <input id="admin-replacement-pdf" class="input mt-1" type="file" accept="application/pdf,.pdf">
+          <p class="text-xs text-slate-500 mt-1">ใช้เมื่อ PDF ปัจจุบันต้องแก้ไขจากภายนอก ระบบจะเก็บต้นฉบับเดิมและไม่ reset workflow</p>
+        </div>
+
+        <div class="admin-editor-tools">
+          <button type="button" id="admin-quick-view" class="btn btn-muted">⚡ เปิดดูเอกสาร</button>
+          ${canEditStamp
+            ? '<button type="button" id="admin-edit-stamp" class="btn btn-purple">↔ แก้ตรา / ข้อความในตรา</button>'
+            : '<span class="admin-editor-note">เอกสารนี้ผ่านขั้นประทับตราปัจจุบันแล้ว จึงแก้ข้อมูล/เปลี่ยน PDF ได้ แต่ตราที่ฝังใน PDF เก่าไม่สามารถลากแยกจากเนื้อ PDF ได้</span>'}
+        </div>
+
+        <div class="admin-editor-footer">
+          <button type="button" class="btn btn-muted admin-editor-close">ยกเลิก</button>
+          <button type="submit" class="btn btn-admin-edit">💾 บันทึกการแก้ไข</button>
+        </div>
+      </form>
+    </div>`;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelectorAll('.admin-editor-close').forEach((btn) => {
+      btn.onclick = () => overlay.remove();
+    });
+
+    overlay.querySelector('#admin-quick-view').onclick = () => openQuickDocumentViewer(docId);
+
+    const editStampBtn = overlay.querySelector('#admin-edit-stamp');
+    if (editStampBtn) {
+      editStampBtn.onclick = () => {
+        overlay.remove();
+        openWorkspace(docId, true);
+      };
+    }
+
+    overlay.querySelector('#admin-document-editor-form').onsubmit = async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const subject = String(form.elements.subject.value || '').trim();
+      const fromSender = String(form.elements.fromSender.value || '').trim();
+      const replacement = overlay.querySelector('#admin-replacement-pdf')?.files?.[0] || null;
+
+      if (!subject || !fromSender) {
+        Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกเรื่องและจาก', 'warning');
+        return;
+      }
+
+      const confirm = await Swal.fire({
+        icon: 'question',
+        title: 'บันทึกการแก้ไข?',
+        text: 'ระบบจะรักษาเลขรับ สถานะ คิว ผู้รับ และข้อมูลรับทราบทั้งหมดไว้เหมือนเดิม',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+      });
+      if (!confirm.isConfirmed) return;
+
+      loading('กำลังบันทึกการแก้ไข...');
+      try {
+        await gasCall('updateSystemAdminDocumentMetadata', state.token, {
+          docId,
+          subject,
+          fromSender,
+        });
+
+        if (replacement) {
+          if (!/\.pdf$/i.test(replacement.name) && replacement.type !== 'application/pdf') {
+            throw new Error('ไฟล์ที่ใช้แทนต้องเป็น PDF เท่านั้น');
+          }
+          await uploadFileForm('replaceSystemAdminCurrentPdf', 'replacementPdfFile', replacement, {
+            sessionToken: state.token,
+            docId,
+          });
+          quickPdfCache.delete(docId);
+        }
+
+        overlay.remove();
+        await loadDashboard();
+        Swal.fire('สำเร็จ', 'บันทึกการแก้ไขแล้ว โดย workflow และผู้รับเดิมไม่เปลี่ยน', 'success');
+      } catch (error) {
+        showError(error);
+      }
+    };
+  }
+
+
   async function openQuickDocumentViewer(docId) {
     const doc = findDoc(docId);
     if (!doc) {
@@ -2506,7 +2668,7 @@
 
           const scale = calcScale(page);
           const viewport = page.getViewport({ scale });
-          const outputScale = Math.min(window.devicePixelRatio || 1, 1.5);
+          const outputScale = Math.min(window.devicePixelRatio || 1, 1.2);
 
           view.canvas.width = Math.floor(viewport.width * outputScale);
           view.canvas.height = Math.floor(viewport.height * outputScale);
@@ -2706,11 +2868,14 @@
     const role = permissions.actingRole || permissions.role || guideRoleKey();
     const canStamp = permissions.canStamp === true;
     const showDispatch = permissions.canDispatch === true;
-    const accessLabel = canStamp
-      ? 'โหมดประทับตรา'
-      : showDispatch
-        ? 'โหมดจ่ายเรื่อง'
-        : 'โหมดอ่านอย่างเดียว';
+    const adminEditOnly = permissions.adminEditOnly === true;
+    const accessLabel = adminEditOnly
+      ? (canStamp ? 'โหมดผู้ดูแล • แก้ตราโดยไม่ส่งต่อ' : 'โหมดผู้ดูแล • แก้ไข/ตรวจสอบ')
+      : (canStamp
+        ? 'โหมดประทับตรา'
+        : showDispatch
+          ? 'โหมดจ่ายเรื่อง'
+          : 'โหมดอ่านอย่างเดียว');
     const workspace = document.createElement('div');
     workspace.id = 'workspace-view';
     workspace.className = 'workspace';
@@ -2719,7 +2884,7 @@
         <div class="flex items-center gap-3"><button id="workspace-close" class="btn btn-muted">← กลับ</button><div><div class="font-bold">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-200">${escapeHtml(doc.status)} • ${escapeHtml(accessLabel)} • แสดงเอกสารครบทุกหน้า</div></div></div>
         <div class="flex items-center gap-2 flex-wrap">
           <button id="zoom-out" class="btn btn-muted">−</button><span id="zoom-label" class="text-sm min-w-14 text-center">${Math.round(state.currentScale * 100)}%</span><button id="zoom-in" class="btn btn-muted">＋</button>
-          ${canStamp ? `${role === 'ผู้อำนวยการ' ? '<button id="ipad-handwriting" class="btn btn-ipad" type="button">✍ ใช้งานผ่าน iPad</button>' : ''}<button id="save-stamp" class="btn btn-primary">บันทึกและส่งต่อ</button>` : ''}
+          ${canStamp ? `${role === 'ผู้อำนวยการ' ? '<button id="ipad-handwriting" class="btn btn-ipad" type="button">✍ ใช้งานผ่าน iPad</button>' : ''}<button id="save-stamp" class="btn ${adminEditOnly ? 'btn-admin-edit' : 'btn-primary'}">${adminEditOnly ? '💾 บันทึกการแก้ไข' : 'บันทึกและส่งต่อ'}</button>` : ''}
           ${!canStamp && !showDispatch ? `<span class="workspace-readonly-note">อ่านอย่างเดียว • คิวปัจจุบัน: ${escapeHtml(permissions.currentRole || doc.currentRole || '-')}</span>` : ''}
           <button id="download-current" class="btn btn-success">ดาวน์โหลด PDF</button>
         </div>
@@ -3665,7 +3830,8 @@
   }
 
   async function saveAndStamp() {
-    loading('กำลังประทับตราทุกหน้าที่เลือกและส่งต่อ...');
+    const adminEditOnly = state.currentPermissions?.adminEditOnly === true;
+    loading(adminEditOnly ? 'กำลังบันทึกการแก้ไขตรา...' : 'กำลังประทับตราทุกหน้าที่เลือกและส่งต่อ...');
     try {
       const pdfDoc = await PDFLib.PDFDocument.load(state.originalPdfBase64);
       const pdfPages = pdfDoc.getPages();
@@ -3712,15 +3878,22 @@
 
       const base64 = await pdfDoc.saveAsBase64();
       const stampMeta = collectStampMeta();
-      await gasCall('saveStampedDocument', state.token, {
+      const result = await gasCall('saveStampedDocument', state.token, {
         docId: state.currentDoc.docId,
         base64,
         stampMeta,
       });
-      triggerWorkflowMascotProgress();
+      if (!adminEditOnly) triggerWorkflowMascotProgress();
+      quickPdfCache.delete(state.currentDoc.docId);
       closeWorkspace();
       await loadDashboard();
-      Swal.fire('สำเร็จ', 'ประทับตราในหน้าที่เลือกและส่งต่อเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวของคุณแล้ว', 'success');
+      Swal.fire(
+        'สำเร็จ',
+        adminEditOnly
+          ? 'บันทึกตำแหน่งตราและข้อความฉบับแก้ไขแล้ว โดยสถานะและคิวเดิมไม่เปลี่ยน'
+          : 'ประทับตราในหน้าที่เลือกและส่งต่อเรียบร้อยแล้ว เอกสารถูกนำออกจากคิวของคุณแล้ว',
+        'success'
+      );
     } catch (error) { showError(error); }
   }
 
@@ -3788,7 +3961,7 @@
   }
 
   function acknowledgementBoxContent(capacity) {
-    const columns = capacity > 8 ? 2 : 1;
+    const columns = capacity > 4 ? 2 : 1;
     const slots = Array.from({ length: Math.max(1, capacity) }, (_, index) => `
       <div class="ack-sign-slot" data-ack-slot="${index + 1}">
         <span class="ack-slot-number">${index + 1}.</span>
@@ -3804,27 +3977,99 @@
     state.stampsInitialized = false;
   }
 
+
+  function acknowledgementRecipientCapacity_() {
+    const type = document.querySelector('input[name="dispatch-type"]:checked')?.value || '';
+    const deliverableUsers = (state.allUsers || []).filter((user) =>
+      !String(user.role || '').includes('ผู้ดูแลระบบสารบรรณ')
+    );
+
+    if (type === 'บางคน') {
+      return Math.max(1, document.querySelectorAll('.dispatch-user:checked').length);
+    }
+    if (type === 'ทุกคน' || type === 'เวียนคณะครู') {
+      return Math.max(1, deliverableUsers.length);
+    }
+    return 1;
+  }
+
+  function placeAcknowledgementBoxBottomLeft_() {
+    const box = document.getElementById('acknowledgement-box-stamp');
+    const container = document.getElementById('pdf-container');
+    const firstPage = document.querySelector('.pdf-page-shell[data-page-index="0"]') ||
+      document.querySelector('.pdf-page-shell');
+    const canvas = firstPage?.querySelector('.pdf-page-canvas');
+    if (!box || !container || !firstPage || !canvas) return;
+
+    // ขนาดเริ่มต้นประมาณ 1/10 ของพื้นที่ A4 และอยู่ซ้ายล่าง
+    box.style.width = '178px';
+    box.dataset.baseWidth = '178';
+    box.dataset.scale = '1';
+    setStampScale(box, 1);
+
+    requestAnimationFrame(() => {
+      const containerRect = container.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const marginX = 12;
+      const marginY = 14;
+
+      const left = canvasRect.left - containerRect.left + marginX;
+      const top = canvasRect.bottom - containerRect.top - box.offsetHeight - marginY;
+
+      box.style.left = `${Math.max(0, left)}px`;
+      box.style.top = `${Math.max(0, top)}px`;
+      box.dataset.pageIndex = String(Number(firstPage.dataset.pageIndex || 0));
+      updateStampPageTarget(box);
+    });
+  }
+
   function ensureAcknowledgementBox() {
     const selected = document.querySelector('input[name="dispatch-type"]:checked')?.value || '';
     const instruction = document.getElementById('ack-box-instruction');
+
     if (!selected || selected === 'ยุติเรื่อง') {
       removeAcknowledgementBox();
       instruction?.classList.add('hide');
       return;
     }
+
     instruction?.classList.remove('hide');
-    if (document.getElementById('acknowledgement-box-stamp')) return;
+    if (instruction) {
+      instruction.textContent =
+        '3. กล่อง “ทราบ” จะวางเริ่มต้นที่มุมซ้ายล่างของหน้าแรก ขนาดกะทัดรัดประมาณ 1/10 ของ A4 • สามารถลาก ย่อ หรือขยายได้';
+    }
+
+    const capacity = acknowledgementRecipientCapacity_();
+    const existing = document.getElementById('acknowledgement-box-stamp');
+
+    // ถ้าจำนวนผู้รับเปลี่ยน ให้สร้าง slot ใหม่ให้ตรงกับจำนวนจริง
+    if (existing && Number(existing.dataset.ackCapacity || 0) === capacity) {
+      return;
+    }
+    if (existing) removeAcknowledgementBox();
+
     const container = document.getElementById('pdf-container');
     if (!container) return;
-    const capacity = Math.max(1, state.allUsers.length);
+
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = stampWrapper('acknowledgement-box-stamp', capacity > 8 ? 330 : 255, acknowledgementBoxContent(capacity));
+    wrapper.innerHTML = stampWrapper(
+      'acknowledgement-box-stamp',
+      178,
+      acknowledgementBoxContent(capacity)
+    );
+
     const box = wrapper.firstElementChild;
-    box.classList.add('acknowledgement-box-stamp');
-    box.style.top = '28px';
+    box.classList.add('acknowledgement-box-stamp', 'acknowledgement-box-compact');
+    box.dataset.ackCapacity = String(capacity);
     container.appendChild(box);
+
     initializeStamps();
     state.stampsInitialized = true;
+
+    // PDF หน้าแรกอาจเพิ่ง render เสร็จ จึงวางหลัง layout 1–2 frame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(placeAcknowledgementBoxBottomLeft_);
+    });
   }
 
   async function captureAcknowledgementBoxForDispatch() {
@@ -3885,7 +4130,8 @@
   async function loadDispatchUsers() {
     state.allUsers = await gasCall('listActiveUsers', state.token);
     const grid = document.getElementById('dispatch-user-grid');
-    grid.innerHTML = state.allUsers.map((user) => `<label class="bg-white border rounded-lg p-3 flex gap-2 ${user.signatureConfigured ? '' : 'dispatch-user-no-signature'}"><input type="checkbox" class="dispatch-user" value="${escapeHtml(user.userId)}"><span><b>${escapeHtml(user.name)}</b><br><small>${escapeHtml(user.role)}${user.department ? ' • ' + escapeHtml(user.department) : ''}</small>${user.signatureConfigured ? '' : '<br><small class="text-red-600">ยังไม่มีลายเซ็น</small>'}</span></label>`).join('');
+    const deliverableUsers = state.allUsers.filter((user) => !String(user.role || '').includes('ผู้ดูแลระบบสารบรรณ'));
+    grid.innerHTML = deliverableUsers.map((user) => `<label class="bg-white border rounded-lg p-3 flex gap-2 ${user.signatureConfigured ? '' : 'dispatch-user-no-signature'}"><input type="checkbox" class="dispatch-user" value="${escapeHtml(user.userId)}"><span><b>${escapeHtml(user.name)}</b><br><small>${escapeHtml(user.role)}${user.department ? ' • ' + escapeHtml(user.department) : ''}</small>${user.signatureConfigured ? '' : '<br><small class="text-red-600">ยังไม่มีลายเซ็น</small>'}</span></label>`).join('');
     document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = ensureAcknowledgementBox);
     if (document.querySelector('input[name="dispatch-type"]:checked')) {
       removeAcknowledgementBox();
@@ -3909,7 +4155,10 @@
       }
     };
     document.querySelectorAll('input[name="dispatch-type"]').forEach((radio) => radio.onchange = refreshDispatchUi);
-    document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = refreshDispatchUi);
+    document.querySelectorAll('.dispatch-user').forEach((checkbox) => checkbox.onchange = () => {
+      refreshDispatchUi();
+      ensureAcknowledgementBox();
+    });
 
     const jumpDocumentButton = document.getElementById('dispatch-jump-document');
     if (jumpDocumentButton) {
@@ -4134,7 +4383,7 @@
   }
 
   function openSettingsPanel() {
-    const isAdmin = isClericalUser();
+    const isAdmin = isClericalUser() || isDocumentMaintenanceAdmin();
     let activeSection = 'account';
     let originalDisplay = { ...(state.displaySettings || DEFAULT_DISPLAY_SETTINGS) };
     let displayDraft = { ...originalDisplay };
