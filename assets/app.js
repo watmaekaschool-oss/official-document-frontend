@@ -916,6 +916,7 @@
                 const own = (doc.recipients || []).find((item) => item.userId === state.user.userId);
                 return own && !own.acknowledgedAt;
               }) ? '<button id="acknowledge-all-btn" class="btn btn-ack-all" type="button">✅ รับทราบทั้งหมด</button>' : ''}
+              ${isClericalUser() ? '<button id="telegram-manual-btn" class="btn btn-primary" type="button">✈️ แจ้งเตือน Telegram</button>' : ''}
               ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สรุปการรับทราบสำหรับส่ง LINE" title="สรุปการรับทราบสำหรับส่ง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
               <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
               <button id="calendar-sort-btn" class="btn calendar-sort-btn" type="button" aria-label="จัดเรียงเอกสารตามปฏิทิน" title="จัดเรียงตามปฏิทิน">📅 <span>จัดเรียงตามปฏิทิน</span></button>
@@ -967,6 +968,7 @@
     bindAdminMascots();
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
+    document.getElementById('telegram-manual-btn')?.addEventListener('click', openTelegramManualModal);
     const lineNotifyBtn = document.getElementById('line-notify-btn');
     if (lineNotifyBtn) lineNotifyBtn.onclick = openLineNotificationModal;
     const documentManageBtn = document.getElementById('document-manage-btn');
@@ -2097,6 +2099,146 @@
     return lines.join('\n').trim();
   }
 
+
+  // Manual Telegram document sharing. The server independently checks role and document access.
+  async function openTelegramManualModal() {
+    if (!isClericalUser()) return;
+    const documents = [...new Map((state.allDocs || []).filter(d => d.docId).map(d => [d.docId, d])).values()];
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.innerHTML = `<div class="modal-panel" style="width:min(850px,96vw);max-height:92vh;overflow:auto;padding:24px">
+      <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">✈️ แจ้งเตือน Telegram (ส่งด้วยตนเอง)</h2><button type="button" id="tgmanual-close" class="btn btn-muted">ปิด</button></div>
+      <p class="mb-3 text-sm">เลือกหนังสือและหน้าที่ต้องการส่งเป็นภาพ สามารถแนบ PDF ฉบับปัจจุบันได้</p>
+      <input id="tgmanual-search" class="input w-full mb-2" placeholder="ค้นหาเลขรับ / เรื่อง / ผู้ส่ง">
+      <select id="tgmanual-doc" class="input w-full mb-3" size="6" aria-label="เลือกหนังสือ"></select>
+      <div id="tgmanual-info" class="mb-3 text-sm"></div>
+      <label class="block mb-2">หน้า PDF ที่ต้องการส่งเป็นภาพ (เช่น 1 หรือ 1,2,3 หรือ 2-4; สูงสุด 5 หน้า)
+        <input id="tgmanual-pages" class="input w-full" value="1" placeholder="1,2,3">
+      </label>
+      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็ม</label>
+      <label class="block mb-2">ข้อความประกอบ (แก้ไขได้)
+        <textarea id="tgmanual-message" class="input w-full" rows="4" maxlength="1500"></textarea>
+      </label>
+      <div id="tgmanual-preview" class="flex flex-wrap gap-2 mb-3"></div>
+      <div class="flex gap-2 flex-wrap">
+        <button id="tgmanual-render" type="button" class="btn btn-muted">👁️ ดูตัวอย่างภาพ</button>
+        <button id="tgmanual-send" type="button" class="btn btn-primary">✈️ ยืนยันส่ง Telegram</button>
+      </div>
+      <p id="tgmanual-status" class="mt-3 text-sm" role="status"></p>
+    </div>`;
+    document.body.appendChild(overlay);
+    const $ = id => overlay.querySelector('#'+id);
+    const close = () => overlay.remove();
+    $('tgmanual-close').onclick = close;
+    const search = $('tgmanual-search');
+    const select = $('tgmanual-doc');
+    const status = $('tgmanual-status');
+    let loadedDocId = '';
+    let loadedPdf = null;
+    let cachedPages = [];
+    let cacheKey = '';
+    const escape = value => escapeHtml(String(value == null ? '' : value));
+    function refreshList() {
+      const q = search.value.trim().toLocaleLowerCase('th');
+      const filtered = documents.filter(d => [d.recvNo,d.receiveNo,d.subject,d.sender,d.status].some(v=>String(v||'').toLocaleLowerCase('th').includes(q)));
+      select.innerHTML = filtered.slice(0,300).map(d => `<option value="${escape(d.docId)}">${escape((d.recvNo||d.receiveNo||'')+' • '+(d.subject||'ไม่ระบุเรื่อง')+' • '+(d.status||''))}</option>`).join('');
+      if (select.options.length) select.selectedIndex = 0;
+      onDocumentChange();
+    }
+    function onDocumentChange() {
+      const d = documents.find(item=>item.docId===select.value);
+      loadedDocId = ''; loadedPdf = null; cachedPages=[]; cacheKey='';
+      $('tgmanual-preview').innerHTML='';
+      $('tgmanual-info').textContent=d ? `สถานะ: ${d.status||'-'} | เรื่อง: ${d.subject||'-'}` : 'ไม่พบหนังสือ';
+      $('tgmanual-message').value=d ? `📢 แจ้งหนังสือราชการ\nเลขรับ: ${d.recvNo||d.receiveNo||'-'}\nเรื่อง: ${d.subject||'-'}\nสถานะ: ${d.status||'-'}\nกรุณาตรวจสอบเอกสาร` : '';
+      status.textContent='';
+    }
+    function pageNumbers(input,max) {
+      const raw=input.trim();
+      if (!raw) return [];
+      const nums=[];
+      for(const token of raw.split(',')) {
+        const m=token.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+        if(!m) throw new Error('รูปแบบเลขหน้าไม่ถูกต้อง');
+        const a=Number(m[1]), b=m[2]?Number(m[2]):a;
+        if(a<1||b<a||b>max||b-a>20) throw new Error(`เลือกหน้าได้ตั้งแต่ 1 ถึง ${max}`);
+        for(let i=a;i<=b;i++) if(!nums.includes(i)) nums.push(i);
+      }
+      if(nums.length>5) throw new Error('ส่งรูปได้สูงสุดครั้งละ 5 หน้า');
+      return nums;
+    }
+    async function getPdf() {
+      if(loadedPdf && loadedDocId===select.value) return loadedPdf;
+      const result=await gasCall('getTelegramManualDocumentPdf',state.token,select.value);
+      if(!result?.file?.base64) throw new Error('ไม่พบไฟล์ PDF');
+      const bytes=base64ToUint8Array(result.file.base64);
+      loadedPdf=await pdfjsLib.getDocument({data:bytes}).promise;
+      loadedDocId=select.value;
+      return loadedPdf;
+    }
+    async function renderSelected() {
+      if(!select.value) throw new Error('กรุณาเลือกหนังสือ');
+      const pdf=await getPdf();
+      const nums=pageNumbers($('tgmanual-pages').value,pdf.numPages);
+      const key=select.value+'|'+nums.join(',');
+      if(cacheKey===key) return cachedPages;
+      const rendered=[];
+      const preview=$('tgmanual-preview');
+      preview.innerHTML='';
+      for(const number of nums) {
+        const page=await pdf.getPage(number);
+        const viewport=page.getViewport({scale:1.3});
+        const canvas=document.createElement('canvas');
+        const factor=Math.min(1,1600/Math.max(viewport.width,viewport.height));
+        const scaled=page.getViewport({scale:1.3*factor});
+        canvas.width=Math.ceil(scaled.width); canvas.height=Math.ceil(scaled.height);
+        await page.render({canvasContext:canvas.getContext('2d'),viewport:scaled}).promise;
+        const dataUrl=canvas.toDataURL('image/jpeg',0.78);
+        if(dataUrl.length>2_500_000) throw new Error('ภาพหน้าที่ '+number+' มีขนาดใหญ่เกินไป');
+        rendered.push({page:number,base64:dataUrl.split(',')[1]});
+        const wrapper=document.createElement('div');
+        wrapper.style.cssText='width:130px';
+        const img=document.createElement('img');
+        img.src=dataUrl; img.alt='ตัวอย่างหน้า '+number;
+        img.style.cssText='width:100%;border:1px solid #ddd';
+        wrapper.appendChild(img);
+        const label=document.createElement('div');
+        label.textContent='หน้า '+number; wrapper.appendChild(label); preview.appendChild(wrapper);
+      }
+      cachedPages=rendered;cacheKey=key;
+      return rendered;
+    }
+    search.oninput=refreshList;
+    select.onchange=onDocumentChange;
+    $('tgmanual-pages').oninput=()=>{cacheKey='';cachedPages=[];};
+    $('tgmanual-render').onclick=async()=>{
+      status.textContent='กำลังสร้างภาพตัวอย่าง...';
+      try{const imgs=await renderSelected();status.textContent=`พร้อมส่งภาพ ${imgs.length} หน้า`;}
+      catch(e){status.textContent=e.message||String(e);}
+    };
+    $('tgmanual-send').onclick=async()=>{
+      const sendBtn=$('tgmanual-send');
+      if(sendBtn.disabled) return;
+      try {
+        const attachPdf=$('tgmanual-pdf').checked;
+        const message=$('tgmanual-message').value.trim();
+        if(!message) throw new Error('กรุณาใส่ข้อความ');
+        if(!attachPdf && !$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกภาพหรือ PDF');
+        const images=await renderSelected();
+        if(!attachPdf && !images.length) throw new Error('ไม่มีไฟล์ที่จะส่ง');
+        const d=documents.find(item=>item.docId===select.value);
+        const ok=await Swal.fire({title:'ยืนยันส่ง Telegram?',text:`${d?.subject||''} • ${images.length} ภาพ${attachPdf?' และ PDF':''} — โปรดตรวจสอบข้อมูลส่วนบุคคล/ชั้นความลับก่อนส่ง`,icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
+        if(!ok.isConfirmed) return;
+        sendBtn.disabled=true;status.textContent='กำลังส่ง Telegram กรุณารอ...';
+        const result=await gasCall('sendTelegramManualDocument',state.token,{docId:select.value,message,images,attachPdf});
+        status.textContent=result.message||'ส่งสำเร็จ';
+        Swal.fire('ส่งสำเร็จ',status.textContent,'success');
+      } catch(e){status.textContent=e.message||String(e);Swal.fire('ส่งไม่สำเร็จ',status.textContent,'error');}
+      finally{sendBtn.disabled=false;}
+    };
+    refreshList();
+  }
+
   function openLineNotificationModal() {
     if (!isClericalUser()) {
       Swal.fire('ไม่มีสิทธิ์ใช้งาน', 'เมนูสรุปการรับทราบสำหรับ LINE ใช้ได้เฉพาะบัญชีธุรการ', 'warning');
@@ -2510,7 +2652,7 @@
         <div class="admin-editor-pdf-revision">
           <label class="font-semibold text-sm">เปลี่ยน PDF ปัจจุบัน (ไม่บังคับ)</label>
           <input id="admin-replacement-pdf" class="input mt-1" type="file" accept="application/pdf,.pdf">
-          <p class="text-xs text-slate-500 mt-1">ใช้เมื่อ PDF ปัจจุบันต้องแก้ไขจากภายนอก ระบบจะเก็บต้นฉบับเดิมและไม่ reset workflow</p>
+          <p class="text-xs text-slate-500 mt-1">ใช้แทน PDF ที่ตราประทับกลับหัวได้แม้เอกสารอยู่สถานะรอธุรการจ่ายเรื่องให้ผู้รับ: แก้ PDF ในโปรแกรมภายนอกก่อน แล้วอัปโหลดฉบับที่ตรวจสอบแล้ว ระบบจะไม่เปลี่ยนสถานะ/คิว และจะเก็บไฟล์เดิมไว้ (ต้องมีสิทธิ์ผู้ดูแลระบบ)</p>
         </div>
 
         <div class="admin-editor-tools">
@@ -3853,8 +3995,11 @@
 
         const pageRect = canvas.getBoundingClientRect();
         const stampRect = stamp.getBoundingClientRect();
-        const scaleX = page.getWidth() / pageRect.width;
-        const scaleY = page.getHeight() / pageRect.height;
+        // Match PDF.js's actual page viewport, including the PDF /Rotate value.
+        // Using page width/height ratios here misplaces or inverts stamps on rotated PDFs.
+        const pageView = state.pdfPageViews?.[pageIndex];
+        const viewport = pageView?.viewport;
+        if (!viewport) throw new Error(`ไม่พบข้อมูลมุมหมุนหน้า ${pageIndex + 1}`);
 
         const localX = Math.min(
           Math.max(0, stampRect.left - pageRect.left),
@@ -3867,11 +4012,21 @@
 
         const capture = await captureStampAtNativeResolution(stamp, stampCaptureScale);
         const image = await pdfDoc.embedPng(capture.toDataURL('image/png'));
+        // Translate visual canvas corners back into PDF coordinates. The lower-left
+        // corner is the image anchor; the lower-right determines its orientation.
+        const x0 = localX * viewport.width / pageRect.width;
+        const y0 = localY * viewport.height / pageRect.height;
+        const x1 = (localX + stampRect.width) * viewport.width / pageRect.width;
+        const y1 = (localY + stampRect.height) * viewport.height / pageRect.height;
+        const bottomLeft = viewport.convertToPdfPoint(x0, y1);
+        const bottomRight = viewport.convertToPdfPoint(x1, y1);
+        const topLeft = viewport.convertToPdfPoint(x0, y0);
+        const width = Math.hypot(bottomRight[0] - bottomLeft[0], bottomRight[1] - bottomLeft[1]);
+        const height = Math.hypot(topLeft[0] - bottomLeft[0], topLeft[1] - bottomLeft[1]);
+        const angle = Math.atan2(bottomRight[1] - bottomLeft[1], bottomRight[0] - bottomLeft[0]);
         page.drawImage(image, {
-          x: localX * scaleX,
-          y: page.getHeight() - localY * scaleY - stampRect.height * scaleY,
-          width: stampRect.width * scaleX,
-          height: stampRect.height * scaleY,
+          x: bottomLeft[0], y: bottomLeft[1], width, height,
+          rotate: PDFLib.radians(angle),
         });
         stamp.dataset.pageIndex = String(pageIndex);
       }
