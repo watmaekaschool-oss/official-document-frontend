@@ -2108,15 +2108,15 @@
     overlay.className = 'modal-backdrop';
     overlay.innerHTML = `<div class="modal-panel" style="width:min(850px,96vw);max-height:92vh;overflow:auto;padding:24px">
       <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">✈️ แจ้งเตือน Telegram (ส่งด้วยตนเอง)</h2><button type="button" id="tgmanual-close" class="btn btn-muted">ปิด</button></div>
-      <p class="mb-3 text-sm">เลือกหนังสือและหน้าที่ต้องการส่งเป็นภาพ สามารถแนบ PDF ฉบับปัจจุบันได้</p>
+      <p class="mb-3 text-sm">เลือกหนังสือหลายฉบับ แล้วส่งแยกข้อความและรูปภาพรายฉบับ (เลือกหน้าภาพเหมือนกันทุกฉบับ)</p>
       <input id="tgmanual-search" class="input w-full mb-2" placeholder="ค้นหาเลขรับ / เรื่อง / ผู้ส่ง">
-      <select id="tgmanual-doc" class="input w-full mb-3" size="6" aria-label="เลือกหนังสือ"></select>
+      <select id="tgmanual-doc" class="input w-full mb-3" size="8" multiple aria-label="เลือกหนังสือหลายฉบับ"></select><p class="text-sm mb-2">กด Ctrl หรือ Shift เพื่อเลือกหลายฉบับ • เลือกแล้ว <span id="tgmanual-count">0</span> ฉบับ • สูงสุด 10 ฉบับต่อครั้ง</p>
       <div id="tgmanual-info" class="mb-3 text-sm"></div>
       <label class="block mb-2">หน้า PDF ที่ต้องการส่งเป็นภาพ (เช่น 1 หรือ 1,2,3 หรือ 2-4; สูงสุด 5 หน้า)
         <input id="tgmanual-pages" class="input w-full" value="1" placeholder="1,2,3">
       </label>
-      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็ม</label>
-      <label class="block mb-2">ข้อความประกอบ (แก้ไขได้)
+      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox"> แนบไฟล์ PDF ฉบับเต็ม</label>
+      <label class="block mb-2">ข้อความปิดท้าย (ใช้เหมือนกันทุกฉบับ)
         <textarea id="tgmanual-message" class="input w-full" rows="4" maxlength="1500"></textarea>
       </label>
       <div id="tgmanual-preview" class="flex flex-wrap gap-2 mb-3"></div>
@@ -2133,6 +2133,7 @@
     const search = $('tgmanual-search');
     const select = $('tgmanual-doc');
     const status = $('tgmanual-status');
+    let selectedIds = [];
     let loadedDocId = '';
     let loadedPdf = null;
     let cachedPages = [];
@@ -2142,15 +2143,17 @@
       const q = search.value.trim().toLocaleLowerCase('th');
       const filtered = documents.filter(d => [d.recvNo,d.receiveNo,d.subject,d.sender,d.status].some(v=>String(v||'').toLocaleLowerCase('th').includes(q)));
       select.innerHTML = filtered.slice(0,300).map(d => `<option value="${escape(d.docId)}">${escape((d.recvNo||d.receiveNo||'')+' • '+(d.subject||'ไม่ระบุเรื่อง')+' • '+(d.status||''))}</option>`).join('');
-      if (select.options.length) select.selectedIndex = 0;
+      for (const option of select.options) option.selected = selectedIds.includes(option.value);
       onDocumentChange();
     }
     function onDocumentChange() {
-      const d = documents.find(item=>item.docId===select.value);
+      selectedIds = [...select.selectedOptions].map(o=>o.value);
+      $('tgmanual-count').textContent=String(selectedIds.length);
+      const d = documents.find(item=>item.docId===selectedIds[0]);
       loadedDocId = ''; loadedPdf = null; cachedPages=[]; cacheKey='';
       $('tgmanual-preview').innerHTML='';
       $('tgmanual-info').textContent=d ? `สถานะ: ${d.status||'-'} | เรื่อง: ${d.subject||'-'}` : 'ไม่พบหนังสือ';
-      $('tgmanual-message').value=d ? `📢 แจ้งหนังสือราชการ\nเลขรับ: ${d.recvNo||d.receiveNo||'-'}\nเรื่อง: ${d.subject||'-'}\nสถานะ: ${d.status||'-'}\nกรุณาตรวจสอบเอกสาร` : '';
+      if (!$('tgmanual-message').value) $('tgmanual-message').value='กรุณาตรวจสอบเอกสารด้วยครับ 🙏';
       status.textContent='';
     }
     function pageNumbers(input,max) {
@@ -2168,19 +2171,20 @@
       return nums;
     }
     async function getPdf() {
-      if(loadedPdf && loadedDocId===select.value) return loadedPdf;
-      const result=await gasCall('getTelegramManualDocumentPdf',state.token,select.value);
+      const docId=selectedIds[0];
+      if(loadedPdf && loadedDocId===docId) return loadedPdf;
+      const result=await gasCall('getTelegramManualDocumentPdf',state.token,docId);
       if(!result?.file?.base64) throw new Error('ไม่พบไฟล์ PDF');
       const bytes=base64ToUint8Array(result.file.base64);
       loadedPdf=await pdfjsLib.getDocument({data:bytes}).promise;
-      loadedDocId=select.value;
+      loadedDocId=docId;
       return loadedPdf;
     }
     async function renderSelected() {
-      if(!select.value) throw new Error('กรุณาเลือกหนังสือ');
+      if(!selectedIds.length) throw new Error('กรุณาเลือกหนังสือ');
       const pdf=await getPdf();
       const nums=pageNumbers($('tgmanual-pages').value,pdf.numPages);
-      const key=select.value+'|'+nums.join(',');
+      const key=selectedIds[0]+'|'+nums.join(',');
       if(cacheKey===key) return cachedPages;
       const rendered=[];
       const preview=$('tgmanual-preview');
@@ -2216,25 +2220,49 @@
       try{const imgs=await renderSelected();status.textContent=`พร้อมส่งภาพ ${imgs.length} หน้า`;}
       catch(e){status.textContent=e.message||String(e);}
     };
+    function teacherNames(doc) {
+      const names=(doc.recipients||[]).map(r=>typeof r==='string'?r:(r.name||r.fullName||r.displayName||'')).filter(Boolean);
+      return [...new Set(names)].join(', ') || '-';
+    }
+    function buildMessage(doc) {
+      return `📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nสถานะ: ${teacherNames(doc)}\n${$('tgmanual-message').value.trim()}`;
+    }
+    async function renderForDocument(docId) {
+      selectedIds=[docId,...selectedIds.filter(id=>id!==docId)];
+      loadedDocId='';loadedPdf=null;cacheKey='';cachedPages=[];
+      return renderSelected();
+    }
     $('tgmanual-send').onclick=async()=>{
       const sendBtn=$('tgmanual-send');
       if(sendBtn.disabled) return;
+      const originalIds=[...selectedIds];
       try {
+        if(!originalIds.length) throw new Error('กรุณาเลือกหนังสือ');
+        if(originalIds.length>10) throw new Error('เลือกได้ไม่เกิน 10 ฉบับต่อครั้ง');
         const attachPdf=$('tgmanual-pdf').checked;
-        const message=$('tgmanual-message').value.trim();
-        if(!message) throw new Error('กรุณาใส่ข้อความ');
-        if(!attachPdf && !$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกภาพหรือ PDF');
-        const images=await renderSelected();
-        if(!attachPdf && !images.length) throw new Error('ไม่มีไฟล์ที่จะส่ง');
-        const d=documents.find(item=>item.docId===select.value);
-        const ok=await Swal.fire({title:'ยืนยันส่ง Telegram?',text:`${d?.subject||''} • ${images.length} ภาพ${attachPdf?' และ PDF':''} — โปรดตรวจสอบข้อมูลส่วนบุคคล/ชั้นความลับก่อนส่ง`,icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
+        if(!attachPdf&&!$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกหน้าภาพ');
+        if(!$('tgmanual-message').value.trim()) throw new Error('กรุณาระบุข้อความปิดท้าย');
+        const ok=await Swal.fire({title:'ยืนยันส่งหนังสือ '+originalIds.length+' ฉบับ?',text:'ระบบจะส่งแยกข้อความและภาพสำหรับหนังสือแต่ละฉบับ โปรดตรวจสอบชั้นความลับและข้อมูลส่วนบุคคลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
         if(!ok.isConfirmed) return;
-        sendBtn.disabled=true;status.textContent='กำลังส่ง Telegram กรุณารอ...';
-        const result=await gasCall('sendTelegramManualDocument',state.token,{docId:select.value,message,images,attachPdf});
-        status.textContent=result.message||'ส่งสำเร็จ';
-        Swal.fire('ส่งสำเร็จ',status.textContent,'success');
+        sendBtn.disabled=true;
+        const completed=[];const failed=[];
+        for(let i=0;i<originalIds.length;i++) {
+          const id=originalIds[i];
+          const d=documents.find(item=>item.docId===id);
+          status.textContent=`กำลังส่ง ${i+1}/${originalIds.length}: ${d?.recvNo||d?.receiveNo||id}`;
+          try {
+            const images=await renderForDocument(id);
+            const result=await gasCall('sendTelegramManualDocument',state.token,{docId:id,message:buildMessage(d),images,attachPdf});
+            if(result?.success===false) throw new Error(result.message||'ส่งไม่สำเร็จ');
+            completed.push(d?.recvNo||d?.receiveNo||id);
+          } catch(e) {
+            failed.push(`${d?.recvNo||d?.receiveNo||id}: ${e.message||String(e)}`);
+          }
+        }
+        status.textContent=`สำเร็จ ${completed.length} ฉบับ / ไม่สำเร็จ ${failed.length} ฉบับ`;
+        await Swal.fire({title:failed.length?'ส่งสำเร็จบางส่วน':'ส่งสำเร็จ',text:status.textContent+(failed.length?'\n'+failed.join('\n'):'') ,icon:failed.length?'warning':'success'});
       } catch(e){status.textContent=e.message||String(e);Swal.fire('ส่งไม่สำเร็จ',status.textContent,'error');}
-      finally{sendBtn.disabled=false;}
+      finally{selectedIds=originalIds;sendBtn.disabled=false;}
     };
     refreshList();
   }
@@ -4227,6 +4255,33 @@
     });
   }
 
+
+  async function prepareTelegramDispatchImages() {
+    const docId=state.currentDoc?.docId;
+    if(!docId || !state.originalPdfBase64) return [];
+    const info=await gasCall('getTelegramDispatchStampPage',state.token,docId);
+    const pdf=await pdfjsLib.getDocument({data:base64ToUint8Array(state.originalPdfBase64)}).promise;
+    const count=Math.min(Math.max(1,Number(info?.page)||1),pdf.numPages,5);
+    const images=[];
+    for(let i=1;i<=count;i++){
+      const page=await pdf.getPage(i);
+      const initial=page.getViewport({scale:1});
+      const scale=Math.min(1.3,1200/Math.max(initial.width,initial.height));
+      const viewport=page.getViewport({scale});
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+      await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+      let base64='';
+      for(const quality of [0.75,0.6,0.45,0.3]){
+        base64=canvas.toDataURL('image/jpeg',quality).split(',')[1];
+        if(base64.length<2400000) break;
+      }
+      if(base64.length>=2400000) break;
+      images.push({page:i,base64});
+    }
+    return images;
+  }
+
   async function captureAcknowledgementBoxForDispatch() {
     const stamp = document.getElementById('acknowledgement-box-stamp');
     if (!stamp) throw new Error('ไม่พบกล่อง “ทราบ” บนเอกสาร');
@@ -4336,14 +4391,24 @@
       try {
         let stamped = { base64: '', acknowledgementBox: null };
         if (selected.value !== 'ยุติเรื่อง') stamped = await captureAcknowledgementBoxForDispatch();
-        await gasCall('dispatchDocument', state.token, {
+        // Preview source is the already-stamped PDF, before the acknowledgement box is added.
+        let telegramImages = [];
+        if (selected.value !== 'ยุติเรื่อง') {
+          try { telegramImages = await prepareTelegramDispatchImages(); }
+          catch (imageError) { console.warn('Telegram image preview unavailable', imageError); }
+        }
+        const dispatchResult = await gasCall('dispatchDocument', state.token, {
           docId: state.currentDoc.docId,
           type: selected.value,
           priority,
           userIds,
           base64: stamped.base64,
           acknowledgementBox: stamped.acknowledgementBox,
+          telegramImages,
         });
+        if (dispatchResult?.telegramResult?.success === false) {
+          console.warn('Telegram dispatch notification failed', dispatchResult.telegramResult.reason);
+        }
         closeWorkspace();
         await loadDashboard();
         Swal.fire('สำเร็จ', selected.value === 'ยุติเรื่อง'
