@@ -780,8 +780,8 @@
           </div>
           <form id="login-form" class="space-y-4">
             <div><label class="font-semibold text-sm text-slate-700">ชื่อผู้ใช้</label><input id="login-username" class="input login-input mt-1" autocomplete="username" placeholder="กรุณากรอกชื่อผู้ใช้" required></div>
-            <div><label class="font-semibold text-sm text-slate-700">รหัสผ่าน</label><input id="login-password" type="password" class="input login-input mt-1" autocomplete="current-password" placeholder="กรุณากรอกรหัสผ่าน" required></div>
-            <button class="btn btn-primary login-submit w-full py-3" type="submit">เข้าสู่ระบบ</button>
+            <div id="wmk-login-second" class="hidden"></div>
+            <button class="btn btn-primary login-submit w-full py-3" type="submit">ถัดไป</button>
           </form>
           <button id="mobile-access-help" class="login-help-link" type="button">เปิดไม่ได้ใน Google Chrome มือถือ?</button>
           <p class="text-xs text-slate-400 text-center mt-3">เวอร์ชัน ${escapeHtml(window.APP_BOOTSTRAP?.version || '')}</p>
@@ -789,26 +789,36 @@
       </div>`;
     const mobileHelpButton = document.getElementById('mobile-access-help');
     if (mobileHelpButton) mobileHelpButton.onclick = openMobileAccessHelp;
-    document.getElementById('login-form').addEventListener('submit', async (event) => {
+    let loginMode='username';
+    const loginForm=document.getElementById('login-form');
+    const second=document.getElementById('wmk-login-second');
+    const loginName=document.getElementById('login-username');
+    loginForm.addEventListener('submit',async(event)=>{
       event.preventDefault();
-      loading('กำลังตรวจสอบ...');
-      try {
-        const result = await gasCall('login', document.getElementById('login-username').value, document.getElementById('login-password').value, webClientInfo_());
-        if (!result.success) {
-          Swal.fire('เข้าสู่ระบบไม่สำเร็จ', result.message || 'ข้อมูลไม่ถูกต้อง', 'error');
-          return;
-        }
-        state.token = result.token;
-        state.user = result.user;
+      if(loginMode==='username'){
+        loading('กำลังตรวจสอบชื่อผู้ใช้...');
+        try{
+          const result=await gasCall('wmkLoginStep',loginName.value);
+          loginMode=result.mode||'password';
+          second.classList.remove('hidden');
+          if(loginMode==='enroll') second.innerHTML='<label class="font-semibold text-sm">รหัสผ่านเดิมเพื่อยืนยันตัวตน</label><input id="wmk-old" type="password" class="input login-input mt-1" required autocomplete="current-password"><label class="font-semibold text-sm">ตั้ง PIN ใหม่ 4 หลัก</label><input id="wmk-pin" type="password" class="input login-input mt-1" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>';
+          else second.innerHTML='<label class="font-semibold text-sm">'+(loginMode==='pin'?'PIN 4 หลัก':'รหัสผ่าน')+'</label><input id="wmk-secret" type="password" class="input login-input mt-1" '+(loginMode==='pin'?'inputmode="numeric" pattern="[0-9]{4}" maxlength="4"':'')+' required>';
+          loginName.readOnly=true;loginForm.querySelector('button[type="submit"]').textContent=loginMode==='enroll'?'ตั้ง PIN และเข้าสู่ระบบ':'เข้าสู่ระบบ';
+          Swal.close();
+        }catch(error){showError(error);}
+        return;
+      }
+      loading('กำลังเข้าสู่ระบบ...');
+      try{
+        const result=loginMode==='enroll' ? await gasCall('wmkEnrollPin',loginName.value,document.getElementById('wmk-old').value,document.getElementById('wmk-pin').value,webClientInfo_()) : loginMode==='pin' ? await gasCall('wmkLoginPin',loginName.value,document.getElementById('wmk-secret').value,webClientInfo_()) : await gasCall('login',loginName.value,document.getElementById('wmk-secret').value,webClientInfo_());
+        if(!result.success){Swal.fire('เข้าสู่ระบบไม่สำเร็จ',result.message||'ข้อมูลไม่ถูกต้อง','error');return;}
+        state.token=result.token;state.user=result.user;
         applyDisplaySettings(loadDisplaySettings(state.user.username));
-        state.mascotSettings = loadMascotSettings(state.user.username);
-        state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
-        localStorage.setItem('officialDocToken', state.token);
+        localStorage.setItem('officialDocToken',state.token);
         sessionStorage.removeItem('officialDocToken');
-        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
-        await loadDashboard();
-        Swal.close();
-      } catch (error) { showError(error); }
+        state.tab=guideRoleKey()==='ครู'?'inbox':(isDocumentMaintenanceAdmin()?'all':'action');
+        await loadDashboard();Swal.close();
+      }catch(error){showError(error);}
     });
   }
 
@@ -881,6 +891,12 @@
     }, 120);
   }
 
+  function updateWmkClock_() {
+    const node = document.getElementById('wmk-clock');
+    if (node) node.textContent = new Intl.DateTimeFormat('th-TH', {timeZone:'Asia/Bangkok', dateStyle:'full', timeStyle:'short'}).format(new Date());
+  }
+  setInterval(updateWmkClock_, 30000);
+
   function renderDashboard() {
     const isTeacher = guideRoleKey() === 'ครู';
     const isMaintenanceAdmin = isDocumentMaintenanceAdmin();
@@ -900,14 +916,18 @@
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
-              <button id="web-push-btn" class="web-push-header-btn" type="button" aria-label="การแจ้งเตือน" title="เปิดหรือทดสอบการแจ้งเตือน">🔔</button>
+
               <button id="settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า" title="การตั้งค่า">⚙</button>
               <button id="logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
             </div>
           </div>
         </header>
-        ${mascotLayerMarkup()}
+
         <main class="max-w-7xl mx-auto px-4 py-6">
+          <section class="wmk-welcome" aria-label="ยินดีต้อนรับ">
+            <div><div class="wmk-welcome-small">ยินดีต้อนรับ</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>${escapeHtml(state.user.role || '')}</div></div>
+            <a class="wmk-calendar" href="https://wmk-cal.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
+          </section>
           <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
@@ -917,7 +937,7 @@
                 return own && !own.acknowledgedAt;
               }) ? '<button id="acknowledge-all-btn" class="btn btn-ack-all" type="button">✅ รับทราบทั้งหมด</button>' : ''}
               ${isClericalUser() ? '<button id="telegram-manual-btn" class="btn btn-primary" type="button">✈️ แจ้งเตือน Telegram</button>' : ''}
-              ${isClericalUser() ? `<button id="line-notify-btn" class="btn line-notify-btn" type="button" aria-label="สรุปการรับทราบสำหรับส่ง LINE" title="สรุปการรับทราบสำหรับส่ง LINE">${lineLogoMarkup()}<span>LINE</span></button>` : ''}
+
               <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
               <button id="calendar-sort-btn" class="btn calendar-sort-btn" type="button" aria-label="จัดเรียงเอกสารตามปฏิทิน" title="จัดเรียงตามปฏิทิน">📅 <span>จัดเรียงตามปฏิทิน</span></button>
             </div>
@@ -933,14 +953,15 @@
             </div>
           </div>
           <div class="dashboard-tabs-mascot-row">
-            <div class="dashboard-tabs flex gap-2 overflow-auto pb-1">
-              ${!isTeacher && !isMaintenanceAdmin ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">งานรอดำเนินการ (${state.actionDocs.length})</button>` : ''}
-              ${!isMaintenanceAdmin ? `<button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>` : ''}
-              ${isTeacher ? `<button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button><button class="tab-button ${state.tab === 'completed' ? 'active' : ''}" data-tab="completed">ดำเนินการเสร็จสิ้น (${state.completedDocs.length})</button>` : ''}
+            <div class="dashboard-tabs wmk-tabs flex gap-2 overflow-auto pb-1">
+              ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">${isClericalUser() ? 'งานรอดำเนินการ' : 'จดหมายรอเกษียณ'} (${state.actionDocs.length})</button>` : ''}
+              <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
               <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
-              ${!isTeacher && !isMaintenanceAdmin ? `<button id="document-manage-btn" class="tab-button document-manage-btn" type="button" title="แก้ไขผู้รับหรือดาวน์โหลดเอกสาร">⚙ จัดการ</button>` : ''}
+              ${!isTeacher ? '<button id="wmk-meeting-tab" class="tab-button" type="button">วาระการประชุม</button>' : ''}
+              ${isClericalUser() ? '<button id="wmk-telegram-tab" class="tab-button" type="button">จัดการการแจ้งเตือน</button>' : ''}
+              <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
-            <div id="workflow-mascot-slot" class="workflow-mascot-slot">${workflowMascotMarkup()}</div>
+            
           </div>
           <div id="calendar-active-filter"></div>
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
@@ -951,6 +972,7 @@
     document.querySelectorAll('.guide-tool-btn, #guide-tool-btn').forEach((element) => element.remove());
     document.documentElement.dataset.frontendVersion = FRONTEND_BUILD_VERSION;
 
+    updateWmkClock_();
     document.getElementById('logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
       clearSession();
@@ -963,9 +985,9 @@
     if (acknowledgeAllBtn) acknowledgeAllBtn.onclick = acknowledgeAllPendingDocuments;
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
     document.getElementById('settings-btn').onclick = openSettingsPanel;
-    document.getElementById('web-push-btn').onclick = openWebPushPanel;
+
     document.getElementById('role-guide-btn')?.addEventListener('click', openRoleGuide);
-    bindAdminMascots();
+
     const uploadBtn = document.getElementById('upload-btn');
     if (uploadBtn) uploadBtn.onclick = openUploadModal;
     document.getElementById('telegram-manual-btn')?.addEventListener('click', openTelegramManualModal);
@@ -974,6 +996,8 @@
     const documentManageBtn = document.getElementById('document-manage-btn');
     if (documentManageBtn) documentManageBtn.onclick = openDocumentManagementMenu;
     document.getElementById('meeting-module-btn').onclick = openMeetingModule;
+    document.getElementById('wmk-meeting-tab')?.addEventListener('click', openMeetingModule);
+    document.getElementById('wmk-telegram-tab')?.addEventListener('click', openTelegramManualModal);
     document.getElementById('calendar-sort-btn').onclick = openCalendarSortModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => {
@@ -2110,12 +2134,12 @@
       <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">✈️ แจ้งเตือน Telegram (ส่งด้วยตนเอง)</h2><button type="button" id="tgmanual-close" class="btn btn-muted">ปิด</button></div>
       <p class="mb-3 text-sm">เลือกหนังสือหลายฉบับ แล้วส่งแยกข้อความและรูปภาพรายฉบับ (เลือกหน้าภาพเหมือนกันทุกฉบับ)</p>
       <input id="tgmanual-search" class="input w-full mb-2" placeholder="ค้นหาเลขรับ / เรื่อง / ผู้ส่ง">
-      <select id="tgmanual-doc" class="input w-full mb-3" size="8" multiple aria-label="เลือกหนังสือหลายฉบับ"></select><p class="text-sm mb-2">กด Ctrl หรือ Shift เพื่อเลือกหลายฉบับ • เลือกแล้ว <span id="tgmanual-count">0</span> ฉบับ • สูงสุด 10 ฉบับต่อครั้ง</p>
+      <div id="tgmanual-doc" class="wmk-tg-checklist mb-3" role="group" aria-label="เลือกหนังสือหลายฉบับ"></div><p class="text-sm mb-2">ติ๊กเลือกเอกสาร • เลือกแล้ว <span id="tgmanual-count">0</span> ฉบับ • สูงสุด 10 ฉบับต่อครั้ง</p>
       <div id="tgmanual-info" class="mb-3 text-sm"></div>
       <label class="block mb-2">หน้า PDF ที่ต้องการส่งเป็นภาพ (เช่น 1 หรือ 1,2,3 หรือ 2-4; สูงสุด 5 หน้า)
         <input id="tgmanual-pages" class="input w-full" value="1" placeholder="1,2,3">
       </label>
-      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox"> แนบไฟล์ PDF ฉบับเต็ม</label>
+      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็ม</label>
       <label class="block mb-2">ข้อความปิดท้าย (ใช้เหมือนกันทุกฉบับ)
         <textarea id="tgmanual-message" class="input w-full" rows="4" maxlength="1500"></textarea>
       </label>
@@ -2142,12 +2166,15 @@
     function refreshList() {
       const q = search.value.trim().toLocaleLowerCase('th');
       const filtered = documents.filter(d => [d.recvNo,d.receiveNo,d.subject,d.sender,d.status].some(v=>String(v||'').toLocaleLowerCase('th').includes(q)));
-      select.innerHTML = filtered.slice(0,300).map(d => `<option value="${escape(d.docId)}">${escape((d.recvNo||d.receiveNo||'')+' • '+(d.subject||'ไม่ระบุเรื่อง')+' • '+(d.status||''))}</option>`).join('');
-      for (const option of select.options) option.selected = selectedIds.includes(option.value);
+      select.innerHTML = filtered.slice(0,300).map(d => `<label class="wmk-tg-doc"><input type="checkbox" value="${escape(d.docId)}" ${selectedIds.includes(String(d.docId)) ? 'checked' : ''}><span>${escape((d.recvNo||d.receiveNo||'')+' • '+(d.subject||'ไม่ระบุเรื่อง')+' • '+(d.status||''))}</span></label>`).join('');
+      select.querySelectorAll('input[type="checkbox"]').forEach(input => input.addEventListener('change', () => {
+        if(input.checked && selectedIds.length >= 10){input.checked=false;status.textContent='เลือกได้สูงสุด 10 ฉบับ';return;}
+        selectedIds = input.checked ? [...new Set([...selectedIds,input.value])] : selectedIds.filter(id=>id!==input.value);
+        onDocumentChange();
+      }));
       onDocumentChange();
     }
     function onDocumentChange() {
-      selectedIds = [...select.selectedOptions].map(o=>o.value);
       $('tgmanual-count').textContent=String(selectedIds.length);
       const d = documents.find(item=>item.docId===selectedIds[0]);
       loadedDocId = ''; loadedPdf = null; cachedPages=[]; cacheKey='';
@@ -4611,7 +4638,7 @@
     let displaySaved = true;
     const overlay = document.createElement('div');
     overlay.className = 'settings-backdrop';
-    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${!isAdmin ? settingsNavButton('workflowMascot','🐥','มาสคอตแจ้งเตือน','เปิดหรือปิดสัตว์แจ้งงาน') : ''}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('mascots','🎀','มาสคอตและตัวละคร','เลือกตัวละครและตำแหน่ง',true)}${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','ปรับข้อความและเหตุการณ์',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','ปรับข้อความและเหตุการณ์',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
     document.body.appendChild(overlay);
 
     const content = overlay.querySelector('#settings-content');
