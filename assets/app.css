@@ -3367,3 +3367,11 @@ html[data-theme-preset="dark"] .dispatch-all-choice {
     max-width: 160px !important;
   }
 }
+
+/* Wat Mae Ka approved navigation and welcome banner */
+.wmk-welcome{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 24px;margin-bottom:18px;border-radius:18px;background:linear-gradient(110deg,#fff1f3,#fffaf0);color:#8d1e30;box-shadow:0 5px 20px #3c10200c}
+.wmk-welcome strong{display:block;font-size:1.35rem;margin:5px 0}.wmk-welcome-small{font-size:.82rem}.wmk-calendar{background:white;border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:5px;color:#8d1e30;text-decoration:none;text-align:right}.wmk-calendar time{font-size:.85rem}
+.dashboard-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.dashboard-tabs .tab-button{white-space:nowrap}.dashboard-tabs-mascot-row{display:block}.workflow-mascot-slot,.admin-mascot-layer,.mascot-layer{display:none!important}
+@media(max-width:640px){.wmk-welcome{padding:14px;align-items:flex-start}.wmk-welcome strong{font-size:1.05rem}.wmk-calendar{padding:8px;font-size:.8rem}.wmk-calendar time{font-size:.72rem}}
+
+.wmk-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}.wmk-tabs .tab-button{white-space:nowrap;flex-shrink:0}.wmk-tg-checklist{max-height:280px;overflow:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:#fff}.wmk-tg-doc{display:flex;align-items:flex-start;gap:10px;padding:10px 8px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:.92rem}.wmk-tg-doc:hover{background:#fff7f8}.wmk-tg-doc input{margin-top:4px;accent-color:#a32843}.wmk-tg-doc span{flex:1;min-width:0}
