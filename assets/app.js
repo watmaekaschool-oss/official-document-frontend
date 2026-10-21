@@ -589,11 +589,11 @@
   function workflowMascotCounts() {
     if (isClericalUser()) return { pending: 0, unread: 0, action: 0 };
     const unread = (state.inboxDocs || []).filter((doc) => {
-      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user?.userId);
+      const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user?.userId);
       return ownRecipient ? !ownRecipient.acknowledgedAt : false;
     }).length;
     const followup = (state.acknowledgedDocs || []).filter((doc) => {
-      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user?.userId);
+      const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user?.userId);
       return ownRecipient ? !ownRecipient.completedAt : false;
     }).length;
     const action = (state.actionDocs || []).length;
@@ -898,7 +898,6 @@
   function renderDashboard() {
     const isTeacher = guideRoleKey() === 'ครู';
     const isMaintenanceAdmin = isDocumentMaintenanceAdmin();
-    if (state.tab === 'all' && !state.calendarFilter) state.calendarFilter = currentMonthCalendarFilter_();
     root.innerHTML = `
       <div class="app-shell">
         <header class="topbar">
@@ -926,12 +925,23 @@
             <div><div class="wmk-welcome-small">ยินดีต้อนรับ</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>${escapeHtml(state.user.role || '')}</div></div>
             <a class="wmk-calendar" href="https://wmk-cal.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
           </section>
-          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="dashboard-tabs-mascot-row">
+            <div class="dashboard-tabs wmk-tabs flex gap-2 overflow-auto pb-1">
+              ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">${isClericalUser() ? 'งานรอดำเนินการ' : 'จดหมายรอเกษียณ'} (${state.actionDocs.length})</button>` : ''}
+              <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
+              <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
+              ${!isTeacher ? '<button id="wmk-meeting-tab" class="tab-button" type="button">วาระการประชุม</button>' : ''}
+              ${isClericalUser() ? '<button id="wmk-telegram-tab" class="tab-button" type="button">จัดการการแจ้งเตือน</button>' : ''}
+              <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
+            </div>
+            
+          </div>
+          <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
               ${state.inboxDocs.some((doc) => {
-                const own = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+                const own = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user.userId);
                 return own && !own.acknowledgedAt;
               }) ? '<button id="acknowledge-all-btn" class="btn btn-ack-all" type="button">✅ รับทราบทั้งหมด</button>' : ''}
               ${isClericalUser() ? '<button id="telegram-manual-btn" class="btn btn-primary" type="button">✈️ แจ้งเตือน Telegram</button>' : ''}
@@ -949,17 +959,6 @@
                 <option value="complete">รับทราบครบ</option>
               </select>
             </div>
-          </div>
-          <div class="dashboard-tabs-mascot-row">
-            <div class="dashboard-tabs wmk-tabs flex gap-2 overflow-auto pb-1">
-              ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">${isClericalUser() ? 'งานรอดำเนินการ' : 'จดหมายรอเกษียณ'} (${state.actionDocs.length})</button>` : ''}
-              <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
-              <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
-              ${!isTeacher ? '<button id="wmk-meeting-tab" class="tab-button" type="button">วาระการประชุม</button>' : ''}
-              ${isClericalUser() ? '<button id="wmk-telegram-tab" class="tab-button" type="button">จัดการการแจ้งเตือน</button>' : ''}
-              <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
-            </div>
-            
           </div>
           <div id="calendar-active-filter"></div>
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
@@ -1001,12 +1000,13 @@
       button.onclick = () => {
         state.tab = button.dataset.tab;
         state.documentPage = 1;
-        if (state.tab === 'all' && !state.calendarFilter) state.calendarFilter = currentMonthCalendarFilter_();
-        renderDashboard();
+            renderDashboard();
       };
     });
     document.getElementById('search-input').addEventListener('input', () => { state.documentPage = 1; renderDocumentRows(); });
     document.getElementById('doc-filter').addEventListener('change', () => { state.documentPage = 1; renderDocumentRows(); });
+    const mainNode = document.querySelector('.app-shell main');
+    if (mainNode) mainNode.dataset.activeTab = state.tab;
     renderDocumentRows();
   }
 
@@ -1082,7 +1082,8 @@
   function filterDocumentsByCalendar_(documents) {
     const docs = [...(documents || [])];
     if (state.tab !== 'all') return docs;
-    const filter = state.calendarFilter || currentMonthCalendarFilter_();
+    const filter = state.calendarFilter;
+    if (!filter) return docs;
     return docs.filter((doc) => {
       const parts = bangkokDateParts_(doc.createdAt || doc.updatedAt);
       if (!parts) return false;
@@ -1246,7 +1247,7 @@
     let docs = sourceDocs.filter((doc) => {
       const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''} ${doc.priority || ''} ${doc.dispatchMode || ''}`.toLowerCase();
       if (query && !text.includes(query)) return false;
-      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+      const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user.userId);
       if (filter === 'unread') return ownRecipient ? !ownRecipient.acknowledgedAt : doc.ackCount < doc.recipientCount;
       if (filter === 'read') return ownRecipient ? !!ownRecipient.acknowledgedAt : false;
       if (filter === 'incomplete') return doc.recipientCount > 0 && doc.ackCount < doc.recipientCount;
@@ -1263,6 +1264,7 @@
     const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
     state.documentPage = Math.max(1, Math.min(totalPages, Number(state.documentPage || 1)));
     docs = docs.slice((state.documentPage - 1) * pageSize, state.documentPage * pageSize);
+    try {
     tbody.innerHTML = docs.map((doc) => {
       const isAckComplete = Number(doc.recipientCount || 0) > 0 && Number(doc.ackCount || 0) >= Number(doc.recipientCount || 0);
       const showAckCompletionColor = ['inbox', 'acknowledged', 'completed', 'all'].includes(state.tab);
@@ -1274,7 +1276,7 @@
       const recipientText = recipientCount
         ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${recipientCount} • เสร็จสิ้น ${completionCount}/${recipientCount}</button>`
         : '';
-      const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+      const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user.userId);
       const ackButton = state.tab === 'inbox' && ownRecipient && !ownRecipient.acknowledgedAt
         ? `<button class="btn text-xs acknowledge-btn ${acknowledgementButtonClass(doc)}" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
       const completeButton = !isTeacher && ownRecipient && ownRecipient.acknowledgedAt && !ownRecipient.completedAt && !doc.allRecipientsCompleted
@@ -1302,6 +1304,11 @@
         <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${completeButton}${waitingMessage}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
+    } catch (renderError) {
+      console.error('[WMK] document row rendering failed', renderError);
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8">ไม่สามารถแสดงรายการเอกสารได้ กรุณาตรวจสอบ Console และแจ้งผู้ดูแลระบบ</td></tr>';
+      return;
+    }
 
     tbody.querySelectorAll('.action-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, true));
     tbody.querySelectorAll('.admin-edit-doc-btn').forEach((button) => button.onclick = () => openSystemAdminDocumentEditor(button.dataset.docId));
@@ -1873,7 +1880,7 @@
     }
 
     const pending = (state.inboxDocs || []).filter((doc) => {
-      const own = (doc.recipients || []).find((item) => item.userId === state.user.userId);
+      const own = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user.userId);
       return own && !own.acknowledgedAt;
     });
 
