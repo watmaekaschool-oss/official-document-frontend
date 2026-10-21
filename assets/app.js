@@ -218,7 +218,6 @@
       intro: 'ใช้สำหรับนำเข้าหนังสือ ส่งต่อผู้บริหาร จ่ายเรื่องให้ผู้รับ และดูแลบัญชีผู้ใช้งาน',
       steps: [
         ['นำเข้าหนังสือใหม่', 'กด “นำเข้าหนังสือใหม่” กรอกผู้ส่ง เรื่อง และเลือกรูปแบบการดำเนินงาน สามารถเพิ่มหนังสือหลายฉบับพร้อมกัน โดยแต่ละ PDF เป็นคนละหนังสือ หรือเลือกโหมดรวม PDF เป็นฉบับเดียวได้'],
-        ['เปลี่ยนไฟล์หลังลงรับ', 'กด “เปลี่ยน PDF” ที่รายการเอกสาร ระบบจะเก็บไฟล์เดิมไว้ใน Drive และรีเซ็ตงานกลับเข้าคิวธุรการเพื่อประทับตราใหม่'],
         ['รวม PDF เพิ่มเติม', 'กด “ไฟล์แนบ” แล้วเลือก “รวม PDF เข้ากับเอกสารหลัก” สามารถเลือกหลายไฟล์ตามลำดับที่ต้องการต่อท้าย'],
         ['ตราเรียนผู้อำนวยการ', 'ในตราเสนอเรียนผู้อำนวยการ ระบบจะแสดงลายเซ็นธุรการเหนือชื่อเมื่อกำหนด signatureFileId ในชีต Users แล้ว'],
         ['ติดตามงานรอดำเนินการ', 'เปิดแท็บ “งานรอดำเนินการ” เพื่อตรวจว่าเอกสารอยู่ที่รองผู้อำนวยการ ผู้อำนวยการ หรือรอจ่ายเรื่อง'],
@@ -260,7 +259,6 @@
         ['เปิดจดหมายทั้งหมด', 'ค้นหาเอกสารที่ต้องการจาก “จดหมายทั้งหมด” แล้วกด “แก้ไขเอกสาร”'],
         ['แก้ข้อความ', 'แก้ชื่อเรื่องและข้อมูล “จาก” ได้ โดยไม่เปลี่ยนสถานะหรือคิวของเอกสาร'],
         ['แก้ตราประทับ', 'เอกสารที่ยังอยู่ในขั้นธุรการ/รองฯ/ผอ. สามารถเปิดโหมดแก้ตรา ย้าย ย่อ/ขยาย และแก้ข้อความในตรา แล้วบันทึกโดยไม่ส่งต่อ'],
-        ['เปลี่ยน PDF ปัจจุบัน', 'อัปโหลด PDF ฉบับแก้ไขแทนไฟล์ปัจจุบันได้ โดยเลขรับ ผู้รับ และ workflow เดิมยังคงอยู่'],
         ['ไม่มีการรับแจ้งเอกสาร', 'บัญชีผู้ดูแลระบบสารบรรณจะไม่อยู่ในรายชื่อผู้รับ และไม่มีปุ่มรับทราบเอกสาร'],
       ],
     },
@@ -1279,7 +1277,7 @@
       const ownRecipient = (doc.recipients || []).find((item) => item.userId === state.user.userId);
       const ackButton = state.tab === 'inbox' && ownRecipient && !ownRecipient.acknowledgedAt
         ? `<button class="btn text-xs acknowledge-btn ${acknowledgementButtonClass(doc)}" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
-      const completeButton = ownRecipient && ownRecipient.acknowledgedAt && !ownRecipient.completedAt && !doc.allRecipientsCompleted
+      const completeButton = !isTeacher && ownRecipient && ownRecipient.acknowledgedAt && !ownRecipient.completedAt && !doc.allRecipientsCompleted
         ? `<button class="btn btn-success text-xs complete-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดำเนินการเสร็จสิ้น</button>` : '';
       const waitingMessage = ownRecipient?.completedAt && !doc.allRecipientsCompleted
         ? `<div class="recipient-waiting-note">✓ คุณดำเนินการแล้ว — รอผู้รับคนอื่น</div>` : '';
@@ -1292,9 +1290,7 @@
         : (state.tab === 'action'
           ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
           : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`);
-      const replaceButton = isClericalUser()
-        ? `<button class="btn btn-warning text-xs replace-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">เปลี่ยน PDF</button>`
-        : '';
+      const replaceButton = ''; // WMK V6: PDF replacement retired; attachment merging retained.
       const reminderButton = isClericalUser() && recipientCount
         ? `<button class="btn btn-reminder text-xs reminder-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">🔔 ส่งการแจ้งเตือน</button>`
         : '';
@@ -1324,8 +1320,8 @@
     tbody.querySelectorAll('.complete-doc-btn').forEach((button) => button.onclick = () => completeDocument(button.dataset.docId));
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
-    tbody.querySelectorAll('.replace-doc-btn').forEach((button) => button.onclick = () => openReplaceDocumentModal(button.dataset.docId));
-    tbody.querySelectorAll('.reminder-doc-btn').forEach((button) => button.onclick = () => openDocumentReminderModal(button.dataset.docId));
+
+    tbody.querySelectorAll('.reminder-doc-btn').forEach((button) => button.onclick = () => Swal.fire('ยกเลิกแล้ว','ใช้การแจ้งเตือน Telegram จากแท็บธุรการ','info'));
 
     // เตรียม PDF รายการแรกแบบเงียบ ๆ หลังตารางขึ้นแล้ว เพื่อให้กดเปิดได้เร็วขึ้น
     primeFirstVisiblePdf_();
@@ -1442,50 +1438,6 @@
       sessionToken: state.token,
       docId,
     });
-  }
-
-  function openReplaceDocumentModal(docId) {
-    const doc = findDoc(docId);
-    if (!doc || !isClericalUser()) return;
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop';
-    overlay.innerHTML = `<div class="modal-panel max-w-xl">
-      <div class="flex justify-between items-center mb-4"><div><h2 class="text-xl font-bold">เปลี่ยนไฟล์เอกสาร</h2><p class="text-sm text-slate-500">${escapeHtml(doc.recvNo)} — ${escapeHtml(doc.subject)}</p></div><button class="text-2xl close-modal">×</button></div>
-      <div class="replacement-warning"><b>ข้อมูลที่ระบบจะทำให้อัตโนมัติ</b><ul><li>เก็บไฟล์เดิมไว้ใน Google Drive และ Audit Log</li><li>รวม PDF ที่เลือกตามลำดับเป็นไฟล์ใหม่</li><li>รีเซ็ตสถานะกลับเป็น “รอธุรการประทับตรา”</li><li>ล้างรายชื่อผู้รับเดิมเพื่อให้ดำเนินงานใหม่อย่างถูกต้อง</li><li>ไฟล์แนบเดิมยังคงอยู่ครบ</li></ul></div>
-      <form id="replace-document-form" class="space-y-4">
-        <div><label class="font-semibold text-sm">เลือก PDF ใหม่ได้หลายไฟล์</label><input id="replacement-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required><p class="text-xs text-slate-500 mt-1">ระบบจะรวมตามลำดับที่เลือก ไฟล์รวมต้องไม่เกิน 15 MB</p></div>
-        <div id="replacement-pdf-order" class="pdf-selection-summary"></div>
-        <label class="confirm-reset-check"><input id="confirm-replace-reset" type="checkbox" required><span>ฉันตรวจสอบแล้วและยืนยันให้เอกสารกลับไปเริ่มขั้นตอนประทับตราใหม่</span></label>
-        <div class="flex justify-end gap-2"><button type="button" class="btn btn-muted close-modal">ยกเลิก</button><button class="btn btn-warning" type="submit">เปลี่ยนไฟล์และเริ่มดำเนินงานใหม่</button></div>
-      </form>
-    </div>`;
-    document.body.appendChild(overlay);
-    const input = overlay.querySelector('#replacement-pdf-files');
-    const summary = overlay.querySelector('#replacement-pdf-order');
-    renderPdfSelection(input, summary);
-    input.onchange = () => renderPdfSelection(input, summary);
-    overlay.querySelectorAll('.close-modal').forEach((button) => button.onclick = () => overlay.remove());
-    overlay.querySelector('#replace-document-form').onsubmit = async (event) => {
-      event.preventDefault();
-      if (!overlay.querySelector('#confirm-replace-reset').checked) return;
-      loading('กำลังรวมและเปลี่ยน PDF...', 'ไฟล์เดิมจะถูกเก็บไว้เป็นประวัติ');
-      try {
-        const files = validatePdfFiles(selectedFiles(input));
-        const merged = await mergePdfFiles(files, {
-          fileName: `${doc.recvNo.replace('/', '-')}-${doc.subject}-replacement.pdf`,
-        });
-        const result = await uploadFileForm('replaceDocumentFile', 'replacementPdfFile', merged.file, {
-          sessionToken: state.token,
-          docId,
-          sourceNames: JSON.stringify(files.map((file) => file.name)),
-        });
-        overlay.remove();
-        await loadDashboard();
-        Swal.fire('เปลี่ยนไฟล์สำเร็จ', `เอกสาร ${doc.recvNo} ถูกรีเซ็ตกลับเข้าคิวธุรการแล้ว (${result.pageCount || merged.pageCount} หน้า)`, 'success');
-      } catch (error) {
-        showError(error);
-      }
-    };
   }
 
   function openUploadModal() {
@@ -2268,7 +2220,7 @@
         if(originalIds.length>10) throw new Error('เลือกได้ไม่เกิน 10 ฉบับต่อครั้ง');
         const attachPdf=$('tgmanual-pdf').checked;
         if(!attachPdf&&!$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกหน้าภาพ');
-        if(!$('tgmanual-message').value.trim()) throw new Error('กรุณาระบุข้อความปิดท้าย');
+        if(!$('tgmanual-message').value.trim()) $('tgmanual-message').value='กรุณาตรวจสอบเอกสารด้วยครับ 🙏';
         const ok=await Swal.fire({title:'ยืนยันส่งหนังสือ '+originalIds.length+' ฉบับ?',text:'ระบบจะส่งแยกข้อความและภาพสำหรับหนังสือแต่ละฉบับ โปรดตรวจสอบชั้นความลับและข้อมูลส่วนบุคคลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
         if(!ok.isConfirmed) return;
         sendBtn.disabled=true;
@@ -2495,51 +2447,6 @@
   }
 
 
-  async function openDocumentReminderModal(docId) {
-    if (!isClericalUser()) return;
-    const doc = findDoc(docId);
-    if (!doc) return;
-    const recipients = Array.isArray(doc.recipients) ? doc.recipients : [];
-    if (!recipients.length) {
-      Swal.fire('ยังไม่มีผู้รับ', 'เอกสารฉบับนี้ยังไม่ได้ส่งให้ผู้รับ', 'info');
-      return;
-    }
-    const result = await Swal.fire({
-      title: '🔔 ส่งการแจ้งเตือน',
-      html: `<div class="reminder-recipient-list">
-        <p>เลือกผู้รับที่ต้องการส่ง Web Push เตือนให้เปิดเอกสาร</p>
-        <div class="reminder-actions"><button type="button" id="reminder-select-pending">เลือกผู้ยังไม่รับทราบ</button><button type="button" id="reminder-select-all">เลือกทั้งหมด</button></div>
-        <div class="reminder-checkboxes">${recipients.map((item) => `<label><input type="checkbox" value="${escapeHtml(item.userId)}" ${item.acknowledgedAt ? '' : 'checked'}><span><b>${escapeHtml(item.name)}</b><small>${item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ'}${item.completedAt ? ' · ดำเนินการเสร็จแล้ว' : ''}</small></span></label>`).join('')}</div>
-      </div>`,
-      showCancelButton: true,
-      confirmButtonText: 'ส่งการแจ้งเตือน',
-      cancelButtonText: 'ยกเลิก',
-      didOpen: () => {
-        const popup = Swal.getPopup();
-        const checks = () => [...popup.querySelectorAll('.reminder-checkboxes input')];
-        popup.querySelector('#reminder-select-pending').onclick = () => {
-          const pending = new Set(recipients.filter((item) => !item.acknowledgedAt).map((item) => item.userId));
-          checks().forEach((input) => { input.checked = pending.has(input.value); });
-        };
-        popup.querySelector('#reminder-select-all').onclick = () => checks().forEach((input) => { input.checked = true; });
-      },
-      preConfirm: () => {
-        const ids = [...Swal.getPopup().querySelectorAll('.reminder-checkboxes input:checked')].map((input) => input.value);
-        if (!ids.length) {
-          Swal.showValidationMessage('กรุณาเลือกผู้รับอย่างน้อย 1 คน');
-          return false;
-        }
-        return ids;
-      },
-    });
-    if (!result.isConfirmed || !result.value) return;
-    loading('กำลังส่งการแจ้งเตือน...');
-    try {
-      const response = await gasCall('sendDocumentReminder', state.token, docId, result.value);
-      Swal.fire('ส่งแล้ว', `ส่ง Web Push ไปยังผู้รับที่พร้อมรับแจ้งเตือน ${Number(response.result?.sent || 0)} คน`, 'success');
-    } catch (error) { showError(error); }
-  }
-
   function openAttachments(docId) {
     const doc = findDoc(docId);
     if (!doc) return;
@@ -2704,17 +2611,13 @@
           <div><span>คิวเดิม</span><b>${escapeHtml(doc.currentRole || '-')}</b></div>
         </div>
 
-        <div class="admin-editor-pdf-revision">
-          <label class="font-semibold text-sm">เปลี่ยน PDF ปัจจุบัน (ไม่บังคับ)</label>
-          <input id="admin-replacement-pdf" class="input mt-1" type="file" accept="application/pdf,.pdf">
-          <p class="text-xs text-slate-500 mt-1">ใช้แทน PDF ที่ตราประทับกลับหัวได้แม้เอกสารอยู่สถานะรอธุรการจ่ายเรื่องให้ผู้รับ: แก้ PDF ในโปรแกรมภายนอกก่อน แล้วอัปโหลดฉบับที่ตรวจสอบแล้ว ระบบจะไม่เปลี่ยนสถานะ/คิว และจะเก็บไฟล์เดิมไว้ (ต้องมีสิทธิ์ผู้ดูแลระบบ)</p>
-        </div>
+
 
         <div class="admin-editor-tools">
           <button type="button" id="admin-quick-view" class="btn btn-muted">⚡ เปิดดูเอกสาร</button>
           ${canEditStamp
             ? '<button type="button" id="admin-edit-stamp" class="btn btn-purple">↔ แก้ตรา / ข้อความในตรา</button>'
-            : '<span class="admin-editor-note">เอกสารนี้ผ่านขั้นประทับตราปัจจุบันแล้ว จึงแก้ข้อมูล/เปลี่ยน PDF ได้ แต่ตราที่ฝังใน PDF เก่าไม่สามารถลากแยกจากเนื้อ PDF ได้</span>'}
+            : '<span class="admin-editor-note">เอกสารนี้ผ่านขั้นประทับตราแล้ว สามารถแก้ข้อมูลตามสิทธิ์ได้ แต่ตราที่ฝังใน PDF ไม่สามารถลากแยกจากเนื้อ PDF ได้</span>'}
         </div>
 
         <div class="admin-editor-footer">
@@ -2745,7 +2648,7 @@
       const form = event.currentTarget;
       const subject = String(form.elements.subject.value || '').trim();
       const fromSender = String(form.elements.fromSender.value || '').trim();
-      const replacement = overlay.querySelector('#admin-replacement-pdf')?.files?.[0] || null;
+
 
       if (!subject || !fromSender) {
         Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกเรื่องและจาก', 'warning');
@@ -2770,16 +2673,6 @@
           fromSender,
         });
 
-        if (replacement) {
-          if (!/\.pdf$/i.test(replacement.name) && replacement.type !== 'application/pdf') {
-            throw new Error('ไฟล์ที่ใช้แทนต้องเป็น PDF เท่านั้น');
-          }
-          await uploadFileForm('replaceSystemAdminCurrentPdf', 'replacementPdfFile', replacement, {
-            sessionToken: state.token,
-            docId,
-          });
-          quickPdfCache.delete(docId);
-        }
 
         overlay.remove();
         await loadDashboard();
@@ -4547,60 +4440,6 @@
     </button>`).join('');
   }
 
-  async function openWebPushPanel() {
-    loading('กำลังตรวจสอบการแจ้งเตือน...');
-    try {
-      const status = await gasCall('getWebPushStatus', state.token);
-      Swal.close();
-      const expiry = status.idleExpiresAt ? new Date(status.idleExpiresAt).toLocaleString('th-TH') : '-';
-      const configuredText = status.configured
-        ? (status.deviceCount ? `เปิดรับแจ้งเตือนแล้ว ${status.deviceCount} อุปกรณ์` : 'ระบบพร้อม แต่เครื่องนี้ยังไม่ได้เปิดรับแจ้งเตือน')
-        : 'ผู้ดูแลยังไม่ได้ตั้งค่า OneSignal';
-      const dialog = await Swal.fire({
-        title: '🔔 การแจ้งเตือนหนังสือราชการ',
-        width: 680,
-        html: `<div class="web-push-dialog">
-          <div class="web-push-status ${status.deviceCount ? 'is-ready' : ''}">
-            <b>${escapeHtml(configuredText)}</b>
-            <span>บัญชีจะถูกจดจำ และบังคับเข้าสู่ระบบใหม่เมื่อไม่ได้ใช้งานเกิน ${Number(status.idleDays || 5)} วัน</span>
-            <small>เซสชันปัจจุบันหมดอายุโดยประมาณ: ${escapeHtml(expiry)}</small>
-          </div>
-          <div class="web-push-guide-grid">
-            <div><b>Android / คอมพิวเตอร์</b><p>กดเปิดการแจ้งเตือน แล้วเลือก “อนุญาต” ใน Chrome หรือ Edge</p></div>
-            <div><b>iPhone / iPad</b><p>เปิดหน้าที่ระบบพาไปด้วย Safari เพิ่มไว้หน้าจอโฮม แล้วเปิดจากไอคอนก่อนกดอนุญาต</p></div>
-          </div>
-          <div class="web-push-privacy">การแจ้งเตือนจะแสดงเฉพาะเลขรับและชื่อเรื่อง ส่วน PDF ต้องเปิดผ่านระบบและตรวจสิทธิ์ตามบัญชีเดิม</div>
-        </div>`,
-        showCancelButton: true,
-        showDenyButton: status.deviceCount > 0,
-        confirmButtonText: status.deviceCount ? 'เปิดเพิ่มอีกอุปกรณ์' : 'เปิดการแจ้งเตือน',
-        denyButtonText: 'ส่งแจ้งเตือนทดสอบ',
-        cancelButtonText: 'ปิด',
-      });
-      if (dialog.isDenied) {
-        loading('กำลังส่งแจ้งเตือนทดสอบ...');
-        try {
-          await gasCall('sendTestWebPushToMe', state.token);
-          Swal.fire('ส่งแล้ว', 'กรุณาตรวจแถบแจ้งเตือนของอุปกรณ์ที่เปิดรับไว้', 'success');
-        } catch (error) { showError(error); }
-        return;
-      }
-      if (!dialog.isConfirmed) return;
-      if (!status.configured) {
-        Swal.fire('ยังตั้งค่าไม่ครบ', 'ให้ธุรการใช้เมนูข้อ 7 และ 8 ใน Google Sheet แล้ว Deploy ใหม่ก่อน', 'warning');
-        return;
-      }
-      loading('กำลังสร้างลิงก์เปิดการแจ้งเตือน...');
-      const pairing = await gasCall('createWebPushPairing', state.token);
-      Swal.close();
-      const popup = window.open(pairing.url, '_blank', 'noopener');
-      if (!popup) {
-        await copyTextToClipboard(pairing.url, 'คัดลอกลิงก์แล้ว');
-        Swal.fire('เบราว์เซอร์บล็อกหน้าต่างใหม่', 'ระบบคัดลอกลิงก์ให้แล้ว กรุณาวางลิงก์ใน Chrome หรือ Safari', 'info');
-      }
-    } catch (error) { showError(error); }
-  }
-
   function settingsSectionMarkup(sectionId, isAdmin) {
     const user = state.user || {};
     const admin = state.appSettings?.admin || {};
@@ -5404,6 +5243,7 @@
         downloadBlob(blob, `เอกสารราชการ-${sanitizeZipLabel(range?.label || todayKey)}-${ids.length}-ไฟล์.zip`);
         updateDownloadProgress(overlay, 100, 'สร้าง ZIP สำเร็จ');
       } catch (error) { showError(error); }
+      finally { setTimeout(() => progress.classList.add('hide'), 1800); }
     };
     renderList();
   }
@@ -5543,7 +5383,6 @@
             </div>
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
-              <button id="meeting-web-push-btn" class="web-push-header-btn" type="button" aria-label="การแจ้งเตือน" title="เปิดหรือทดสอบการแจ้งเตือน">🔔</button>
               <button id="meeting-settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า">⚙</button>
               <button id="meeting-logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
             </div>
@@ -5583,7 +5422,7 @@
       try { await loadDashboard(); Swal.close(); } catch (error) { showError(error); }
     };
     document.getElementById('meeting-settings-btn').onclick = openSettingsPanel;
-    document.getElementById('meeting-web-push-btn').onclick = openWebPushPanel;
+
     document.getElementById('meeting-logout-btn').onclick = async () => {
       try { await gasCall('logout', state.token); } catch (_) {}
       clearSession();
