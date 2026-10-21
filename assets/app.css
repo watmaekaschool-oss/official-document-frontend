@@ -3405,3 +3405,11 @@ body{color:var(--wmk-ink);background:radial-gradient(ellipse at 5% 0%,#fff1d5 0,
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #e3a51b;outline-offset:2px}
 @media(max-width:720px){.card{border-radius:14px}.tab-button{padding:.58rem .8rem;font-size:.82rem}.data-table{min-width:780px}.modal-panel{max-height:94dvh;padding:1rem}.topbar{position:sticky}}
 @media(prefers-reduced-motion:reduce){.tab-button,.btn{transition:none!important;transform:none!important}}
+
+/* V9.1: contextual actions belong below navigation; show only relevant controls */
+.wmk-context-toolbar{margin-top:14px;margin-bottom:18px}
+.app-shell main[data-active-tab="action"] #acknowledge-all-btn,.app-shell main[data-active-tab="action"] #telegram-manual-btn,.app-shell main[data-active-tab="action"] #meeting-module-btn,.app-shell main[data-active-tab="action"] #calendar-sort-btn{display:none!important}
+.app-shell main[data-active-tab="inbox"] #upload-btn,.app-shell main[data-active-tab="inbox"] #telegram-manual-btn,.app-shell main[data-active-tab="inbox"] #meeting-module-btn,.app-shell main[data-active-tab="inbox"] #calendar-sort-btn{display:none!important}
+.app-shell main[data-active-tab="all"] #upload-btn,.app-shell main[data-active-tab="all"] #acknowledge-all-btn,.app-shell main[data-active-tab="all"] #telegram-manual-btn,.app-shell main[data-active-tab="all"] #meeting-module-btn{display:none!important}
+.app-shell main[data-active-tab="acknowledged"] #upload-btn,.app-shell main[data-active-tab="acknowledged"] #acknowledge-all-btn,.app-shell main[data-active-tab="acknowledged"] #telegram-manual-btn,.app-shell main[data-active-tab="acknowledged"] #meeting-module-btn,.app-shell main[data-active-tab="acknowledged"] #calendar-sort-btn{display:none!important}
+.wmk-tabs{margin-top:12px}
