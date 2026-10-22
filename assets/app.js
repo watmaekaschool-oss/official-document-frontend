@@ -901,6 +901,7 @@
             <div class="brand-mark">
               <img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน">
               <div class="brand-copy"><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div>
+              ${!isTeacher ? '<button id="meeting-module-btn" class="btn wmk-header-meeting" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 วาระการประชุม</button>' : ''}
               <button id="role-guide-btn" class="header-guide-btn" type="button" aria-label="เปิดคู่มือการใช้งาน" title="คู่มือการใช้งาน">
                 <span class="guide-book-animation" aria-hidden="true"><i class="guide-book-cover"></i><i class="guide-book-page guide-page-left"></i><i class="guide-book-page guide-page-right"></i></span>
                 <span>คู่มือการใช้งาน</span>
@@ -926,7 +927,7 @@
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">${isClericalUser() ? 'งานรอดำเนินการ' : 'จดหมายรอเกษียณ'} (${state.actionDocs.length})</button>` : ''}
               <button class="tab-button ${state.tab === 'inbox' ? 'active' : ''}" data-tab="inbox">จดหมายเข้า (${state.inboxDocs.length})</button>
               <button class="tab-button ${state.tab === 'all' ? 'active' : ''}" data-tab="all">จดหมายทั้งหมด (${state.allDocs.length})</button>
-              ${!isTeacher ? '<button id="wmk-meeting-tab" class="tab-button" type="button">วาระการประชุม</button>' : ''}
+
               ${isClericalUser() ? '<button id="wmk-telegram-tab" class="tab-button" type="button">จัดการการแจ้งเตือน</button>' : ''}
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
@@ -942,7 +943,7 @@
               }) ? '<button id="acknowledge-all-btn" class="btn btn-ack-all" type="button">✅ รับทราบทั้งหมด</button>' : ''}
               ${isClericalUser() ? '<button id="telegram-manual-btn" class="btn btn-primary" type="button">✈️ แจ้งเตือน Telegram</button>' : ''}
 
-              <button id="meeting-module-btn" class="btn meeting-module-btn" type="button" aria-label="เปิดระบบวาระการประชุม" title="วาระการประชุม">📋 <span>วาระการประชุม</span></button>
+
               <button id="calendar-sort-btn" class="btn calendar-sort-btn" type="button" aria-label="จัดเรียงเอกสารตามปฏิทิน" title="จัดเรียงตามปฏิทิน">📅 <span>จัดเรียงตามปฏิทิน</span></button>
             </div>
             <div class="flex gap-2 items-center">
@@ -988,7 +989,7 @@
     if (lineNotifyBtn) lineNotifyBtn.onclick = openLineNotificationModal;
     const documentManageBtn = document.getElementById('document-manage-btn');
     if (documentManageBtn) documentManageBtn.onclick = openDocumentManagementMenu;
-    document.getElementById('meeting-module-btn').onclick = openMeetingModule;
+    document.getElementById('meeting-module-btn')?.addEventListener('click', openMeetingModule);
     document.getElementById('wmk-meeting-tab')?.addEventListener('click', openMeetingModule);
     const telegramTab=document.getElementById('wmk-telegram-tab');
     if(telegramTab) { telegramTab.classList.toggle('active',state.tab==='telegram'); telegramTab.onclick=()=>{state.tab='telegram';state.documentPage=1;renderDashboard();}; }
@@ -2240,7 +2241,7 @@
     overlay.className = inline ? 'wmk-v10-inline' : 'modal-backdrop wmk-v10-backdrop';
     overlay.innerHTML = `<section class="wmk-v10-panel">
       <div class="wmk-v10-header"><h2>🔔 จัดการการแจ้งเตือน</h2>${inline ? '' : '<button id="tgmanual-close" class="btn btn-muted" type="button">ปิด</button>'}</div>
-      <div class="wmk-v10-toolbar"><div class="wmk-v10-period"><button id="tgmanual-today" class="wmk-v10-period-active" type="button">วันนี้</button><button id="tgmanual-week" type="button">สัปดาห์นี้</button></div>
+      <div class="wmk-v10-toolbar"><div class="wmk-v10-period"><button id="tgmanual-today" class="wmk-v10-period-active" type="button">วันนี้</button><button id="tgmanual-week" type="button">สัปดาห์นี้</button><button id="tgmanual-month" type="button">เดือนนี้</button></div>
       <div class="wmk-v10-actions"><button id="tgmanual-manage" class="wmk-v10-green" type="button">📄 จัดการหน้า</button></div></div>
       <div class="wmk-v10-filter"><input id="tgmanual-search" class="input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง"><span id="tgmanual-count">เลือก 0 ฉบับ</span></div>
       <div id="tgmanual-doc" class="wmk-v10-docs" role="group" aria-label="เลือกเอกสารแจ้งเตือน"></div>
@@ -2277,7 +2278,7 @@
       const q = $('tgmanual-search').value.trim().toLocaleLowerCase('th');
       return eligible.filter(d => {
         const key = bangkokKey(d.updatedAt || d.createdAt || d.receivedAt || d.receiveDate);
-        const inPeriod = period === 'today' ? key === todayKey : key >= mondayKey && key <= todayKey;
+        const inPeriod = period === 'today' ? key === todayKey : period === 'week' ? (key >= mondayKey && key <= todayKey) : (key.slice(0,7) === todayKey.slice(0,7));
         return inPeriod && [d.recvNo,d.receiveNo,d.subject,d.fromSender,d.sender].some(v => String(v||'').toLocaleLowerCase('th').includes(q));
       }).sort((a,b) => new Date(b.updatedAt||b.createdAt||0)-new Date(a.updatedAt||a.createdAt||0));
     }
@@ -2358,9 +2359,10 @@
       }
     }
     $('tgmanual-search').oninput=refresh;
-    function setPeriod(next) {period=next;$('tgmanual-today').classList.toggle('wmk-v10-period-active',next==='today');$('tgmanual-week').classList.toggle('wmk-v10-period-active',next==='week');selected.clear();refresh();if(manageOpen)renderManage();}
+    function setPeriod(next) {period=next;$('tgmanual-today').classList.toggle('wmk-v10-period-active',next==='today');$('tgmanual-week').classList.toggle('wmk-v10-period-active',next==='week');$('tgmanual-month').classList.toggle('wmk-v10-period-active',next==='month');selected.clear();refresh();if(manageOpen)renderManage();}
     $('tgmanual-today').onclick=()=>setPeriod('today');
     $('tgmanual-week').onclick=()=>setPeriod('week');
+    $('tgmanual-month').onclick=()=>setPeriod('month');
     $('tgmanual-manage').onclick=()=>{manageOpen=!manageOpen;$('tgmanual-manage-area').classList.toggle('hide',!manageOpen);if(manageOpen)renderManage();};
     refresh();
   }
