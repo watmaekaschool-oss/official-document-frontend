@@ -3441,3 +3441,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .wmk-v10-inline .wmk-v10-docs{max-height:65vh;overflow-y:auto}
 .wmk-v10-inline .wmk-v10-toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media(max-width:700px){.wmk-v10-inline .wmk-v10-toolbar{align-items:stretch}.wmk-v10-inline .wmk-v10-actions{flex-wrap:wrap}}
+
+/* V10.2: notification center is a true dashboard section, not a popup */
+.wmk-v10-inline{margin:18px 0 30px!important;padding:0!important;box-shadow:none!important}
+.wmk-v10-inline .wmk-v10-panel{border:1px solid #f0d9b7!important;box-shadow:none!important;border-radius:14px!important;background:#fffdfa!important;padding:20px!important}
+.wmk-v10-inline .wmk-v10-docs{max-height:none!important;overflow:visible!important}
+.wmk-v10-inline .wmk-v10-header{border-bottom:1px solid #f0ddc6;padding-bottom:12px}
+.wmk-simple-merge{padding:18px;border:1px solid #f0d5ac;border-radius:16px;background:#fff9ed;margin:20px 0}
+.wmk-simple-merge h3{font-size:1.1rem;font-weight:800;color:#9f2530;margin-bottom:14px}
+.wmk-dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;min-height:180px;border:2px dashed #dfad65;border-radius:14px;background:#fff;cursor:pointer;padding:20px;color:#8d3034}
+.wmk-dropzone.dragging,.wmk-dropzone:hover,.wmk-dropzone:focus-visible{background:#fff0ce;border-color:#bc2635;outline:none}
+.wmk-dropzone .wmk-drop-icon{font-size:2rem}.wmk-dropzone small{color:#8b7772}
+.wmk-dropzone input{max-width:100%;font-size:.85rem;color:#6f5550}
