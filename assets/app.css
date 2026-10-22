@@ -3453,3 +3453,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .wmk-dropzone.dragging,.wmk-dropzone:hover,.wmk-dropzone:focus-visible{background:#fff0ce;border-color:#bc2635;outline:none}
 .wmk-dropzone .wmk-drop-icon{font-size:2rem}.wmk-dropzone small{color:#8b7772}
 .wmk-dropzone input{max-width:100%;font-size:.85rem;color:#6f5550}
+
+/* V10.3 — School header meeting shortcut (pastel lilac) */
+.topbar .wmk-header-meeting{background:#eee5ff!important;color:#673ab3!important;border:1px solid #d6c3fa!important;border-radius:13px!important;font-weight:800!important;padding:10px 15px!important;box-shadow:0 3px 9px rgba(79,46,137,.12)!important;white-space:nowrap;transition:background .18s,transform .18s}
+.topbar .wmk-header-meeting:hover{background:#e0d0ff!important;transform:translateY(-1px)}
+.topbar .brand-mark{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+@media(max-width:700px){.topbar .wmk-header-meeting{padding:8px 11px!important;font-size:.83rem!important}}
