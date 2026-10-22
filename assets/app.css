@@ -3413,3 +3413,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .app-shell main[data-active-tab="all"] #upload-btn,.app-shell main[data-active-tab="all"] #acknowledge-all-btn,.app-shell main[data-active-tab="all"] #telegram-manual-btn,.app-shell main[data-active-tab="all"] #meeting-module-btn{display:none!important}
 .app-shell main[data-active-tab="acknowledged"] #upload-btn,.app-shell main[data-active-tab="acknowledged"] #acknowledge-all-btn,.app-shell main[data-active-tab="acknowledged"] #telegram-manual-btn,.app-shell main[data-active-tab="acknowledged"] #meeting-module-btn,.app-shell main[data-active-tab="acknowledged"] #calendar-sort-btn{display:none!important}
 .wmk-tabs{margin-top:12px}
+
+/* V9.3: continuous horizontal tab strip instead of separate pill buttons */
+.dashboard-tabs-mascot-row{margin:18px 0 0;min-width:0}
+.dashboard-tabs.wmk-tabs{display:flex!important;align-items:stretch;gap:0!important;padding:0!important;margin:0!important;border:1px solid #f0d2b4;border-bottom:3px solid #cf2936;border-radius:15px 15px 0 0;background:#fff6e8;overflow-x:auto;overflow-y:hidden;box-shadow:0 4px 14px rgba(139,48,34,.06)}
+.dashboard-tabs.wmk-tabs .tab-button{display:flex;align-items:center;justify-content:center;flex:1 0 auto;min-height:52px;margin:0!important;padding:12px 17px;border:0!important;border-right:1px solid #f1d9c5!important;border-radius:0!important;background:transparent!important;color:#852b2b!important;box-shadow:none!important;transform:none!important;white-space:nowrap;font-weight:650;transition:background .15s,color .15s}
+.dashboard-tabs.wmk-tabs .tab-button:last-child{border-right:0!important}
+.dashboard-tabs.wmk-tabs .tab-button:hover{background:#ffe8b5!important}
+.dashboard-tabs.wmk-tabs .tab-button.active{background:linear-gradient(115deg,#bc1d2b,#e64b38)!important;color:white!important;box-shadow:inset 0 -3px 0 #ffd34f!important}
+@media(max-width:720px){.dashboard-tabs.wmk-tabs .tab-button{min-height:48px;padding:10px 14px;flex:0 0 auto}}
