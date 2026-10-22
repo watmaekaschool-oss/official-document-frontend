@@ -269,7 +269,6 @@
         ['เปิดจดหมายเข้า', 'เลือกหนังสือจากแท็บ “จดหมายเข้า” แล้วกด “ดูเอกสาร”'],
         ['อ่านเอกสารและไฟล์แนบ', 'ตรวจรายละเอียดหนังสือและเปิดไฟล์แนบที่เกี่ยวข้อง'],
         ['กดรับทราบ', 'เมื่ออ่านเรียบร้อยแล้ว ให้กดปุ่ม “รับทราบ” ระบบจะนำลายเซ็นประจำบัญชีใส่ในกล่องทราบบน PDF อัตโนมัติ'],
-        ['ดำเนินการเสร็จสิ้น', 'หลังรับทราบและดำเนินงานตามหนังสือแล้ว ให้เปิดแท็บ “รับทราบแล้ว” และกด “ดำเนินการเสร็จสิ้น” เอกสารจะย้ายไปหมวดเสร็จสิ้นเมื่อผู้รับทุกคนดำเนินการครบ'],
         ['ดาวน์โหลด', 'ใช้ปุ่มดาวน์โหลดเมื่อต้องการเก็บไฟล์ไว้ในเครื่อง'],
         ['ตรวจข้อมูลบัญชี', 'ไปที่ ⚙ การตั้งค่า → บัญชีของฉัน เพื่อดูชื่อ บทบาท ฝ่าย และสถานะลายเซ็น'],
       ],
@@ -592,10 +591,7 @@
       const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user?.userId);
       return ownRecipient ? !ownRecipient.acknowledgedAt : false;
     }).length;
-    const followup = (state.acknowledgedDocs || []).filter((doc) => {
-      const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user?.userId);
-      return ownRecipient ? !ownRecipient.completedAt : false;
-    }).length;
+    const followup = 0;
     const action = (state.actionDocs || []).length;
     return { pending: unread + followup + action, unread, followup, action };
   }
@@ -1274,15 +1270,13 @@
       const completionCount = Number(doc.completionCount || 0);
       const recipientCount = Number(doc.recipientCount || 0);
       const recipientText = recipientCount
-        ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${recipientCount} • เสร็จสิ้น ${completionCount}/${recipientCount}</button>`
+        ? `<button class="text-xs ${ackStatusClass} underline ack-status-btn" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ ${doc.ackCount}/${recipientCount}</button>`
         : '';
       const ownRecipient = (Array.isArray(doc.recipients) ? doc.recipients : []).find((item) => item.userId === state.user.userId);
       const ackButton = state.tab === 'inbox' && ownRecipient && !ownRecipient.acknowledgedAt
         ? `<button class="btn text-xs acknowledge-btn ${acknowledgementButtonClass(doc)}" data-doc-id="${escapeHtml(doc.docId)}">รับทราบ</button>` : '';
-      const completeButton = !isTeacher && ownRecipient && ownRecipient.acknowledgedAt && !ownRecipient.completedAt && !doc.allRecipientsCompleted
-        ? `<button class="btn btn-success text-xs complete-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ดำเนินการเสร็จสิ้น</button>` : '';
-      const waitingMessage = ownRecipient?.completedAt && !doc.allRecipientsCompleted
-        ? `<div class="recipient-waiting-note">✓ คุณดำเนินการแล้ว — รอผู้รับคนอื่น</div>` : '';
+      // Completion workflow retired; acknowledgement remains available.
+
       const priorityBadge = doc.priority === 'ด่วน' ? '<span class="badge badge-urgent">ด่วน</span>' : '<span class="badge badge-normal">ปกติ</span>';
       const circularBadge = doc.dispatchMode === 'เวียนคณะครู' || doc.dispatchType === 'เวียนคณะครู'
         ? '<span class="badge badge-circular">เวียนคณะครู</span>' : '';
@@ -1301,7 +1295,7 @@
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
         <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
         <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}</div><div class="mt-2">${recipientText}</div></td>
-        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${completeButton}${waitingMessage}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
+        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
     } catch (renderError) {
@@ -1324,7 +1318,6 @@
       button.addEventListener('touchstart', () => prefetchDocumentFile_(button.dataset.docId), { passive: true, once: true });
     });
     tbody.querySelectorAll('.acknowledge-btn').forEach((button) => button.onclick = () => acknowledge(button.dataset.docId));
-    tbody.querySelectorAll('.complete-doc-btn').forEach((button) => button.onclick = () => completeDocument(button.dataset.docId));
     tbody.querySelectorAll('.ack-status-btn').forEach((button) => button.onclick = () => showAckStatus(button.dataset.docId));
     tbody.querySelectorAll('.attachment-btn').forEach((button) => button.onclick = () => openAttachments(button.dataset.docId));
 
@@ -1977,27 +1970,6 @@
   }
 
 
-  async function completeDocument(docId) {
-    const confirm = await Swal.fire({
-      icon: 'question',
-      title: 'ยืนยันดำเนินการเสร็จสิ้น',
-      text: 'ยืนยันว่าคุณดำเนินการตามหนังสือฉบับนี้เสร็จสิ้นแล้ว',
-      showCancelButton: true,
-      confirmButtonText: 'ยืนยันเสร็จสิ้น',
-      cancelButtonText: 'ยกเลิก',
-    });
-    if (!confirm.isConfirmed) return;
-    loading('กำลังบันทึกสถานะ...');
-    try {
-      const result = await gasCall('completeDocumentAction', state.token, docId);
-      triggerWorkflowMascotProgress();
-      await loadDashboard();
-      Swal.fire('สำเร็จ', result.allCompleted
-        ? 'ผู้รับทุกคนดำเนินการครบแล้ว เอกสารถูกย้ายไปหมวดดำเนินการเสร็จสิ้น'
-        : 'บันทึกแล้ว กรุณารอผู้รับคนอื่นดำเนินการให้ครบ', 'success');
-    } catch (error) { showError(error); }
-  }
-
 
 
   function formatThaiLineSummaryDate(value) {
@@ -2447,10 +2419,9 @@
     const doc = findDoc(docId);
     const html = (doc.recipients || []).map((item) => {
       const ackLabel = item.acknowledgedAt ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ';
-      const completeLabel = item.completedAt ? 'ดำเนินการเสร็จสิ้น' : (item.acknowledgedAt ? 'รอดำเนินการเสร็จสิ้น' : 'ยังไม่เริ่มดำเนินการ');
-      return `<div class="ack-status-person-row"><div><b>${item.acknowledgedAt ? '✅' : '❌'} ${escapeHtml(item.name)}</b><small>ช่องลายเซ็น ${Number(item.signatureSlot || 0) || '-'}</small></div><div><span>${escapeHtml(ackLabel)}</span><small>${escapeHtml(completeLabel)}</small></div></div>`;
+      return `<div class="ack-status-person-row"><div><b>${item.acknowledgedAt ? '✅' : '❌'} ${escapeHtml(item.name)}</b><small>ช่องลายเซ็น ${Number(item.signatureSlot || 0) || '-'}</small></div><div><span>${escapeHtml(ackLabel)}</span></div></div>`;
     }).join('') || '<p>ยังไม่มีผู้รับ</p>';
-    Swal.fire({ title: 'สถานะการรับทราบและดำเนินการ', html: `<div class="text-left max-h-80 overflow-auto">${html}</div>`, confirmButtonText: 'ปิด' });
+    Swal.fire({ title: 'สถานะการรับทราบ', html: `<div class="text-left max-h-80 overflow-auto">${html}</div>`, confirmButtonText: 'ปิด' });
   }
 
 
