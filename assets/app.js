@@ -990,7 +990,8 @@
     if (documentManageBtn) documentManageBtn.onclick = openDocumentManagementMenu;
     document.getElementById('meeting-module-btn').onclick = openMeetingModule;
     document.getElementById('wmk-meeting-tab')?.addEventListener('click', openMeetingModule);
-    document.getElementById('wmk-telegram-tab')?.addEventListener('click', openTelegramManualModal);
+    const telegramTab=document.getElementById('wmk-telegram-tab');
+    if(telegramTab) { telegramTab.classList.toggle('active',state.tab==='telegram'); telegramTab.onclick=()=>{state.tab='telegram';state.documentPage=1;renderDashboard();}; }
     document.getElementById('calendar-sort-btn').onclick = openCalendarSortModal;
     document.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => {
@@ -1003,7 +1004,13 @@
     document.getElementById('doc-filter').addEventListener('change', () => { state.documentPage = 1; renderDocumentRows(); });
     const mainNode = document.querySelector('.app-shell main');
     if (mainNode) mainNode.dataset.activeTab = state.tab;
-    renderDocumentRows();
+    if (state.tab === 'telegram' && isClericalUser()) {
+      const main=document.querySelector('.app-shell main');
+      main?.classList.add('wmk-notification-mode');
+      openTelegramManualModal(true);
+    } else {
+      renderDocumentRows();
+    }
   }
 
   function currentDocuments() {
@@ -2056,12 +2063,12 @@
 
 
   // V10: Clerk notification center. Uses existing authenticated Apps Script endpoints.
-  async function openTelegramManualModal() {
+  async function openTelegramManualModal(inline = false) {
     if (!isClericalUser()) return;
     const eligible = [...new Map((state.allDocs || []).filter(d => d.docId &&
       /แจ้งให้ทราบ\s*\/\s*ดำเนินการ/.test(String(d.status || ''))).map(d => [String(d.docId), d])).values()];
     const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop wmk-v10-backdrop';
+    overlay.className = inline ? 'wmk-v10-inline' : 'modal-backdrop wmk-v10-backdrop';
     overlay.innerHTML = `<div class="modal-panel wmk-v10-panel">
       <div class="wmk-v10-header"><h2>🔔 จัดการการแจ้งเตือน</h2><button id="tgmanual-close" class="btn btn-muted" type="button">ปิด</button></div>
       <div class="wmk-v10-toolbar"><div class="wmk-v10-period"><button id="tgmanual-today" class="wmk-v10-period-active" type="button">วันนี้</button><button id="tgmanual-week" type="button">สัปดาห์นี้</button></div>
@@ -2073,9 +2080,13 @@
       <label class="wmk-v10-footer-label">ข้อความปิดท้าย <textarea id="tgmanual-message" class="input" rows="2" maxlength="1500">กรุณาตรวจสอบเอกสารด้วยครับ 🙏</textarea></label>
       <p id="tgmanual-status" role="status"></p>
     </div>`;
-    document.body.appendChild(overlay);
+    if (inline) {
+      const main=document.querySelector('.app-shell main');
+      const tabs=main?.querySelector('.dashboard-tabs-mascot-row');
+      if (tabs) tabs.insertAdjacentElement('afterend',overlay); else main?.appendChild(overlay);
+    } else document.body.appendChild(overlay);
     const $ = id => overlay.querySelector('#'+id);
-    $('tgmanual-close').onclick = () => overlay.remove();
+    if(inline) $('tgmanual-close').remove(); else $('tgmanual-close').onclick = () => overlay.remove();
     const selected = new Set();
     const pageChoice = new Map();
     const pdfCache = new Map();
