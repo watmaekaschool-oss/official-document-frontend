@@ -1,3 +1,4 @@
+/* WMK_UI_RELEASE: V10.4 — header meeting and monthly notification filter */
 (() => {
   'use strict';
   window.OFFICIAL_DOC_APP_STARTED = true;
