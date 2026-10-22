@@ -919,7 +919,7 @@
         <main class="max-w-7xl mx-auto px-4 py-6">
           <section class="wmk-welcome" aria-label="ยินดีต้อนรับ">
             <div><div class="wmk-welcome-small">ยินดีต้อนรับ</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>${escapeHtml(state.user.role || '')}</div></div>
-            <a class="wmk-calendar" href="https://wmk-cal.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
+            <a class="wmk-calendar" href="https://wmk-cal2.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
           </section>
           <div class="dashboard-tabs-mascot-row">
             <div class="dashboard-tabs wmk-tabs flex gap-2 overflow-auto pb-1">
@@ -2055,174 +2055,164 @@
   }
 
 
-  // Manual Telegram document sharing. The server independently checks role and document access.
+  // V10: Clerk notification center. Uses existing authenticated Apps Script endpoints.
   async function openTelegramManualModal() {
     if (!isClericalUser()) return;
-    const documents = [...new Map((state.allDocs || []).filter(d => d.docId).map(d => [d.docId, d])).values()];
+    const eligible = [...new Map((state.allDocs || []).filter(d => d.docId &&
+      /แจ้งให้ทราบ\s*\/\s*ดำเนินการ/.test(String(d.status || ''))).map(d => [String(d.docId), d])).values()];
     const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop';
-    overlay.innerHTML = `<div class="modal-panel" style="width:min(850px,96vw);max-height:92vh;overflow:auto;padding:24px">
-      <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">✈️ แจ้งเตือน Telegram (ส่งด้วยตนเอง)</h2><button type="button" id="tgmanual-close" class="btn btn-muted">ปิด</button></div>
-      <p class="mb-3 text-sm">เลือกหนังสือหลายฉบับ แล้วส่งแยกข้อความและรูปภาพรายฉบับ (เลือกหน้าภาพเหมือนกันทุกฉบับ)</p>
-      <input id="tgmanual-search" class="input w-full mb-2" placeholder="ค้นหาเลขรับ / เรื่อง / ผู้ส่ง">
-      <div id="tgmanual-doc" class="wmk-tg-checklist mb-3" role="group" aria-label="เลือกหนังสือหลายฉบับ"></div><p class="text-sm mb-2">ติ๊กเลือกเอกสาร • เลือกแล้ว <span id="tgmanual-count">0</span> ฉบับ • สูงสุด 10 ฉบับต่อครั้ง</p>
-      <div id="tgmanual-info" class="mb-3 text-sm"></div>
-      <label class="block mb-2">หน้า PDF ที่ต้องการส่งเป็นภาพ (เช่น 1 หรือ 1,2,3 หรือ 2-4; สูงสุด 5 หน้า)
-        <input id="tgmanual-pages" class="input w-full" value="1" placeholder="1,2,3">
-      </label>
-      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็ม</label>
-      <label class="block mb-2">ข้อความปิดท้าย (ใช้เหมือนกันทุกฉบับ)
-        <textarea id="tgmanual-message" class="input w-full" rows="4" maxlength="1500"></textarea>
-      </label>
-      <div id="tgmanual-preview" class="flex flex-wrap gap-2 mb-3"></div>
-      <div class="flex gap-2 flex-wrap">
-        <button id="tgmanual-render" type="button" class="btn btn-muted">👁️ ดูตัวอย่างภาพ</button>
-        <button id="tgmanual-send" type="button" class="btn btn-primary">✈️ ยืนยันส่ง Telegram</button>
-      </div>
-      <p id="tgmanual-status" class="mt-3 text-sm" role="status"></p>
+    overlay.className = 'modal-backdrop wmk-v10-backdrop';
+    overlay.innerHTML = `<div class="modal-panel wmk-v10-panel">
+      <div class="wmk-v10-header"><h2>🔔 จัดการการแจ้งเตือน</h2><button id="tgmanual-close" class="btn btn-muted" type="button">ปิด</button></div>
+      <div class="wmk-v10-toolbar"><div class="wmk-v10-period"><button id="tgmanual-today" class="wmk-v10-period-active" type="button">วันนี้</button><button id="tgmanual-week" type="button">สัปดาห์นี้</button></div>
+      <div class="wmk-v10-actions"><button id="tgmanual-manage" class="wmk-v10-green" type="button">📄 จัดการหน้า</button><button id="tgmanual-send" class="wmk-v10-blue" type="button">🔔 ส่งแจ้งเตือน</button></div></div>
+      <div class="wmk-v10-filter"><input id="tgmanual-search" class="input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง"><span id="tgmanual-count">เลือก 0 ฉบับ</span></div>
+      <div id="tgmanual-doc" class="wmk-v10-docs" role="group" aria-label="เลือกเอกสารแจ้งเตือน"></div>
+      <div id="tgmanual-manage-area" class="wmk-v10-manage hide"><h3>จัดการหน้าภาพที่จะส่ง</h3><p>เลือกเอกสารด้านบน จากนั้นตรวจสอบภาพตัวอย่างและระบุหน้าที่ต้องการส่งแยกตามเอกสาร (สูงสุด 5 หน้า/ฉบับ)</p><div id="tgmanual-pages-list"></div></div>
+      <label class="wmk-v10-pdf"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็มทุกฉบับ</label>
+      <label class="wmk-v10-footer-label">ข้อความปิดท้าย <textarea id="tgmanual-message" class="input" rows="2" maxlength="1500">กรุณาตรวจสอบเอกสารด้วยครับ 🙏</textarea></label>
+      <p id="tgmanual-status" role="status"></p>
     </div>`;
     document.body.appendChild(overlay);
     const $ = id => overlay.querySelector('#'+id);
-    const close = () => overlay.remove();
-    $('tgmanual-close').onclick = close;
-    const search = $('tgmanual-search');
-    const select = $('tgmanual-doc');
-    const status = $('tgmanual-status');
-    let selectedIds = [];
-    let loadedDocId = '';
-    let loadedPdf = null;
-    let cachedPages = [];
-    let cacheKey = '';
+    $('tgmanual-close').onclick = () => overlay.remove();
+    const selected = new Set();
+    const pageChoice = new Map();
+    const pdfCache = new Map();
+    const pageCount = new Map();
+    let period = 'today';
+    let manageOpen = false;
     const escape = value => escapeHtml(String(value == null ? '' : value));
-    function refreshList() {
-      const q = search.value.trim().toLocaleLowerCase('th');
-      const filtered = documents.filter(d => [d.recvNo,d.receiveNo,d.subject,d.sender,d.status].some(v=>String(v||'').toLocaleLowerCase('th').includes(q)));
-      select.innerHTML = filtered.slice(0,300).map(d => `<label class="wmk-tg-doc"><input type="checkbox" value="${escape(d.docId)}" ${selectedIds.includes(String(d.docId)) ? 'checked' : ''}><span>${escape((d.recvNo||d.receiveNo||'')+' • '+(d.subject||'ไม่ระบุเรื่อง')+' • '+(d.status||''))}</span></label>`).join('');
-      select.querySelectorAll('input[type="checkbox"]').forEach(input => input.addEventListener('change', () => {
-        if(input.checked && selectedIds.length >= 10){input.checked=false;status.textContent='เลือกได้สูงสุด 10 ฉบับ';return;}
-        selectedIds = input.checked ? [...new Set([...selectedIds,input.value])] : selectedIds.filter(id=>id!==input.value);
-        onDocumentChange();
-      }));
-      onDocumentChange();
+    const bangkokKey = value => {
+      if (!value) return '';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+    };
+    const todayKey = bangkokKey(new Date());
+    const nowParts = todayKey.split('-').map(Number);
+    const todayUtc = new Date(Date.UTC(nowParts[0],nowParts[1]-1,nowParts[2]));
+    const weekday = todayUtc.getUTCDay();
+    const monday = new Date(todayUtc.getTime() - (weekday===0?6:weekday-1)*86400000);
+    const mondayKey = monday.toISOString().slice(0,10);
+    function filteredDocs() {
+      const q = $('tgmanual-search').value.trim().toLocaleLowerCase('th');
+      return eligible.filter(d => {
+        const key = bangkokKey(d.createdAt || d.receivedAt || d.receiveDate || d.updatedAt);
+        const inPeriod = period === 'today' ? key === todayKey : key >= mondayKey && key <= todayKey;
+        return inPeriod && [d.recvNo,d.receiveNo,d.subject,d.fromSender,d.sender].some(v => String(v||'').toLocaleLowerCase('th').includes(q));
+      }).sort((a,b) => new Date(b.createdAt||0)-new Date(a.createdAt||0));
     }
-    function onDocumentChange() {
-      $('tgmanual-count').textContent=String(selectedIds.length);
-      const d = documents.find(item=>item.docId===selectedIds[0]);
-      loadedDocId = ''; loadedPdf = null; cachedPages=[]; cacheKey='';
-      $('tgmanual-preview').innerHTML='';
-      $('tgmanual-info').textContent=d ? `สถานะ: ${d.status||'-'} | เรื่อง: ${d.subject||'-'}` : 'ไม่พบหนังสือ';
-      if (!$('tgmanual-message').value) $('tgmanual-message').value='กรุณาตรวจสอบเอกสารด้วยครับ 🙏';
-      status.textContent='';
+    function refresh() {
+      const docs = filteredDocs();
+      $('tgmanual-count').textContent = `เลือก ${selected.size} ฉบับ (สูงสุด 10)`;
+      $('tgmanual-doc').innerHTML = docs.length ? docs.map(d => `<label class="wmk-v10-doc"><input type="checkbox" data-id="${escape(d.docId)}" ${selected.has(String(d.docId))?'checked':''}><span><b>${escape(d.recvNo||d.receiveNo||'-')}</b><small>${escape(d.fromSender||d.sender||'')}</small></span><span class="wmk-v10-subject">${escape(d.subject||'ไม่ระบุเรื่อง')}<small>${escape(d.status||'')}</small></span></label>`).join('') : '<div class="wmk-v10-empty">ไม่พบเอกสารในขั้นตอน “แจ้งให้ทราบ / ดำเนินการ” สำหรับช่วงวันที่เลือก</div>';
+      $('tgmanual-doc').querySelectorAll('input[data-id]').forEach(input => input.onchange = () => {
+        if (input.checked && selected.size>=10) { input.checked=false; $('tgmanual-status').textContent='เลือกได้สูงสุด 10 ฉบับ'; return; }
+        if(input.checked) selected.add(input.dataset.id); else selected.delete(input.dataset.id);
+        refresh(); if(manageOpen) renderManage();
+      });
     }
-    function pageNumbers(input,max) {
-      const raw=input.trim();
-      if (!raw) return [];
+    async function getPdf(docId) {
+      if(pdfCache.has(docId)) return pdfCache.get(docId);
+      const result=await gasCall('getTelegramManualDocumentPdf',state.token,docId);
+      if(!result?.file?.base64) throw new Error('ไม่พบ PDF ของเอกสาร');
+      const pdf=await pdfjsLib.getDocument({data:base64ToUint8Array(result.file.base64)}).promise;
+      pdfCache.set(docId,pdf);pageCount.set(docId,pdf.numPages);
+      return pdf;
+    }
+    function parsePages(raw,max) {
       const nums=[];
-      for(const token of raw.split(',')) {
-        const m=token.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
-        if(!m) throw new Error('รูปแบบเลขหน้าไม่ถูกต้อง');
-        const a=Number(m[1]), b=m[2]?Number(m[2]):a;
-        if(a<1||b<a||b>max||b-a>20) throw new Error(`เลือกหน้าได้ตั้งแต่ 1 ถึง ${max}`);
-        for(let i=a;i<=b;i++) if(!nums.includes(i)) nums.push(i);
+      for(const part of String(raw||'').split(',')) {
+        const m=part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+        if(!m) throw new Error('รูปแบบเลขหน้าไม่ถูกต้อง เช่น 1,2,3 หรือ 1-3');
+        const from=Number(m[1]),to=m[2]?Number(m[2]):from;
+        if(from<1||to<from||to>max) throw new Error(`เลือกหน้าได้ตั้งแต่ 1 ถึง ${max}`);
+        for(let n=from;n<=to;n++) if(!nums.includes(n)) nums.push(n);
+        if(nums.length>5) throw new Error('เลือกภาพได้สูงสุด 5 หน้าต่อฉบับ');
       }
-      if(nums.length>5) throw new Error('ส่งรูปได้สูงสุดครั้งละ 5 หน้า');
       return nums;
     }
-    async function getPdf() {
-      const docId=selectedIds[0];
-      if(loadedPdf && loadedDocId===docId) return loadedPdf;
-      const result=await gasCall('getTelegramManualDocumentPdf',state.token,docId);
-      if(!result?.file?.base64) throw new Error('ไม่พบไฟล์ PDF');
-      const bytes=base64ToUint8Array(result.file.base64);
-      loadedPdf=await pdfjsLib.getDocument({data:bytes}).promise;
-      loadedDocId=docId;
-      return loadedPdf;
-    }
-    async function renderSelected() {
-      if(!selectedIds.length) throw new Error('กรุณาเลือกหนังสือ');
-      const pdf=await getPdf();
-      const nums=pageNumbers($('tgmanual-pages').value,pdf.numPages);
-      const key=selectedIds[0]+'|'+nums.join(',');
-      if(cacheKey===key) return cachedPages;
-      const rendered=[];
-      const preview=$('tgmanual-preview');
-      preview.innerHTML='';
+    async function drawPages(docId,nums,previewTarget) {
+      const pdf=await getPdf(docId), images=[];
+      if(previewTarget) previewTarget.innerHTML='';
       for(const number of nums) {
         const page=await pdf.getPage(number);
-        const viewport=page.getViewport({scale:1.3});
-        const canvas=document.createElement('canvas');
-        const factor=Math.min(1,1600/Math.max(viewport.width,viewport.height));
+        const view=page.getViewport({scale:1.3});
+        const factor=Math.min(1,1600/Math.max(view.width,view.height));
         const scaled=page.getViewport({scale:1.3*factor});
-        canvas.width=Math.ceil(scaled.width); canvas.height=Math.ceil(scaled.height);
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.ceil(scaled.width);canvas.height=Math.ceil(scaled.height);
         await page.render({canvasContext:canvas.getContext('2d'),viewport:scaled}).promise;
         const dataUrl=canvas.toDataURL('image/jpeg',0.78);
-        if(dataUrl.length>2_500_000) throw new Error('ภาพหน้าที่ '+number+' มีขนาดใหญ่เกินไป');
-        rendered.push({page:number,base64:dataUrl.split(',')[1]});
-        const wrapper=document.createElement('div');
-        wrapper.style.cssText='width:130px';
-        const img=document.createElement('img');
-        img.src=dataUrl; img.alt='ตัวอย่างหน้า '+number;
-        img.style.cssText='width:100%;border:1px solid #ddd';
-        wrapper.appendChild(img);
-        const label=document.createElement('div');
-        label.textContent='หน้า '+number; wrapper.appendChild(label); preview.appendChild(wrapper);
-      }
-      cachedPages=rendered;cacheKey=key;
-      return rendered;
-    }
-    search.oninput=refreshList;
-    select.onchange=onDocumentChange;
-    $('tgmanual-pages').oninput=()=>{cacheKey='';cachedPages=[];};
-    $('tgmanual-render').onclick=async()=>{
-      status.textContent='กำลังสร้างภาพตัวอย่าง...';
-      try{const imgs=await renderSelected();status.textContent=`พร้อมส่งภาพ ${imgs.length} หน้า`;}
-      catch(e){status.textContent=e.message||String(e);}
-    };
-    function teacherNames(doc) {
-      const names=(doc.recipients||[]).map(r=>typeof r==='string'?r:(r.name||r.fullName||r.displayName||'')).filter(Boolean);
-      return [...new Set(names)].join(', ') || '-';
-    }
-    function buildMessage(doc) {
-      return `📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nสถานะ: ${teacherNames(doc)}\n${$('tgmanual-message').value.trim()}`;
-    }
-    async function renderForDocument(docId) {
-      selectedIds=[docId,...selectedIds.filter(id=>id!==docId)];
-      loadedDocId='';loadedPdf=null;cacheKey='';cachedPages=[];
-      return renderSelected();
-    }
-    $('tgmanual-send').onclick=async()=>{
-      const sendBtn=$('tgmanual-send');
-      if(sendBtn.disabled) return;
-      const originalIds=[...selectedIds];
-      try {
-        if(!originalIds.length) throw new Error('กรุณาเลือกหนังสือ');
-        if(originalIds.length>10) throw new Error('เลือกได้ไม่เกิน 10 ฉบับต่อครั้ง');
-        const attachPdf=$('tgmanual-pdf').checked;
-        if(!attachPdf&&!$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกหน้าภาพ');
-        if(!$('tgmanual-message').value.trim()) $('tgmanual-message').value='กรุณาตรวจสอบเอกสารด้วยครับ 🙏';
-        const ok=await Swal.fire({title:'ยืนยันส่งหนังสือ '+originalIds.length+' ฉบับ?',text:'ระบบจะส่งแยกข้อความและภาพสำหรับหนังสือแต่ละฉบับ โปรดตรวจสอบชั้นความลับและข้อมูลส่วนบุคคลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
-        if(!ok.isConfirmed) return;
-        sendBtn.disabled=true;
-        const completed=[];const failed=[];
-        for(let i=0;i<originalIds.length;i++) {
-          const id=originalIds[i];
-          const d=documents.find(item=>item.docId===id);
-          status.textContent=`กำลังส่ง ${i+1}/${originalIds.length}: ${d?.recvNo||d?.receiveNo||id}`;
-          try {
-            const images=await renderForDocument(id);
-            const result=await gasCall('sendTelegramManualDocument',state.token,{docId:id,message:buildMessage(d),images,attachPdf});
-            if(result?.success===false) throw new Error(result.message||'ส่งไม่สำเร็จ');
-            completed.push(d?.recvNo||d?.receiveNo||id);
-          } catch(e) {
-            failed.push(`${d?.recvNo||d?.receiveNo||id}: ${e.message||String(e)}`);
-          }
+        if(dataUrl.length>2500000) throw new Error(`ภาพหน้า ${number} มีขนาดใหญ่เกินไป`);
+        images.push({page:number,base64:dataUrl.split(',')[1]});
+        if(previewTarget) {
+          const tile=document.createElement('div');tile.className='wmk-v10-page-tile';
+          const img=document.createElement('img');img.src=dataUrl;img.alt=`ตัวอย่างหน้า ${number}`;
+          const label=document.createElement('small');label.textContent=`หน้า ${number}`;
+          tile.append(img,label);previewTarget.append(tile);
         }
-        status.textContent=`สำเร็จ ${completed.length} ฉบับ / ไม่สำเร็จ ${failed.length} ฉบับ`;
-        await Swal.fire({title:failed.length?'ส่งสำเร็จบางส่วน':'ส่งสำเร็จ',text:status.textContent+(failed.length?'\n'+failed.join('\n'):'') ,icon:failed.length?'warning':'success'});
-      } catch(e){status.textContent=e.message||String(e);Swal.fire('ส่งไม่สำเร็จ',status.textContent,'error');}
-      finally{selectedIds=originalIds;sendBtn.disabled=false;}
+      }
+      return images;
+    }
+    async function renderManage() {
+      const host=$('tgmanual-pages-list');
+      host.innerHTML='';
+      if(!selected.size) {host.textContent='กรุณาเลือกเอกสารก่อนจัดการหน้า';return;}
+      for(const docId of selected) {
+        const doc=eligible.find(d=>String(d.docId)===docId);
+        const card=document.createElement('section');card.className='wmk-v10-page-card';
+        const heading=document.createElement('b');heading.textContent=`${doc?.recvNo||docId} — ${doc?.subject||''}`;
+        const hint=document.createElement('p');hint.textContent='กำลังอ่านจำนวนหน้า PDF...';
+        const input=document.createElement('input');input.className='input';input.placeholder='เช่น 1 หรือ 1,2,3';input.value=pageChoice.get(docId)||'1';
+        const previewButton=document.createElement('button');previewButton.type='button';previewButton.className='btn btn-muted';previewButton.textContent='ดูภาพตัวอย่าง';
+        const thumbs=document.createElement('div');thumbs.className='wmk-v10-thumbs';
+        card.append(heading,hint,input,previewButton,thumbs);host.append(card);
+        input.onchange=()=>{pageChoice.set(docId,input.value.trim());thumbs.innerHTML='';};
+        previewButton.onclick=async()=>{
+          previewButton.disabled=true;
+          try {const pdf=await getPdf(docId);const nums=parsePages(input.value,pdf.numPages);pageChoice.set(docId,input.value.trim());await drawPages(docId,nums,thumbs);hint.textContent=`PDF ทั้งหมด ${pdf.numPages} หน้า · จะส่งภาพ ${nums.join(', ')}`;}
+          catch(e){hint.textContent=e.message||String(e);}finally{previewButton.disabled=false;}
+        };
+        try {const pdf=await getPdf(docId);hint.textContent=`PDF ทั้งหมด ${pdf.numPages} หน้า · เลือกหน้าภาพที่ต้องการส่ง`;}
+        catch(e){hint.textContent=`อ่าน PDF ไม่สำเร็จ: ${e.message||e}`;}
+      }
+    }
+    $('tgmanual-search').oninput=refresh;
+    function setPeriod(next) {period=next;$('tgmanual-today').classList.toggle('wmk-v10-period-active',next==='today');$('tgmanual-week').classList.toggle('wmk-v10-period-active',next==='week');selected.clear();refresh();if(manageOpen)renderManage();}
+    $('tgmanual-today').onclick=()=>setPeriod('today');
+    $('tgmanual-week').onclick=()=>setPeriod('week');
+    $('tgmanual-manage').onclick=()=>{manageOpen=!manageOpen;$('tgmanual-manage-area').classList.toggle('hide',!manageOpen);if(manageOpen)renderManage();};
+    function teacherNames(doc) {return [...new Set((doc.recipients||[]).map(r=>typeof r==='string'?r:(r.name||r.fullName||r.displayName||'')).filter(Boolean))].join(', ')||'-';}
+    function buildMessage(doc) {return `📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nสถานะ: ${teacherNames(doc)}\n${$('tgmanual-message').value.trim()}`;}
+    $('tgmanual-send').onclick=async()=>{
+      const btn=$('tgmanual-send'),ids=[...selected];
+      if(btn.disabled)return;
+      try {
+        if(!ids.length)throw new Error('กรุณาเลือกหนังสือก่อนส่ง');
+        const confirm=await Swal.fire({title:`ยืนยันส่ง ${ids.length} ฉบับ?`,text:'ส่ง PDF ฉบับเต็มและรูปภาพตามหน้าที่เลือก โปรดตรวจสอบข้อมูลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ส่งแจ้งเตือน',cancelButtonText:'ยกเลิก'});
+        if(!confirm.isConfirmed)return;
+        btn.disabled=true;
+        const success=[],failure=[];
+        for(let i=0;i<ids.length;i++) {
+          const id=ids[i],doc=eligible.find(d=>String(d.docId)===id);
+          $('tgmanual-status').textContent=`กำลังส่ง ${i+1}/${ids.length}: ${doc?.recvNo||id}`;
+          try {
+            const pdf=await getPdf(id);
+            const nums=parsePages(pageChoice.get(id)||'1',pdf.numPages);
+            const images=await drawPages(id,nums,null);
+            const result=await gasCall('sendTelegramManualDocument',state.token,{docId:id,message:buildMessage(doc),images,attachPdf:$('tgmanual-pdf').checked});
+            if(result?.success===false)throw new Error(result.message||'ส่งไม่สำเร็จ');
+            success.push(doc?.recvNo||id);
+          }catch(e){failure.push(`${doc?.recvNo||id}: ${e.message||String(e)}`);}
+        }
+        $('tgmanual-status').textContent=`สำเร็จ ${success.length} ฉบับ / ไม่สำเร็จ ${failure.length} ฉบับ`;
+        await Swal.fire({title:failure.length?'ส่งสำเร็จบางส่วน':'ส่งสำเร็จ',text:$('tgmanual-status').textContent+(failure.length?'\n'+failure.join('\n'):''),icon:failure.length?'warning':'success'});
+      }catch(e){$('tgmanual-status').textContent=e.message||String(e);}
+      finally{btn.disabled=false;}
     };
-    refreshList();
+    refresh();
   }
 
   function openLineNotificationModal() {
