@@ -3493,3 +3493,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .settings-sidebar nav button.active,.settings-sidebar nav button[aria-current="page"]{background:#fff1d6;color:#a51d2b;border-color:#e9ba80}
 .settings-content-section h2{color:#ad2031}
 .settings-actions .btn-primary{background:#c52335;color:#fff}
+
+/* V10.8: always-visible manual Telegram send action */
+.wmk-v10-inline .wmk-v10-toolbar .wmk-v10-actions{display:flex!important;visibility:visible!important;opacity:1!important;align-items:center;gap:10px;flex-wrap:wrap}
+.wmk-v10-inline #tgmanual-send-selected{display:inline-flex!important;visibility:visible!important;align-items:center;justify-content:center;min-width:195px;min-height:44px;background:#168ad1!important;color:#fff!important;position:relative;z-index:1}
+.wmk-v10-inline #tgmanual-send-selected:disabled{opacity:.65!important;cursor:not-allowed}
