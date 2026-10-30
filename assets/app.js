@@ -2193,7 +2193,7 @@
       return [...new Set(names)].join(', ') || '-';
     }
     function buildMessage(doc) {
-      return `📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nสถานะ: ${teacherNames(doc)}\n${$('tgmanual-message').value.trim()}`;
+      return `📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nผู้ดำเนินงาน: ${doc.dispatchType === 'ประชาสัมพันธ์ครู' || doc.dispatchMode === 'ประชาสัมพันธ์ครู' ? 'ประชาสัมพันธ์ครู' : teacherNames(doc)}\nกรุณาตรวจสอบเอกสารด้วยครับ 🙏`;
     }
     async function renderForDocument(docId) {
       selectedIds=[docId,...selectedIds.filter(id=>id!==docId)];
@@ -2409,7 +2409,7 @@
           const images=await drawPages(id,pages,null);
           const recipients=Array.isArray(doc.recipients)?doc.recipients:[];
           const names=recipients.map(r=>r.name||r.fullName||r.username||'').filter(Boolean);
-          const message=`📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nสถานะ: ${names.join(', ')||'-'}\nกรุณาตรวจสอบเอกสารด้วยครับ 🙏`;
+          const message=`📢 แจ้งหนังสือราชการ\nเลขรับ: ${doc.recvNo||doc.receiveNo||'-'}\nเรื่อง: ${doc.subject||'-'}\nผู้ดำเนินงาน: ${doc.dispatchType === 'ประชาสัมพันธ์ครู' || doc.dispatchMode === 'ประชาสัมพันธ์ครู' ? 'ประชาสัมพันธ์ครู' : (names.join(', ')||'-')}\nกรุณาตรวจสอบเอกสารด้วยครับ 🙏`;
           const result=await gasCall('sendTelegramManualDocument',state.token,{docId:id,message,images,attachPdf:true});
           if(result?.success===false)throw new Error(result.message||'Telegram ไม่ตอบรับ');
           succeeded.push(doc.recvNo||id);
@@ -4698,7 +4698,7 @@
       receive: `<section class="settings-content-section"><h2>🔢 เลขรับและปีทะเบียน</h2><p class="settings-lead">ระบบจะนำเลขรับล่าสุดมาบวก 1 สำหรับเอกสารฉบับถัดไป</p><form id="receive-settings-form" class="settings-form"><label>เลขรับล่าสุด<input class="input" type="number" min="0" step="1" name="lastNumber" value="${Number(admin.receive?.lastNumber || 0)}" required></label><label>ปีทะเบียน พ.ศ.<input class="input" type="number" min="2500" max="3000" step="1" name="year" value="${Number(admin.receive?.year || new Date().getFullYear() + 543)}" required></label><div class="settings-next-number">เลขถัดไป: <b id="next-receive-number">${escapeHtml(admin.receive?.nextNumber || '-')}</b></div><button class="btn btn-primary" type="submit">บันทึกเลขรับ</button></form></section>`,
       system: `<section class="settings-content-section"><h2>🩺 ตรวจสอบระบบ</h2><p class="settings-lead">ตรวจสอบการเชื่อมต่อ Google Sheet, Drive และหน้าเว็บ</p><div id="system-status-grid" class="system-status-grid">${statusPill(true, 'Google Sheet พร้อม')}${statusPill(admin.system?.rootFolderReady, 'โฟลเดอร์หลัก')}${statusPill(admin.system?.originalFolderReady, 'เอกสารต้นฉบับ')}${statusPill(admin.system?.stampedFolderReady, 'เอกสารประทับตรา')}${statusPill(admin.system?.signatureFolderReady, 'โฟลเดอร์ลายเซ็น')}${statusPill(Number(admin.system?.designedConcurrentUsers || 0) >= 15, 'รองรับพร้อมกัน 15 คน')}<div class="settings-version-row"><span>Frontend</span><b>${escapeHtml(admin.system?.frontendVersion || '-')}</b></div><div class="settings-version-row"><span>เอกสารในทะเบียน</span><b>${Number(admin.counts?.documents || 0)}</b></div></div><div class="webapp-link-card"><div><b>ลิงก์สำหรับเปิดระบบและส่งให้ผู้ใช้งาน</b><p>ใช้ลิงก์ Google Apps Script Web App ที่ลงท้ายด้วย <code>/exec</code> เท่านั้น</p><div class="mobile-url-box">${escapeHtml(admin.system?.webAppUrl || 'ยังอ่านลิงก์ Web App ไม่ได้')}</div></div><button id="copy-webapp-url" class="btn btn-primary" type="button" ${admin.system?.webAppUrl ? '' : 'disabled'}>คัดลอกลิงก์</button></div><div class="settings-warning-box">หากเปิดใน LINE ได้ แต่เปิดใน Chrome ไม่ได้ ให้ตรวจ Deployment ว่าอนุญาต “ทุกคน” หรือให้ผู้ใช้ลงชื่อเข้า Google ด้วยบัญชีที่ได้รับอนุญาต และตรวจการอนุญาตคุกกี้ของเว็บไซต์ Google</div><div class="settings-actions"><button id="refresh-system-status" class="btn btn-primary" type="button">ตรวจสอบอีกครั้ง</button></div></section>`,
 
-      telegram: `<section class="settings-content-section"><h2>✈️ ตั้งค่าการแจ้งเตือน Telegram</h2><p class="settings-lead">ปรับเปิด/ปิดเหตุการณ์ เลือกข้อมูลที่ส่ง และแก้ไขรูปแบบข้อความได้โดยไม่ต้องแก้โค้ด Bot Token จะไม่แสดงบนหน้านี้</p><div id="telegram-settings-status" class="settings-warning-box">กำลังโหลดการตั้งค่า Telegram...</div><form id="telegram-settings-form" class="settings-form"><label class="switch-row"><span><b>เปิดระบบแจ้งเตือน Telegram</b><small>ปิดชั่วคราวได้โดยไม่ลบการตั้งค่า</small></span><input type="checkbox" id="tg-enabled"></label><label class="switch-row"><span><b>แจ้งเตือนเอกสาร</b><small>การรับหนังสือและการเปลี่ยนสถานะเอกสาร</small></span><input type="checkbox" id="tg-doc-enabled"></label><label class="switch-row"><span><b>แจ้งเตือนวาระการประชุม</b><small>รอตรวจ อนุมัติ ส่งกลับ และดำเนินการครบ</small></span><input type="checkbox" id="tg-meeting-enabled"></label><label class="switch-row"><span>ใส่ชื่อผู้ส่งหนังสือ</span><input type="checkbox" id="tg-sender"></label><label class="switch-row"><span>ใส่ชื่อผู้ดำเนินการ</span><input type="checkbox" id="tg-actor"></label><label class="switch-row"><span>ใส่บทบาทผู้รับผิดชอบ</span><input type="checkbox" id="tg-role"></label><label class="switch-row"><span>ใส่ลิงก์เปิดเอกสาร</span><input type="checkbox" id="tg-link"></label><label>Telegram Chat ID<input id="tg-chat-id" class="input" placeholder="เช่น -1001234567890"></label><div class="settings-warning-box">Bot Token ถูกเก็บใน Script Properties เท่านั้น และจะไม่ถูกอ่านกลับมายังหน้าเว็บ</div><h3>ข้อความแจ้งเตือนเอกสาร</h3><p class="text-xs text-slate-500">ตัวแปร: {event}, {recvNo}, {subject}, {sender}, {status}, {role}, {actor}, {link}</p><textarea id="tg-document-template" class="input" rows="7" required></textarea><h3>ข้อความแจ้งเตือนวาระการประชุม</h3><p class="text-xs text-slate-500">ตัวแปร: {event}, {meetingNo}, {title}, {fromStatus}, {toStatus}, {actor}</p><textarea id="tg-meeting-template" class="input" rows="6" required></textarea><h3>แก้ไขข้อความหัวเหตุการณ์</h3><div class="settings-form"><label>รับหนังสือเข้าใหม่<input id="tg-label-new" class="input"></label><label>เอกสารรออนุมัติ<input id="tg-label-pending" class="input"></label><label>เอกสารอนุมัติแล้ว<input id="tg-label-approved" class="input"></label><label>สถานะเอกสารเปลี่ยน<input id="tg-label-changed" class="input"></label><label>วาระรอตรวจ/อนุมัติ<input id="tg-label-meeting-pending" class="input"></label><label>วาระผ่านการตรวจ<input id="tg-label-meeting-approved" class="input"></label><label>ดำเนินการวาระครบแล้ว<input id="tg-label-meeting-complete" class="input"></label><label>วาระถูกส่งกลับ<input id="tg-label-meeting-returned" class="input"></label></div><div class="settings-actions"><button id="tg-save" class="btn btn-primary" type="submit">บันทึกการตั้งค่า Telegram</button><button id="tg-test" class="btn btn-muted" type="button">ส่งข้อความทดสอบ</button><button id="tg-reset" class="btn btn-muted" type="button">คืนค่าข้อความเริ่มต้น</button></div></form></section>`,
+      telegram: `<section class="settings-content-section wmk-tg-simple"><h2>✈️ ตั้งค่าการแจ้งเตือน Telegram</h2><p class="settings-lead">ตั้งค่าการแจ้งเตือนอัตโนมัติของระบบสารบรรณ</p><div id="telegram-settings-status" class="settings-warning-box">กำลังตรวจสอบสถานะ...</div><form id="telegram-settings-form" class="settings-form"><label class="switch-row"><span><b>เปิดใช้งาน Telegram</b><small>Auto</small></span><input type="checkbox" id="tg-enabled"></label><label class="switch-row"><span><b>แจ้งเตือนเอกสาร</b><small>Auto · เมื่อธุรการจ่ายเรื่องสำเร็จ</small></span><input type="checkbox" id="tg-doc-enabled"></label><div class="settings-warning-box">การส่งอัตโนมัติและส่งด้วยตนเองใช้ข้อความเดียวกัน: 📢 แจ้งหนังสือราชการ · เลขรับ · เรื่อง · ผู้ดำเนินงาน (รายชื่อผู้รับ หรือประชาสัมพันธ์ครู) · กรุณาตรวจสอบเอกสารด้วยครับ 🙏</div><div class="settings-actions"><button id="tg-save" class="btn btn-primary" type="submit">บันทึกการตั้งค่า</button><button id="tg-test" class="btn btn-muted" type="button">ทดสอบ Telegram</button></div></form></section>`,
       worklinks: `<section class="settings-content-section"><h2>🔗 จัดการลิงค์งาน</h2><p class="settings-lead">เพิ่ม แก้ไข ลบ และกำหนดรูปภาพของลิงก์ได้เฉพาะธุรการ</p><button class="btn btn-primary" type="button" id="settings-worklinks-open">เปิดหน้าจัดการลิงค์งาน</button></section>`,
       data: `<section class="settings-content-section"><h2>🗂️ จัดการข้อมูล</h2><p class="settings-lead">เปิดทะเบียนและโฟลเดอร์จัดเก็บข้อมูลของระบบ</p><div class="data-link-grid"><button data-open-url="${escapeHtml(admin.documentsSheetUrl || '')}">📄 ชีต Documents<small>${Number(admin.counts?.documents || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.auditSheetUrl || '')}">🧾 Audit Log<small>${Number(admin.counts?.audit || 0)} รายการ</small></button><button data-open-url="${escapeHtml(admin.folders?.original || '')}">📥 เอกสารต้นฉบับ</button><button data-open-url="${escapeHtml(admin.folders?.stamped || '')}">✅ เอกสารประทับตรา</button><button data-open-url="${escapeHtml(admin.folders?.attachments || '')}">📎 ไฟล์แนบ</button><button data-open-url="${escapeHtml(admin.folders?.signatures || '')}">✍️ ลายเซ็น</button></div><div class="settings-warning-box">เพื่อป้องกันการลบผิด ระบบยังไม่ใส่ปุ่ม “ล้างข้อมูลทั้งหมด” ในหน้าเว็บ การล้างข้อมูลให้ทำจาก Google Sheet และ Drive หลังสำรองข้อมูลแล้ว</div><button id="settings-open-download-center" class="btn btn-primary mt-4" type="button">เปิดศูนย์ดาวน์โหลดเอกสาร</button></section>`,
     };
@@ -4987,38 +4987,41 @@
       }
 
       if (sectionId === 'telegram') {
-        const form = overlay.querySelector('#telegram-settings-form');
-        const status = overlay.querySelector('#telegram-settings-status');
-        const ids = ['tg-enabled','tg-doc-enabled','tg-meeting-enabled','tg-sender','tg-actor','tg-role','tg-link','tg-chat-id','tg-document-template','tg-meeting-template','tg-label-new','tg-label-pending','tg-label-approved','tg-label-changed','tg-label-meeting-pending','tg-label-meeting-approved','tg-label-meeting-complete','tg-label-meeting-returned'];
-        const get = (id) => overlay.querySelector('#' + id);
-        const applySettings = (settings, chatId) => {
-          get('tg-enabled').checked = !!settings.enabled; get('tg-doc-enabled').checked = !!settings.documentEnabled; get('tg-meeting-enabled').checked = !!settings.meetingEnabled;
-          get('tg-sender').checked = !!settings.includeSender; get('tg-actor').checked = !!settings.includeActor; get('tg-role').checked = !!settings.includeResponsible; get('tg-link').checked = !!settings.includeLink;
-          get('tg-chat-id').value = chatId || '';
-          get('tg-document-template').value = settings.documentTemplate || ''; get('tg-meeting-template').value = settings.meetingTemplate || '';
-          const labels = settings.eventLabels || {};
-          get('tg-label-new').value = labels.documentNew || ''; get('tg-label-pending').value = labels.documentPending || ''; get('tg-label-approved').value = labels.documentApproved || ''; get('tg-label-changed').value = labels.documentChanged || '';
-          get('tg-label-meeting-pending').value = labels.meetingPending || ''; get('tg-label-meeting-approved').value = labels.meetingApproved || ''; get('tg-label-meeting-complete').value = labels.meetingComplete || ''; get('tg-label-meeting-returned').value = labels.meetingReturned || '';
+        const form=overlay.querySelector('#telegram-settings-form');
+        const status=overlay.querySelector('#telegram-settings-status');
+        const enabled=overlay.querySelector('#tg-enabled');
+        const docEnabled=overlay.querySelector('#tg-doc-enabled');
+        let savedSettings=null, savedChatId='';
+        const load=async()=>{
+          try {
+            const result=await gasCall('getTelegramNotificationSettings',state.token);
+            savedSettings=result.settings||{}; savedChatId=result.chatId||'';
+            enabled.checked=savedSettings.enabled===true || savedSettings.enabled==='true';
+            docEnabled.checked=savedSettings.documentEnabled===true || savedSettings.documentEnabled==='true';
+            status.textContent=result.configured?'เชื่อมต่อ Telegram แล้ว · ตรวจสอบสวิตช์ Auto ด้านล่าง':'ยังไม่ได้ตั้งค่า Bot Token หรือ Chat ID';
+          } catch(error){status.textContent=error.message||String(error);}
         };
-        const defaults = { enabled:true, documentEnabled:true, meetingEnabled:true, includeSender:true, includeActor:true, includeResponsible:true, includeLink:true, documentTemplate:'{event}\nเลขรับ: {recvNo}\nเรื่อง: {subject}\nจาก: {sender}\nสถานะ: {status}\nผู้รับผิดชอบ: {role}\nผู้ดำเนินการ: {actor}\n{link}', meetingTemplate:'🗂️ แจ้งเตือนระบบสารบรรณ\n{event}\nวาระ: {meetingNo}\nเรื่อง: {title}\nสถานะเดิม: {fromStatus}\nสถานะใหม่: {toStatus}\nผู้ดำเนินการ: {actor}', eventLabels:{documentNew:'🆕 รับหนังสือเข้าใหม่',documentPending:'⏳ เอกสารรออนุมัติ',documentApproved:'✅ เอกสารได้รับอนุมัติ',documentChanged:'♻️ สถานะเอกสารเปลี่ยนแปลง',meetingPending:'⏳ มีวาระรอการตรวจ/อนุมัติ',meetingApproved:'✅ วาระผ่านการตรวจและส่งให้ผู้เกี่ยวข้องแล้ว',meetingComplete:'✅ ผู้เกี่ยวข้องดำเนินการครบแล้ว',meetingReturned:'↩️ วาระถูกส่งกลับเพื่อแก้ไข/ดำเนินการต่อ'}};
-        gasCall('getTelegramNotificationSettings', state.token).then((result) => {
-          applySettings(result.settings || defaults, result.chatId || '');
-          status.textContent = result.configured ? 'เชื่อมต่อค่าพื้นฐานแล้ว • Bot Token ถูกตั้งค่าไว้ (ไม่แสดงค่า Token)' : 'ยังตั้งค่า Bot Token หรือ Chat ID ไม่ครบ กรุณาตั้ง Bot Token ใน Script Properties';
-        }).catch((error) => { status.textContent = error.message || String(error); });
-        form.onsubmit = async (event) => {
+        load();
+        form.onsubmit=async(event)=>{
           event.preventDefault();
-          const labels = { documentNew:get('tg-label-new').value, documentPending:get('tg-label-pending').value, documentApproved:get('tg-label-approved').value, documentChanged:get('tg-label-changed').value, meetingPending:get('tg-label-meeting-pending').value, meetingApproved:get('tg-label-meeting-approved').value, meetingComplete:get('tg-label-meeting-complete').value, meetingReturned:get('tg-label-meeting-returned').value };
-          const payload = { enabled:get('tg-enabled').checked, documentEnabled:get('tg-doc-enabled').checked, meetingEnabled:get('tg-meeting-enabled').checked, includeSender:get('tg-sender').checked, includeActor:get('tg-actor').checked, includeResponsible:get('tg-role').checked, includeLink:get('tg-link').checked, chatId:get('tg-chat-id').value.trim(), documentTemplate:get('tg-document-template').value, meetingTemplate:get('tg-meeting-template').value, eventLabels:labels };
-          loading('กำลังบันทึกการแจ้งเตือน Telegram...');
-          try { const result = await gasCall('saveTelegramNotificationSettings', state.token, payload); Swal.fire('บันทึกแล้ว','บันทึกการตั้งค่าและรูปแบบข้อความ Telegram เรียบร้อยแล้ว','success'); status.textContent = 'บันทึกการตั้งค่าแล้ว'; } catch (error) { showError(error); }
+          if(!savedSettings){Swal.fire('ยังโหลดค่าไม่สำเร็จ','กรุณาลองใหม่','warning');return;}
+          const payload={...savedSettings,enabled:enabled.checked,documentEnabled:docEnabled.checked,chatId:savedChatId};
+          loading('กำลังบันทึกการตั้งค่า Telegram...');
+          try {
+            const result=await gasCall('saveTelegramNotificationSettings',state.token,payload);
+            savedSettings=result.settings||payload;
+            enabled.checked=!!savedSettings.enabled;docEnabled.checked=!!savedSettings.documentEnabled;
+            status.textContent='บันทึกแล้ว · Auto Telegram: '+(enabled.checked?'เปิด':'ปิด')+' · แจ้งเตือนเอกสาร: '+(docEnabled.checked?'เปิด':'ปิด');
+            Swal.fire('บันทึกสำเร็จ','ยืนยันการตั้งค่าจากระบบแล้ว','success');
+          } catch(error){showError(error);}
         };
-        get('tg-test').onclick = async () => {
-          const { value: message, isConfirmed } = await Swal.fire({ title:'ข้อความทดสอบ Telegram', input:'textarea', inputValue:'✅ ทดสอบการแจ้งเตือนระบบสารบรรณ', showCancelButton:true, confirmButtonText:'ส่งข้อความ', cancelButtonText:'ยกเลิก' });
-          if (!isConfirmed) return;
+        overlay.querySelector('#tg-test').onclick=async()=>{
+          const result=await Swal.fire({title:'ทดสอบ Telegram',text:'ส่งข้อความทดสอบไปยังกลุ่ม Telegram?',showCancelButton:true,confirmButtonText:'ทดสอบ',cancelButtonText:'ยกเลิก'});
+          if(!result.isConfirmed)return;
           loading('กำลังส่งข้อความทดสอบ...');
-          try { const result = await gasCall('sendTelegramAdminTest', state.token, message); Swal.fire('ส่งแล้ว', result.message || 'ส่งข้อความทดสอบแล้ว','success'); } catch (error) { showError(error); }
+          try{await gasCall('sendTelegramAdminTest',state.token,'✅ ทดสอบ Telegram ระบบสารบรรณ');Swal.fire('สำเร็จ','ส่งข้อความทดสอบแล้ว','success');}
+          catch(error){showError(error);}
         };
-        get('tg-reset').onclick = () => { applySettings(defaults, get('tg-chat-id').value); };
       }
 
       const importForm = overlay.querySelector('#import-defaults-form');
