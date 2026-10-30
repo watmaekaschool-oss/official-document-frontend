@@ -3498,3 +3498,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .wmk-v10-inline .wmk-v10-toolbar .wmk-v10-actions{display:flex!important;visibility:visible!important;opacity:1!important;align-items:center;gap:10px;flex-wrap:wrap}
 .wmk-v10-inline #tgmanual-send-selected{display:inline-flex!important;visibility:visible!important;align-items:center;justify-content:center;min-width:195px;min-height:44px;background:#168ad1!important;color:#fff!important;position:relative;z-index:1}
 .wmk-v10-inline #tgmanual-send-selected:disabled{opacity:.65!important;cursor:not-allowed}
+
+/* V10.9: chronological filtering and sorting controls */
+.wmk-v109-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:#922d36;min-width:185px}
+.wmk-v109-field .input{width:100%;min-width:0;max-width:none;font-size:14px;padding:9px 12px}
+@media(max-width:700px){.wmk-v109-field{flex:1;min-width:145px}.wmk-v10-filter .input{max-width:none}}
