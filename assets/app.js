@@ -2246,7 +2246,7 @@
       <div class="wmk-v10-header"><h2>🔔 จัดการการแจ้งเตือน</h2>${inline ? '' : '<button id="tgmanual-close" class="btn btn-muted" type="button">ปิด</button>'}</div>
       <div class="wmk-v10-toolbar"><div class="wmk-v10-period"><button id="tgmanual-today" class="wmk-v10-period-active" type="button">วันนี้</button><button id="tgmanual-week" type="button">สัปดาห์นี้</button><button id="tgmanual-month" type="button">เดือนนี้</button></div>
       <div class="wmk-v10-actions"><button id="tgmanual-manage" class="wmk-v10-green" type="button">📄 จัดการหน้า</button><button id="tgmanual-send-selected" class="wmk-v10-blue" type="button" disabled>🔔 ส่งแจ้งเตือน (เลือกเอกสารก่อน)</button></div></div>
-      <div class="wmk-v10-filter"><input id="tgmanual-search" class="input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง"><span id="tgmanual-count">เลือก 0 ฉบับ</span></div>
+      <div class="wmk-v10-filter"><input id="tgmanual-search" class="input" placeholder="ค้นหาเลขรับ เรื่อง หรือผู้ส่ง"><label class="wmk-v109-field">วันที่ใช้กรองและเรียง<select id="tgmanual-datebasis" class="input"><option value="updated">วันที่อัปเดตล่าสุด</option><option value="created">วันที่บันทึกหนังสือ</option></select></label><label class="wmk-v109-field">ลำดับเอกสาร<select id="tgmanual-sort" class="input"><option value="desc">ใหม่ที่สุด → เก่าที่สุด</option><option value="asc">เก่าที่สุด → ใหม่ที่สุด</option></select></label><span id="tgmanual-count">เลือก 0 ฉบับ</span></div>
       <div id="tgmanual-doc" class="wmk-v10-docs" role="group" aria-label="เลือกเอกสารแจ้งเตือน"></div>
       <div id="tgmanual-manage-area" class="wmk-v10-manage hide"><h3>จัดการหน้าภาพที่จะส่ง</h3><p>เลือกเอกสารด้านบน จากนั้นตรวจสอบภาพตัวอย่างและระบุหน้าที่ต้องการส่งแยกตามเอกสาร (สูงสุด 5 หน้า/ฉบับ)</p><div id="tgmanual-pages-list"></div></div>
       <p id="tgmanual-status" role="status"></p>
@@ -2265,12 +2265,37 @@
     let period = 'today';
     let manageOpen = false;
     const escape = value => escapeHtml(String(value == null ? '' : value));
+    // V10.9: Parse actual timestamps, Thai Buddhist years and Thai-formatted dates.
+    // Do not sort by receiving number or by lexicographic display strings.
     const bangkokKey = value => {
-      if (!value) return '';
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return '';
-      return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+      const d = parseDocumentDate(value);
+      return d ? new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(d) : '';
     };
+    function parseDocumentDate(value) {
+      if(value == null || value === '') return null;
+      if(value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+      if(typeof value === 'number') {
+        const d=new Date(value < 100000000000 ? value*1000 : value);
+        return Number.isFinite(d.getTime()) ? d : null;
+      }
+      const raw=String(value).trim();
+      // 28/10/2569, 28-10-2026, optionally HH:mm:ss, in Bangkok local time.
+      const th=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if(th) {
+        const day=+th[1],month=+th[2],year=+th[3]-(+th[3]>=2400?543:0),h=+(th[4]||0),m=+(th[5]||0),sec=+(th[6]||0);
+        const d=new Date(Date.UTC(year,month-1,day,h-7,m,sec));
+        return year>=1900 && month>=1 && month<=12 && day>=1 && day<=31 && Number.isFinite(d.getTime()) ? d : null;
+      }
+      const isoThai=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(.*)$/);
+      if(isoThai && +isoThai[1]>=2400) {
+        return parseDocumentDate(`${isoThai[3]}/${isoThai[2]}/${+isoThai[1]-543}${isoThai[4]||''}`);
+      }
+      const d=new Date(raw);
+      return Number.isFinite(d.getTime()) ? d : null;
+    }
+    const dateValue = d => $('tgmanual-datebasis').value==='created'
+      ? (d.createdAt || d.receivedAt || d.receiveDate)
+      : (d.updatedAt || d.createdAt || d.receivedAt || d.receiveDate);
     const todayKey = bangkokKey(new Date());
     const nowParts = todayKey.split('-').map(Number);
     const todayUtc = new Date(Date.UTC(nowParts[0],nowParts[1]-1,nowParts[2]));
@@ -2279,11 +2304,18 @@
     const mondayKey = monday.toISOString().slice(0,10);
     function filteredDocs() {
       const q = $('tgmanual-search').value.trim().toLocaleLowerCase('th');
+      const direction=$('tgmanual-sort').value==='asc'?1:-1;
       return eligible.filter(d => {
-        const key = bangkokKey(d.updatedAt || d.createdAt || d.receivedAt || d.receiveDate);
+        const key = bangkokKey(dateValue(d));
         const inPeriod = period === 'today' ? key === todayKey : period === 'week' ? (key >= mondayKey && key <= todayKey) : (key.slice(0,7) === todayKey.slice(0,7));
         return inPeriod && [d.recvNo,d.receiveNo,d.subject,d.fromSender,d.sender].some(v => String(v||'').toLocaleLowerCase('th').includes(q));
-      }).sort((a,b) => new Date(b.updatedAt||b.createdAt||0)-new Date(a.updatedAt||a.createdAt||0));
+      }).sort((a,b) => {
+        const at=parseDocumentDate(dateValue(a))?.getTime() ?? -Infinity;
+        const bt=parseDocumentDate(dateValue(b))?.getTime() ?? -Infinity;
+        if(at!==bt) return direction*(at-bt);
+        const num=d=>Number(String(d.recvNo||d.receiveNo||'').match(/^\d+/)?.[0]||0);
+        return direction*(num(a)-num(b));
+      });
     }
     function refresh() {
       const docs = filteredDocs();
@@ -2388,6 +2420,8 @@
       button.disabled=selected.size===0;
     };
     $('tgmanual-search').oninput=refresh;
+    $('tgmanual-datebasis').onchange=()=>{selected.clear();refresh();if(manageOpen)renderManage();};
+    $('tgmanual-sort').onchange=refresh;
     function setPeriod(next) {period=next;$('tgmanual-today').classList.toggle('wmk-v10-period-active',next==='today');$('tgmanual-week').classList.toggle('wmk-v10-period-active',next==='week');$('tgmanual-month').classList.toggle('wmk-v10-period-active',next==='month');selected.clear();refresh();if(manageOpen)renderManage();}
     $('tgmanual-today').onclick=()=>setPeriod('today');
     $('tgmanual-week').onclick=()=>setPeriod('week');
@@ -4482,11 +4516,31 @@
       try {
         let stamped = { base64: '', acknowledgementBox: null };
         if (selected.value !== 'ยุติเรื่อง') stamped = await captureAcknowledgementBoxForDispatch();
-        // Preview source is the already-stamped PDF, before the acknowledgement box is added.
+        // V10.10: Preflight the required stamped pages before committing dispatch.
+        // A missing image must not silently turn into a successful dispatch without notice.
         let telegramImages = [];
+        let telegramImageWarning = '';
         if (selected.value !== 'ยุติเรื่อง') {
-          try { telegramImages = await prepareTelegramDispatchImages(); }
-          catch (imageError) { console.warn('Telegram image preview unavailable', imageError); }
+          try {
+            telegramImages = await prepareTelegramDispatchImages();
+            const stampInfo = await gasCall('getTelegramDispatchStampPage', state.token, state.currentDoc.docId);
+            const required = Math.min(Math.max(1, Number(stampInfo?.page) || 1), 5);
+            if (telegramImages.length !== required) {
+              telegramImageWarning = `เตรียมรูปภาพได้ ${telegramImages.length}/${required} หน้า`;
+            }
+          } catch (imageError) {
+            telegramImageWarning = String(imageError?.message || imageError || 'ไม่สามารถเตรียมรูปภาพได้');
+            console.warn('Telegram dispatch image preflight failed', imageError);
+          }
+          if (telegramImageWarning) {
+            const decision = await Swal.fire({
+              title: 'รูปภาพสำหรับ Telegram ยังไม่พร้อม',
+              text: telegramImageWarning + ' หากดำเนินการต่อ ระบบจะจ่ายเรื่องให้ผู้รับ แต่ Telegram อัตโนมัติอาจส่งไม่สำเร็จ คุณสามารถส่งด้วยตนเองภายหลังได้',
+              icon: 'warning', showCancelButton: true,
+              confirmButtonText: 'จ่ายเรื่องต่อ', cancelButtonText: 'กลับไปตรวจสอบ'
+            });
+            if (!decision.isConfirmed) { Swal.close(); return; }
+          }
         }
         const dispatchResult = await gasCall('dispatchDocument', state.token, {
           docId: state.currentDoc.docId,
@@ -4497,15 +4551,25 @@
           acknowledgementBox: stamped.acknowledgementBox,
           telegramImages,
         });
-        if (dispatchResult?.telegramResult?.success === false) {
-          console.warn('Telegram dispatch notification failed', dispatchResult.telegramResult.reason);
-          await Swal.fire({title:'จ่ายเรื่องสำเร็จ แต่ Telegram แจ้งเตือนไม่สำเร็จ',text:'ระบบบันทึกการจ่ายเรื่องแล้ว กรุณาตรวจสอบกลุ่ม Telegram ก่อนส่งซ้ำ: '+(dispatchResult.telegramResult.reason||'ไม่ทราบสาเหตุ'),icon:'warning'});
-        }
+        const tg = dispatchResult?.telegramResult;
+        const telegramFailed = selected.value !== 'ยุติเรื่อง' && (!tg || tg.success === false || tg.skipped === true);
         closeWorkspace();
         await loadDashboard();
-        Swal.fire('สำเร็จ', selected.value === 'ยุติเรื่อง'
-          ? 'ยุติเรื่องและเก็บเข้าแฟ้มเรียบร้อยแล้ว'
-          : 'วางกล่องทราบและส่งเรื่องเรียบร้อยแล้ว', 'success');
+        if (telegramFailed) {
+          const reason = tg?.reason === 'missing-required-images'
+            ? `รูปภาพไม่ครบ (${tg.preparedPages || 0}/${tg.expectedPages || '?'} หน้า)`
+            : (tg?.reason || (tg?.skipped ? 'ปิดการแจ้งเตือนอัตโนมัติในการตั้งค่า' : 'ไม่ได้รับผลยืนยันการส่ง Telegram'));
+          console.warn('WMK V10.10 Telegram dispatch not confirmed', tg);
+          await Swal.fire({
+            title: 'จ่ายเรื่องสำเร็จ แต่ Telegram ยังไม่ยืนยันการส่ง',
+            text: reason + ' — โปรดตรวจสอบข้อความในกลุ่ม Telegram ก่อนส่งซ้ำผ่านเมนูจัดการการแจ้งเตือน เพื่อป้องกันข้อความซ้ำ',
+            icon: 'warning', confirmButtonText: 'รับทราบ'
+          });
+        } else {
+          Swal.fire('สำเร็จ', selected.value === 'ยุติเรื่อง'
+            ? 'ยุติเรื่องและเก็บเข้าแฟ้มเรียบร้อยแล้ว'
+            : 'จ่ายเรื่องและส่ง Telegram อัตโนมัติเรียบร้อยแล้ว', 'success');
+        }
       } catch (error) { showError(error); }
     };
   }
