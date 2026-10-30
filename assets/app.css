@@ -3503,3 +3503,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .wmk-v109-field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:#922d36;min-width:185px}
 .wmk-v109-field .input{width:100%;min-width:0;max-width:none;font-size:14px;padding:9px 12px}
 @media(max-width:700px){.wmk-v109-field{flex:1;min-width:145px}.wmk-v10-filter .input{max-width:none}}
+
+/* V10.11 Telegram simplified settings */
+.wmk-tg-simple .switch-row{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border:1px solid #f0d8b7;border-radius:14px;background:#fffaf0;margin:12px 0}.wmk-tg-simple .switch-row b{color:#9e2030;font-size:16px}.wmk-tg-simple .switch-row small{display:block;color:#168b50;font-weight:700;margin-top:4px}.wmk-tg-simple .switch-row input{width:24px;height:24px;accent-color:#169e5a}
