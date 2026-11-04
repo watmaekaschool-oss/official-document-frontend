@@ -1249,7 +1249,7 @@
     const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
     const filter = document.getElementById('doc-filter')?.value || 'all';
     let sourceDocs = currentDocuments();
-    if (state.tab === 'all') sourceDocs = sortDocumentsByReceiveNumberDesc(filterDocumentsByCalendar_(sourceDocs));
+    if (state.tab === 'all' || state.tab === 'acknowledged') sourceDocs = sortDocumentsByReceiveNumberDesc(filterDocumentsByCalendar_(sourceDocs));
     renderCalendarActiveFilter_();
     let docs = sourceDocs.filter((doc) => {
       const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''} ${doc.priority || ''} ${doc.dispatchMode || ''}`.toLowerCase();
@@ -2073,14 +2073,14 @@
     overlay.className = 'modal-backdrop';
     overlay.innerHTML = `<div class="modal-panel" style="width:min(850px,96vw);max-height:92vh;overflow:auto;padding:24px">
       <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">✈️ แจ้งเตือน Telegram (ส่งด้วยตนเอง)</h2><button type="button" id="tgmanual-close" class="btn btn-muted">ปิด</button></div>
-      <p class="mb-3 text-sm">เลือกหนังสือหลายฉบับ แล้วส่งแยกข้อความและรูปภาพรายฉบับ (เลือกหน้าภาพเหมือนกันทุกฉบับ)</p>
+      <p class="mb-3 text-sm">ส่งข้อความพร้อมปุ่มเปิด Web App ตามด้วยไฟล์ PDF และรูปภาพรายฉบับ (เลือกหน้าภาพเหมือนกันทุกฉบับ)</p>
       <input id="tgmanual-search" class="input w-full mb-2" placeholder="ค้นหาเลขรับ / เรื่อง / ผู้ส่ง">
       <div id="tgmanual-doc" class="wmk-tg-checklist mb-3" role="group" aria-label="เลือกหนังสือหลายฉบับ"></div><p class="text-sm mb-2">ติ๊กเลือกเอกสาร • เลือกแล้ว <span id="tgmanual-count">0</span> ฉบับ • สูงสุด 10 ฉบับต่อครั้ง</p>
       <div id="tgmanual-info" class="mb-3 text-sm"></div>
       <label class="block mb-2">หน้า PDF ที่ต้องการส่งเป็นภาพ (เช่น 1 หรือ 1,2,3 หรือ 2-4; สูงสุด 5 หน้า)
         <input id="tgmanual-pages" class="input w-full" value="1" placeholder="1,2,3">
       </label>
-      <label class="flex gap-2 items-center mb-3"><input id="tgmanual-pdf" type="checkbox" checked> แนบไฟล์ PDF ฉบับเต็ม</label>
+      <p class="text-sm mb-3">📎 ระบบจะแนบ PDF ฉบับเต็มโดยอัตโนมัติทุกครั้ง</p>
       <label class="block mb-2">ข้อความปิดท้าย (ใช้เหมือนกันทุกฉบับ)
         <textarea id="tgmanual-message" class="input w-full" rows="4" maxlength="1500"></textarea>
       </label>
@@ -2207,10 +2207,10 @@
       try {
         if(!originalIds.length) throw new Error('กรุณาเลือกหนังสือ');
         if(originalIds.length>10) throw new Error('เลือกได้ไม่เกิน 10 ฉบับต่อครั้ง');
-        const attachPdf=$('tgmanual-pdf').checked;
-        if(!attachPdf&&!$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกหน้าภาพ');
+        const attachPdf=true;
+        if(!$('tgmanual-pages').value.trim()) throw new Error('กรุณาเลือกหน้าภาพ');
         if(!$('tgmanual-message').value.trim()) $('tgmanual-message').value='กรุณาตรวจสอบเอกสารด้วยครับ 🙏';
-        const ok=await Swal.fire({title:'ยืนยันส่งหนังสือ '+originalIds.length+' ฉบับ?',text:'ระบบจะส่งแยกข้อความและภาพสำหรับหนังสือแต่ละฉบับ โปรดตรวจสอบชั้นความลับและข้อมูลส่วนบุคคลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
+        const ok=await Swal.fire({title:'ยืนยันส่งหนังสือ '+originalIds.length+' ฉบับ?',text:'ระบบจะส่งข้อความพร้อมปุ่มเปิด Web App ตามด้วย PDF และรูปภาพ โปรดตรวจสอบชั้นความลับและข้อมูลส่วนบุคคลก่อนส่ง',icon:'warning',showCancelButton:true,confirmButtonText:'ยืนยันส่ง',cancelButtonText:'ยกเลิก'});
         if(!ok.isConfirmed) return;
         sendBtn.disabled=true;
         const completed=[];const failed=[];
@@ -2396,7 +2396,7 @@
     $('tgmanual-send-selected').onclick=async()=>{
       const ids=[...selected];
       if(!ids.length) return;
-      const confirmation=await Swal.fire({title:`ส่ง Telegram ${ids.length} ฉบับ?`,text:'ส่งข้อความพร้อมภาพหน้าที่เลือกและไฟล์ PDF ฉบับเต็ม ตรวจสอบข้อมูลก่อนส่ง',icon:'question',showCancelButton:true,confirmButtonText:'ส่งแจ้งเตือน',cancelButtonText:'ยกเลิก'});
+      const confirmation=await Swal.fire({title:`ส่ง Telegram ${ids.length} ฉบับ?`,text:'ส่งข้อความพร้อมปุ่มเปิด Web App, PDF ฉบับเต็ม และภาพหน้าที่เลือก ตรวจสอบข้อมูลก่อนส่ง',icon:'question',showCancelButton:true,confirmButtonText:'ส่งแจ้งเตือน',cancelButtonText:'ยกเลิก'});
       if(!confirmation.isConfirmed) return;
       const button=$('tgmanual-send-selected');button.disabled=true;
       const succeeded=[],failed=[];
