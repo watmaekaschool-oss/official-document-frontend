@@ -3458,3 +3458,119 @@ html,body {scroll-behavior:auto}
 @media(max-width:940px){.app-shell main{grid-template-columns:1fr;gap:12px}.app-shell main > :not(.wmk-dashboard-sidebar),.app-shell main > .wmk-dashboard-sidebar{grid-column:1}.app-shell main > .wmk-dashboard-sidebar{grid-row:auto;position:static;min-height:0;order:0}.app-shell main > .wmk-welcome{order:1}.app-shell main > .wmk-overview{order:2}.app-shell main > .wmk-table-title{order:3}.app-shell main > .wmk-context-toolbar{order:4}.app-shell main > #calendar-active-filter{order:5}.app-shell main > .table-wrap{order:6}.app-shell main > #document-pagination{order:7}.app-shell .dashboard-tabs.wmk-tabs{flex-direction:row!important;flex-wrap:wrap;gap:4px!important}.app-shell .dashboard-tabs.wmk-tabs .tab-button{flex:0 1 auto!important}.wmk-sidebar-footer{display:none}}
 @media(max-width:640px){.app-shell .topbar > div{padding:10px 12px!important}.app-shell .brand-title-main{font-size:.95rem!important}.app-shell .topbar .wmk-school-shortcuts{width:100%;display:grid;grid-template-columns:1fr 1fr}.app-shell .topbar .wmk-school-shortcut{min-width:0;padding:6px}.app-shell main{padding:12px!important}.app-shell .wmk-welcome{padding:18px!important;display:flex;flex-direction:column;gap:12px}.app-shell .wmk-welcome strong{font-size:1.18rem!important}.app-shell .wmk-calendar{align-self:stretch;text-align:left;padding:9px!important}.wmk-overview{gap:9px}.wmk-overview-card{gap:7px;padding:12px 9px}.wmk-overview-icon{width:32px;height:32px;font-size:1.2rem}.wmk-overview-copy small{font-size:.65rem}.wmk-overview-copy strong{font-size:1.27rem}.wmk-overview-arrow{display:none}.wmk-table-title{align-items:flex-start;flex-wrap:wrap}.app-shell .wmk-context-toolbar{padding:10px}.app-shell .wmk-context-toolbar > div{width:100%}.app-shell .wmk-context-toolbar input{width:100%;flex:1}.app-shell .data-table{min-width:780px}}
 @media(prefers-reduced-motion:reduce){.app-shell *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* ==================================================================
+ WMK Saraban v.3.0.0 | Red · Gold · White UI layer
+ Styling overrides only: preserves document workflow and API semantics.
+ ================================================================== */
+:root{--wmk-red:#b42332;--wmk-red-dark:#861b2a;--wmk-gold:#d4a336;--wmk-gold-light:#fff3d8;--wmk-line:#eadbcf;--wmk-ink:#402631;--wmk-bg:#fffaf5}
+body,.app-shell{background:#fffaf5!important;color:var(--wmk-ink)}
+.app-shell .topbar{background:#fff!important;border-bottom:1px solid #f0e1d2!important;box-shadow:0 3px 20px rgba(112,38,39,.055)!important}
+.app-shell .brand-title-main{color:var(--wmk-red-dark)!important}
+.app-shell .topbar .wmk-school-shortcut{background:#fff8ef!important;border:1px solid #f2dec1!important;color:var(--wmk-red-dark)!important}
+.app-shell .topbar .wmk-school-shortcut:hover{background:#fff0d7!important}
+.app-shell .topbar .wmk-school-shortcut-copy small{color:#92664d!important}
+.app-shell .topbar .wmk-school-shortcut-icon,.app-shell .topbar .wmk-school-shortcut-arrow{color:var(--wmk-red)!important}
+.app-shell .topbar #download-center-btn{background:#fff4dc!important;color:var(--wmk-red-dark)!important;border-color:#f0d39f!important}
+.app-shell .topbar .settings-gear-btn,.app-shell .topbar .header-guide-btn{color:var(--wmk-red-dark)!important}
+.app-shell .topbar .text-amber-100{color:#7a6464!important}
+.app-shell .wmk-dashboard-sidebar{border-color:#f1e2d8!important;box-shadow:0 8px 25px rgba(107,37,43,.05)!important}
+.wmk-sidebar-user{background:#fff5e7!important}
+.wmk-sidebar-avatar{color:#8d1e2c!important;background:#ffe4ba!important}
+.wmk-sidebar-user strong{color:var(--wmk-red-dark)!important}
+.wmk-sidebar-home{background:var(--wmk-red)!important}
+.wmk-sidebar-home:hover{background:var(--wmk-red-dark)!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button{color:#734b55!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button:hover{background:#fff1df!important;color:#9e2632!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button.active{background:#fff0d9!important;color:#aa2131!important}
+.wmk-sidebar-section-title{color:#ae8a76!important}
+.wmk-sidebar-footer{border-color:#f1e4d9!important;color:#967567!important}
+.wmk-sidebar-tool{background:transparent;color:#734b55;border:0;border-radius:12px;padding:12px 13px;text-align:left;font-weight:750;font-size:.82rem;display:flex;gap:13px;align-items:center;width:100%;cursor:pointer}
+.wmk-sidebar-tool:hover{background:#fff0d9;color:var(--wmk-red-dark)}
+.app-shell .wmk-welcome{background:linear-gradient(110deg,#fff9f0 0%,#fff0dd 62%,#f8dbac 100%)!important;border-color:#f1d8b7!important;color:var(--wmk-red-dark)!important}
+.app-shell .wmk-welcome strong{color:#812532!important}
+.app-shell .wmk-welcome-small,.app-shell .wmk-welcome-copy>div:last-child{color:#946344!important}
+.app-shell .wmk-calendar{color:var(--wmk-red-dark)!important}
+.app-shell .wmk-overview-card{border-color:#f2e1d1!important}
+.app-shell .wmk-stat-action{background:#fff1e6!important}
+.app-shell .wmk-stat-inbox{background:#fff5db!important}
+.app-shell .wmk-stat-all{background:#ffedf0!important}
+.app-shell .wmk-stat-ack{background:#fff4dd!important}
+.app-shell .wmk-stat-action .wmk-overview-icon{background:#b82336!important}
+.app-shell .wmk-stat-inbox .wmk-overview-icon{background:#c58e23!important}
+.app-shell .wmk-stat-all .wmk-overview-icon{background:#9e4651!important}
+.app-shell .wmk-stat-ack .wmk-overview-icon{background:#dba93f!important}
+.app-shell .wmk-overview-copy strong,.app-shell .wmk-table-title h2{color:#7f2531!important}
+.app-shell .wmk-overview-copy small{color:#754d52!important}
+.app-shell .wmk-context-toolbar,.app-shell .table-wrap{border-color:#f0e0d6!important;box-shadow:0 5px 20px rgba(103,41,35,.045)!important}
+.app-shell .data-table{min-width:730px}
+.app-shell .data-table thead{background:#fff1d8!important}
+.app-shell .data-table th{color:#874333!important}
+.app-shell .data-table td{border-color:#f4e9df!important;vertical-align:top}
+.app-shell .data-table tbody tr:hover{background:#fffbf4!important}
+.app-shell #document-pagination{color:#82313c}
+.app-shell button:focus-visible,.app-shell a:focus-visible{outline:3px solid #dca546!important;outline-offset:2px}
+.wmk-paper-counter{border:1px solid #d5e8ce;border-radius:12px;background:#f0f9ed;color:#2a7240;display:inline-flex;align-items:center;gap:6px;padding:10px 12px;font-weight:750;font-size:.78rem;cursor:pointer;white-space:nowrap}
+.wmk-paper-counter:hover{background:#e6f5e4}
+.wmk-paper-detail{text-align:left;line-height:1.6}.wmk-paper-detail strong{display:block;text-align:center;font-size:2rem;color:#24804c}.wmk-paper-detail p{margin:10px 0}.wmk-paper-detail small{color:#6b727b}
+/* Settings, attachment, upload, document workspace: visual design only */
+.settings-backdrop .settings-shell{border-radius:22px!important;overflow:hidden!important;box-shadow:0 26px 90px rgba(80,24,29,.17)!important}
+.settings-backdrop .settings-sidebar{background:linear-gradient(180deg,#fff4e7,#fffaf6)!important}
+.settings-backdrop .settings-content{background:#fffefb!important}
+.settings-backdrop .settings-sidebar nav button.active{background:#ffebca!important;color:#9d2530!important}
+.settings-backdrop .settings-sidebar nav button:hover{background:#fff2e0!important}
+.modal-panel,.wmk-v10-panel,.download-manager-panel{border:1px solid #f0dbca!important;box-shadow:0 24px 64px rgba(102,38,45,.14)!important}
+.upload-single-window-panel{max-height:min(92dvh,960px);overflow-y:auto;overscroll-behavior:contain}
+.wmk-upload-list-hint{color:#85685e;font-size:.77rem;padding:7px 1px}
+.wmk-upload-scroll-list{max-height:min(37dvh,340px);min-height:55px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;border:1px solid #f0dcbf;border-radius:12px;padding:7px;background:#fffdf9}
+.upload-single-window-panel .upload-two-actions{position:sticky;bottom:-1px;background:#fffdfa;padding:12px 6px;border-top:1px solid #efd8c6;z-index:5}
+.selected-file-card{border-color:#f1d7bb!important}
+.selected-file-card.expanded{outline:2px solid #e5b253!important}
+.download-manager-panel{width:min(1060px,calc(100vw - 20px));max-height:95dvh}
+.download-date-list{overflow-y:auto;min-height:150px;scrollbar-gutter:stable}
+.download-document-row{display:flex!important;align-items:center!important;min-height:52px!important;gap:10px!important;cursor:pointer}
+.download-document-row input[type="checkbox"]{accent-color:#b92334!important;width:18px!important;height:18px!important;flex-shrink:0;opacity:1!important;position:static!important;appearance:auto!important}
+.download-document-row .download-check-visual{display:none!important}
+.download-document-row.is-selected{background:#fff4e0!important;border-color:#e4bc7b!important}
+.wmk-download-progress{background:#fff8ec;border:1px solid #efd6aa;border-radius:12px;padding:14px;margin:10px 0}
+.wmk-download-progress .progress-bar{background:linear-gradient(90deg,#b42232,#e9ad3b)!important;transition:width .2s ease}
+.wmk-notification-mode .wmk-v10-inline{grid-column:2!important;width:100%;margin:0!important;align-self:start}
+.wmk-notification-mode .wmk-table-title{grid-column:2}
+.wmk-notification-mode .wmk-v10-inline .wmk-v10-panel{padding:clamp(12px,2vw,24px)!important;background:#fff!important}
+.wmk-notification-mode .wmk-v10-docs{max-height:min(55vh,550px)!important;overflow-y:auto!important;min-height:180px}
+.wmk-notification-mode .wmk-v10-blue{background:#b82335!important}
+.wmk-v10-green{background:#238656!important}
+/* shared WMK ring, no other loading text */
+.wmk-loading-popup{width:min(280px,85vw)!important;background:#fffefb!important;border-radius:22px!important;padding:30px!important}
+.wmk-loading-ring{height:134px;width:134px;position:relative;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.wmk-loading-ring:before{content:"";position:absolute;inset:0;border-radius:50%;border:7px solid #f3e3d3;border-top-color:#b82333;border-right-color:#e7ac36;animation:wmk-ring-spin .85s linear infinite}
+.wmk-loading-ring span{font-size:31px;font-weight:900;letter-spacing:.04em;background:linear-gradient(180deg,#b82333,#efc14e);-webkit-background-clip:text;background-clip:text;color:transparent}
+@keyframes wmk-ring-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.wmk-loading-ring:before{animation-duration:3s}.wmk-download-progress .progress-bar{transition:none}}
+/* Small screens: no hidden primary action or sidebar overlay */
+@media(max-width:940px){.wmk-notification-mode .wmk-v10-inline,.wmk-notification-mode .wmk-table-title{grid-column:1!important}.app-shell .wmk-dashboard-sidebar{min-height:0!important}}
+@media(max-width:680px){.app-shell .topbar .flex.items-center.gap-3{flex-wrap:wrap}.wmk-paper-counter{font-size:.7rem;padding:8px}.download-manager-footer{flex-wrap:wrap;gap:10px}.download-manager-footer button{width:100%}.upload-single-window-panel{max-height:96dvh}.wmk-upload-scroll-list{max-height:32dvh}}
+/* v.3.0.0 fine-grained panels and compact document actions */
+.app-shell .data-table td:last-child{min-width:238px;width:255px}
+.app-shell .data-table td:last-child>div{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important;align-items:start}
+.app-shell .data-table td:last-child .btn{font-size:.72rem!important;min-height:34px;line-height:1.3;padding:6px 7px;white-space:normal;overflow-wrap:anywhere}
+.app-shell .data-table td:last-child .attachment-btn{grid-column:1/-1}
+.app-shell .data-table td:last-child .view-doc-btn{background:#fff4e7!important;color:#8e2631!important;border:1px solid #f0d5b2!important}
+.app-shell .data-table td:last-child .action-doc-btn{background:#b82334!important;color:#fff!important}
+.app-shell .data-table td:last-child .acknowledge-btn{background:#25864f!important;color:#fff!important}
+.app-shell .data-table td:last-child .attachment-btn{background:#fff6e8!important;color:#a34930!important;border:1px solid #edcaa2!important}
+.main-document-row{border-color:#edc68f!important;background:linear-gradient(135deg,#fff7e9,#fff)!important}
+.main-document-icon{background:#ffe8c5!important}
+.attachment-file-icon{background:#f8ecd9!important}
+.main-document-row:hover,.attachment-file-row:hover{border-color:#d4a336!important}
+.attachment-download-label{color:#9c2e36!important;background:#fff0dc!important}
+.merge-pdf-section{border-color:#ecc992!important;background:linear-gradient(160deg,#fff7e8,#fffdfa)!important}
+.merge-section-heading h3,.attachment-list-section h3,.attachment-upload-section h3{color:#9b2734!important}
+.workspace{background:#393031!important}
+.workspace-toolbar{background:linear-gradient(110deg,#861b2a,#b42332 75%,#c68b2c)!important;box-shadow:0 4px 20px rgba(30,0,0,.25)}
+.workspace-toolbar .btn{border-radius:10px!important;min-height:38px}
+.workspace .pdf-scroll-area{background:radial-gradient(ellipse at top,#625b54,#3e3938)!important}
+.workspace .pdf-stage-wrap{margin-inline:auto}
+.wmk-notification-mode .wmk-welcome,.wmk-notification-mode .wmk-overview,.wmk-notification-mode .wmk-context-toolbar,.wmk-notification-mode .table-wrap,.wmk-notification-mode #document-pagination,.wmk-notification-mode #calendar-active-filter{display:none!important}
+.wmk-notification-mode .wmk-table-title{grid-row:1!important}
+.wmk-notification-mode .wmk-v10-inline{grid-row:2!important}
+@media(max-width:940px){.wmk-notification-mode .wmk-table-title{grid-row:auto!important}.wmk-notification-mode .wmk-v10-inline{grid-row:auto!important}}
