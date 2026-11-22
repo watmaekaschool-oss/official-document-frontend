@@ -3574,3 +3574,215 @@ body,.app-shell{background:#fffaf5!important;color:var(--wmk-ink)}
 .wmk-notification-mode .wmk-table-title{grid-row:1!important}
 .wmk-notification-mode .wmk-v10-inline{grid-row:2!important}
 @media(max-width:940px){.wmk-notification-mode .wmk-table-title{grid-row:auto!important}.wmk-notification-mode .wmk-v10-inline{grid-row:auto!important}}
+
+/* ===== WMK Saraban v.3.0.1: one shared red / gold / white design system ===== */
+:root, html[data-theme-preset="wmk-red-gold"] {
+  color-scheme: light;
+  --wmk-red:#B91C2B; --wmk-red-dark:#891E2B; --wmk-gold:#D9A83C;
+  --wmk-gold-soft:#FFF3D8; --wmk-ivory:#FFFCF8; --wmk-ink:#2A2730;
+  --wmk-outline:#F0DDC8;
+  --app-primary:#B91C2B; --app-primary-dark:#891E2B;
+  --app-primary-soft:#FFF0E8; --app-secondary:#D9A83C;
+  --app-secondary-dark:#A26D16; --app-secondary-soft:#FFF3D8;
+}
+html[data-theme-preset="wmk-red-gold"] body,
+html[data-theme-preset="wmk-red-gold"] .app-shell {
+  background:#FFFBF6; color:var(--wmk-ink);
+}
+.app-shell .wmk-welcome {
+  border-color:var(--wmk-outline)!important;
+  background:linear-gradient(108deg,#FFFAF2,#FFECD7 60%,#F7D8AF)!important;
+  color:#6A2630!important;
+}
+.app-shell .wmk-welcome strong { color:#862331!important }
+.app-shell .wmk-welcome-small { color:#9A4B32!important }
+.app-shell .wmk-welcome-copy > div:last-child { color:#7B544B!important }
+.app-shell .wmk-calendar { color:#882831!important; border-color:#F2DECC!important }
+.app-shell .wmk-dashboard-sidebar { background:#fff!important; border-color:#F0E1D2!important }
+.app-shell .wmk-sidebar-section-title { color:#A16B3D!important }
+.app-shell .wmk-overview-card { border-color:#F0DFC9!important; color:#612D30!important }
+.app-shell .wmk-stat-action { background:#FFF1E8!important }
+.app-shell .wmk-stat-inbox { background:#FFF3D9!important }
+.app-shell .wmk-stat-all { background:#FFF0F2!important }
+.app-shell .wmk-stat-ack { background:#FFF4DE!important }
+.app-shell .wmk-overview-icon { background:#B91C2B!important }
+.app-shell .wmk-stat-inbox .wmk-overview-icon { background:#C8881D!important }
+.app-shell .wmk-stat-all .wmk-overview-icon { background:#A24450!important }
+.app-shell .wmk-stat-ack .wmk-overview-icon { background:#D9A83C!important }
+.app-shell .wmk-overview-copy small,
+.app-shell .wmk-overview-copy strong { color:#762532!important }
+.app-shell .wmk-context-toolbar,
+.app-shell .table-wrap { border-color:#F0DDC8!important; box-shadow:0 7px 24px rgba(100,41,27,.045)!important }
+.app-shell .wmk-table-title h2 { color:#862733!important }
+.app-shell .data-table { min-width:0; width:100%; table-layout:fixed }
+.app-shell .data-table thead { background:#FFF0D7!important }
+.app-shell .data-table th { color:#73342F!important; letter-spacing:.02em }
+.app-shell .data-table td { color:#342E2D; padding:13px 12px; vertical-align:top; border-bottom-color:#F4E6D8!important }
+.app-shell .data-table th:nth-child(1) { width:12% }
+.app-shell .data-table th:nth-child(2) { width:13% }
+.app-shell .data-table th:nth-child(3) { width:34% }
+.app-shell .data-table th:nth-child(4) { width:22% }
+.app-shell .data-table th:nth-child(5) { width:19% }
+.app-shell .data-table .wmk-document-subject { overflow-wrap:anywhere; line-height:1.5 }
+.app-shell .data-table .wmk-document-actions-cell { min-width:0 }
+.wmk-document-actions { display:flex; flex-wrap:wrap; align-items:start; gap:7px }
+.wmk-document-actions > .btn { max-width:100%; min-height:34px; font-size:.77rem; padding:7px 10px; border-radius:10px; overflow-wrap:anywhere; line-height:1.3 }
+.app-shell .data-table tbody tr:hover { background:#FFFCF6!important }
+.app-shell :is(.data-table,.wmk-overview,.wmk-dashboard-sidebar) button:focus-visible { outline:3px solid #D9A83C!important; outline-offset:2px }
+/* Every role uses the same document list components; only buttons/record permissions vary. */
+@media(max-width:1160px) and (min-width:701px){
+  .app-shell .data-table th:nth-child(1){width:14%}
+  .app-shell .data-table th:nth-child(2){width:12%}
+  .app-shell .data-table th:nth-child(3){width:30%}
+  .app-shell .data-table th:nth-child(4){width:21%}
+  .app-shell .data-table th:nth-child(5){width:23%}
+}
+@media(max-width:700px){
+  .app-shell .table-wrap{overflow-x:visible!important}
+  .app-shell .data-table{display:block;min-width:0!important;width:100%}
+  .app-shell .data-table thead{display:none}
+  .app-shell .data-table tbody{display:grid;gap:10px;padding:10px}
+  .app-shell .data-table tbody tr.wmk-document-row{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px;background:#fff;border:1px solid #F0DECD;border-radius:14px;padding:12px}
+  .app-shell .data-table tbody tr.wmk-document-row td{display:block;padding:0;border:0;min-width:0;white-space:normal;overflow-wrap:anywhere}
+  .app-shell .data-table tbody tr.wmk-document-row td::before{display:block;font-size:.68rem;font-weight:700;color:#996F55;margin-bottom:4px}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(1)::before{content:'เลขรับ'}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(2)::before{content:'จาก'}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(3)::before{content:'เรื่อง'}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(4)::before{content:'สถานะ'}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(5)::before{content:'การจัดการ'}
+  .app-shell .data-table tbody tr.wmk-document-row td:nth-child(n+3){grid-column:1/-1}
+  .app-shell .data-table tbody tr.wmk-document-row td .wmk-document-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .app-shell .data-table tbody tr.wmk-document-row td .btn{width:100%}
+}
+
+/* Full-viewport Settings Center, not a constrained legacy popup. */
+.settings-backdrop.wmk-settings-page{
+  position:fixed!important;inset:0!important;z-index:180!important;
+  padding:0!important;overflow:hidden!important;background:#FFFBF6!important;
+  display:flex!important;align-items:stretch!important;justify-content:center!important;
+}
+.settings-backdrop.wmk-settings-page .settings-shell{
+  display:grid!important;grid-template-columns:minmax(236px,290px) minmax(0,1fr)!important;
+  width:100%!important;height:100dvh!important;max-height:100dvh!important;
+  margin:0!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;animation:none!important;overflow:hidden!important;
+}
+.settings-backdrop.wmk-settings-page .settings-sidebar{
+  min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  background:linear-gradient(180deg,#FFF1E4,#FFFCF8)!important;
+  border-right:1px solid #F0DBBE!important;padding:22px 15px!important;
+}
+.settings-backdrop.wmk-settings-page .settings-sidebar-head h2{color:#852630!important}
+.settings-backdrop.wmk-settings-page .settings-sidebar nav{gap:4px}
+.settings-backdrop.wmk-settings-page .settings-nav-item{border-radius:12px;min-height:52px}
+.settings-backdrop.wmk-settings-page .settings-nav-item.active{background:#FFEDCC!important;border-color:#E6B75D!important}
+.settings-backdrop.wmk-settings-page .settings-content{
+  background:#FFFCF8!important;min-height:0;overflow-y:auto!important;overscroll-behavior:contain;
+  padding:clamp(18px,3vw,44px)!important;
+}
+.settings-backdrop.wmk-settings-page .settings-content-section{max-width:1120px;margin:0 auto;}
+.settings-backdrop.wmk-settings-page .settings-content-section h2{color:#952A35;font-size:clamp(1.25rem,2.5vw,1.6rem)}
+.settings-backdrop.wmk-settings-page .settings-info-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.settings-backdrop.wmk-settings-page .settings-info-grid>div,
+.settings-backdrop.wmk-settings-page .settings-summary-card{border-color:#F0DDC6;box-shadow:0 5px 15px rgba(118,45,24,.03)}
+.wmk-settings-nav-group{font-size:.73rem;font-weight:800;color:#9C6A42;letter-spacing:.03em;padding:16px 10px 6px}
+.settings-backdrop.wmk-settings-page button:focus-visible,
+.settings-backdrop.wmk-settings-page input:focus-visible{outline:3px solid #D9A83C;outline-offset:2px}
+@media(max-width:760px){
+  .settings-backdrop.wmk-settings-page .settings-shell{
+    grid-template-columns:1fr!important;grid-template-rows:auto minmax(0,1fr)!important;
+  }
+  .settings-backdrop.wmk-settings-page .settings-sidebar{max-height:35dvh;min-height:0;padding:10px!important;border-right:0!important;border-bottom:1px solid #F0DBBE!important;overflow-y:auto!important}
+  .settings-backdrop.wmk-settings-page .settings-sidebar-head{margin-bottom:4px}
+  .settings-backdrop.wmk-settings-page .settings-sidebar nav{display:flex;flex-direction:row;flex-wrap:wrap;gap:5px}
+  .settings-backdrop.wmk-settings-page .settings-nav-item{display:flex;flex:0 1 auto;width:auto;min-height:44px;padding:7px 10px}
+  .settings-backdrop.wmk-settings-page .settings-nav-item small{display:none}
+  .settings-backdrop.wmk-settings-page .settings-nav-item .settings-nav-icon{font-size:1.1rem}
+  .settings-backdrop.wmk-settings-page .settings-close-bottom{display:none}
+  .settings-backdrop.wmk-settings-page .wmk-settings-nav-group{flex:1 1 100%;padding:10px 4px 0}
+  .settings-backdrop.wmk-settings-page .settings-content{min-height:0;padding:16px!important}
+}
+@media(max-width:540px){
+  .settings-backdrop.wmk-settings-page .settings-info-grid{grid-template-columns:1fr}
+  .settings-backdrop.wmk-settings-page .settings-sidebar{max-height:30dvh}
+}
+
+/* The Telegram manager is a real content section, scrolls inside its list. */
+.wmk-notification-mode .wmk-v10-inline{grid-column:2!important;grid-row:2!important;min-width:0;max-width:100%;margin:0!important}
+.wmk-notification-mode .wmk-v10-inline .wmk-v10-panel{background:#fff!important;border-color:#EAD2B3!important;padding:clamp(12px,2.5vw,26px)!important}
+.wmk-notification-mode .wmk-v10-docs{max-height:min(58dvh,610px)!important;min-height:160px;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable}
+.wmk-notification-mode .wmk-v10-period button{padding:8px 13px}
+.wmk-notification-mode .wmk-v10-doc{grid-template-columns:22px minmax(100px,150px) minmax(0,1fr);gap:10px}
+.wmk-notification-mode .wmk-v10-manage{border-color:#F0D9B5}
+@media(max-width:940px){.wmk-notification-mode .wmk-v10-inline{grid-column:1!important;grid-row:auto!important}}
+@media(max-width:650px){.wmk-notification-mode .wmk-v10-doc{grid-template-columns:22px 1fr}.wmk-notification-mode .wmk-v10-subject{grid-column:2}}
+
+/* Download Center: bounded dialog with a real, independently scrollable document list. */
+.download-manager-backdrop{position:fixed!important;inset:0!important;display:flex!important;justify-content:center!important;align-items:center!important;padding:12px!important;overscroll-behavior:contain}
+.download-manager-backdrop .download-manager-panel{
+  display:flex!important;flex-direction:column!important;width:min(1110px,100%)!important;
+  max-height:calc(100dvh - 24px)!important;height:min(810px,calc(100dvh - 24px))!important;
+  min-height:0!important;overflow:hidden!important;background:#fff!important;
+  border:1px solid #EDD3B5!important;border-radius:19px!important;
+}
+.download-manager-panel .download-manager-heading,
+.download-manager-panel .download-period-tabs,
+.download-manager-panel .download-filter-panel,
+.download-manager-panel .download-selection-toolbar,
+.download-manager-panel .download-manager-footer{flex:0 0 auto;min-width:0}
+.download-manager-panel .download-manager-heading{padding:16px 20px 12px;background:#FFFBF7}
+.download-manager-panel .download-manager-heading h2{color:#872934}
+.download-manager-panel .download-date-list{
+  display:grid!important;flex:1 1 auto!important;min-height:0!important;
+  max-height:none!important;overflow-y:auto!important;overscroll-behavior:contain;
+  scrollbar-gutter:stable;align-content:start;padding:12px 18px!important;
+  background:#FFFCF8;
+}
+.download-manager-panel .download-date-group{border-color:#EBD9C8;background:#fff}
+.download-manager-panel .download-date-group > header{background:#FFF2DB}
+.download-manager-panel .download-document-row{display:grid!important;grid-template-columns:22px minmax(0,1fr) auto!important;gap:12px;cursor:pointer}
+.download-manager-panel .download-document-row input.download-check{
+  position:static!important;opacity:1!important;pointer-events:auto!important;appearance:auto!important;
+  width:18px!important;height:18px!important;accent-color:#B91C2B;margin:0;cursor:pointer;
+}
+.download-manager-panel .download-document-row .download-check-visual{display:none!important}
+.download-manager-panel .download-document-info{min-width:0;overflow-wrap:anywhere}
+.download-manager-panel .download-document-info b{white-space:normal;overflow-wrap:anywhere}
+.download-manager-panel .download-document-info small{display:block;font-size:.74rem;color:#8B7163;margin-top:3px}
+.download-manager-panel .download-selection-toolbar{background:#FFF9EF}
+.download-manager-panel .download-manager-footer{background:#fff;padding:12px 20px;border-top-color:#EBD8C3}
+.download-manager-panel .wmk-download-progress{padding:10px 20px;background:#FFF7EA;margin:0!important}
+.wmk-paper-progress{width:100%;height:9px;border-radius:999px;overflow:hidden;background:#F4E7D5;margin:13px 0}
+.wmk-paper-progress>span{display:block;height:100%;background:linear-gradient(90deg,#B91C2B,#D9A83C);border-radius:inherit}
+@media(max-width:620px){
+  .download-manager-backdrop{padding:0!important}
+  .download-manager-backdrop .download-manager-panel{width:100%!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important}
+  .download-manager-panel .download-filter-panel{padding:8px 12px;max-height:30dvh;overflow-y:auto;min-height:0}
+  .download-manager-panel .download-period-tabs{padding:10px 12px 0}
+  .download-manager-panel .download-date-list{padding:9px 10px!important}
+  .download-manager-panel .download-selection-toolbar{padding:8px 12px}
+  .download-manager-panel .download-manager-footer{padding:10px 12px}
+  .download-manager-panel .download-document-row{display:grid!important;grid-template-columns:22px 1fr!important}
+  .download-manager-panel .download-pdf-badge{display:none}
+}
+
+/* Long upload lists stay in their panel and do not hide submit controls. */
+.wmk-upload-scroll-list{max-height:min(32dvh,320px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;scrollbar-gutter:stable}
+.upload-single-window-panel .upload-two-actions{position:sticky!important;bottom:0!important;background:#FFFCF8!important;z-index:15}
+@media(prefers-reduced-motion:reduce){
+  .app-shell *, .settings-backdrop *, .download-manager-backdrop *{scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
+
+/* Shared empty state for every document role/table. */
+.wmk-empty-document-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:160px;color:#8E7165;text-align:center;padding:28px 16px}
+.wmk-empty-document-state>span{font-size:2.1rem;line-height:1}
+.wmk-empty-document-state>strong{font-size:1rem;color:#84303A}
+.wmk-empty-document-state>small{font-size:.82rem;color:#A08277}
+@media(max-width:700px){.app-shell .data-table tbody tr.wmk-empty-row{display:block}.app-shell .data-table tbody tr.wmk-empty-row td{display:block;border:0}}
+
+.wmk-notification-mode .wmk-v10-empty{min-height:178px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;color:#8F716B}
+.wmk-notification-mode .wmk-v10-empty b{color:#A52B37;font-size:1rem}
+.wmk-notification-mode .wmk-v10-empty p{font-size:.84rem}
+
+/* Confirmation/error dialogs must stay above full-screen Settings, PDF and download windows. */
+body .swal2-container { z-index:1000000!important; }
