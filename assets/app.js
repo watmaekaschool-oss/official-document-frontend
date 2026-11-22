@@ -1,32 +1,17 @@
-/* WMK_UI_RELEASE: v.3.0.0 — Red & Gold, document workflow preserved */
+/* WMK_UI_RELEASE: v.3.0.1 — Red & Gold, document workflow preserved */
 (() => {
   'use strict';
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'v.3.0.0';
+  const FRONTEND_BUILD_VERSION = 'v.3.0.1';
 
-  const THEME_PRESETS = {
-    formal: { name: 'ทางการ', description: 'แดงเข้มและทอง เหมาะกับงานราชการ', primary: '#b91c1c', secondary: '#f59e0b' },
-    comfort: { name: 'สบายตา', description: 'เขียวหม่นและครีม ใช้งานนานไม่ล้าตา', primary: '#3f7d6b', secondary: '#e8c97a' },
-    ocean: { name: 'สดใส', description: 'ฟ้าและเหลือง ให้ความรู้สึกกระฉับกระเฉง', primary: '#2563eb', secondary: '#fbbf24' },
-    warm: { name: 'อบอุ่น', description: 'ส้มอิฐและทราย เป็นมิตรและอ่านง่าย', primary: '#c65d2e', secondary: '#f1c27d' },
-    elegant: { name: 'เรียบหรู', description: 'กรมท่าและม่วงอ่อน สุภาพทันสมัย', primary: '#1e3a5f', secondary: '#a78bfa' },
-    dark: { name: 'กลางคืน', description: 'เทาเข้มและม่วง ลดแสงจ้าในที่มืด', primary: '#1f2937', secondary: '#8b5cf6' },
-  };
-
-  const DEFAULT_DISPLAY_SETTINGS = {
-    preset: 'formal',
-    primary: THEME_PRESETS.formal.primary,
-    secondary: THEME_PRESETS.formal.secondary,
-    fontScale: 1,
-    reducedMotion: false,
-    highContrast: false,
-    backgroundEnabled: false,
-    backgroundUrl: '',
-    backgroundOpacity: 0.12,
-    pageSize: 25,
-  };
+  // v3.0.1: One fixed, accessible school-wide theme. Old local color choices are deliberately ignored.
+  const DEFAULT_DISPLAY_SETTINGS = Object.freeze({
+    preset: 'wmk-red-gold', primary: '#B91C2B', secondary: '#D9A83C',
+    fontScale: 1, reducedMotion: false, highContrast: false,
+    backgroundEnabled: false, backgroundUrl: '', backgroundOpacity: 0, pageSize: 25,
+  });
 
 
 
@@ -87,6 +72,16 @@
     rememberQuickPdf_(docId, result);
     markOpenedLater();
     return result;
+  }
+
+  const wmkRecordedPageCounts_ = new Set();
+  function recordExactPageCount_(docId, count) {
+    if (!docId || !Number.isInteger(Number(count)) || Number(count) < 1) return;
+    const key = `${docId}:${Number(count)}`;
+    if (wmkRecordedPageCounts_.has(key)) return;
+    wmkRecordedPageCounts_.add(key);
+    gasCall('wmkRecordPdfPageCount', state.token, docId, Number(count))
+      .catch(() => wmkRecordedPageCounts_.delete(key));
   }
 
   function base64PdfToBlobUrl_(base64) {
@@ -358,74 +353,27 @@
     return 'ครู';
   }
 
-  function normalizeHexColor(value, fallback) {
-    const text = String(value || '').trim();
-    return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : fallback;
+  function loadDisplaySettings() {
+    // Do not read previous per-user theme settings; every role receives the same WMK theme.
+    return { ...DEFAULT_DISPLAY_SETTINGS };
   }
 
-  function mixHex(colorA, colorB, amount) {
-    const a = normalizeHexColor(colorA, '#000000').slice(1);
-    const b = normalizeHexColor(colorB, '#ffffff').slice(1);
-    const ratio = Math.max(0, Math.min(1, Number(amount) || 0));
-    const result = [0, 2, 4].map((index) => {
-      const start = parseInt(a.slice(index, index + 2), 16);
-      const end = parseInt(b.slice(index, index + 2), 16);
-      return Math.round(start + (end - start) * ratio).toString(16).padStart(2, '0');
-    }).join('');
-    return `#${result}`;
+  function applyDisplaySettings() {
+    const theme = { ...DEFAULT_DISPLAY_SETTINGS };
+    const style = document.documentElement.style;
+    style.setProperty('--app-primary', theme.primary);
+    style.setProperty('--app-primary-dark', '#891E2B');
+    style.setProperty('--app-primary-soft', '#FFF0E8');
+    style.setProperty('--app-secondary', theme.secondary);
+    style.setProperty('--app-secondary-dark', '#A26D16');
+    style.setProperty('--app-secondary-soft', '#FFF3D8');
+    style.fontSize = '16px';
+    document.documentElement.classList.remove('high-contrast', 'custom-app-background');
+    document.documentElement.dataset.themePreset = 'wmk-red-gold';
+    style.setProperty('--app-background-image', 'none');
+    style.setProperty('--app-background-opacity', '0');
+    state.displaySettings = theme;
   }
-
-  function displayStorageKey(username) {
-    const key = String(username || state.user?.username || 'guest').toLowerCase();
-    return `officialDocDisplaySettings:${key}`;
-  }
-
-  function loadDisplaySettings(username) {
-    let stored = null;
-    try {
-      stored = JSON.parse(localStorage.getItem(displayStorageKey(username)) || localStorage.getItem('officialDocDisplaySettings:last') || 'null');
-    } catch (_) {}
-    const merged = { ...DEFAULT_DISPLAY_SETTINGS, ...(stored || {}) };
-    merged.primary = normalizeHexColor(merged.primary, DEFAULT_DISPLAY_SETTINGS.primary);
-    merged.secondary = normalizeHexColor(merged.secondary, DEFAULT_DISPLAY_SETTINGS.secondary);
-    merged.fontScale = [0.9, 1, 1.15].includes(Number(merged.fontScale)) ? Number(merged.fontScale) : 1;
-    merged.reducedMotion = !!merged.reducedMotion;
-    merged.highContrast = !!merged.highContrast;
-    merged.backgroundEnabled = !!merged.backgroundEnabled;
-    merged.backgroundUrl = String(merged.backgroundUrl || '').trim();
-    merged.backgroundOpacity = Math.max(0, Math.min(0.45, Number(merged.backgroundOpacity ?? 0.12)));
-    merged.pageSize = [15, 25, 50, 100].includes(Number(merged.pageSize)) ? Number(merged.pageSize) : 25;
-    return merged;
-  }
-
-  function applyDisplaySettings(settings) {
-    const next = { ...DEFAULT_DISPLAY_SETTINGS, ...(settings || {}) };
-    next.primary = normalizeHexColor(next.primary, DEFAULT_DISPLAY_SETTINGS.primary);
-    next.secondary = normalizeHexColor(next.secondary, DEFAULT_DISPLAY_SETTINGS.secondary);
-    const rootStyle = document.documentElement.style;
-    rootStyle.setProperty('--app-primary', next.primary);
-    rootStyle.setProperty('--app-primary-dark', mixHex(next.primary, '#000000', .24));
-    rootStyle.setProperty('--app-primary-soft', mixHex(next.primary, '#ffffff', .88));
-    rootStyle.setProperty('--app-secondary', next.secondary);
-    rootStyle.setProperty('--app-secondary-dark', mixHex(next.secondary, '#000000', .22));
-    rootStyle.setProperty('--app-secondary-soft', mixHex(next.secondary, '#ffffff', .84));
-    rootStyle.fontSize = `${16 * Number(next.fontScale || 1)}px`;
-    document.documentElement.classList.toggle('reduced-motion', !!next.reducedMotion);
-    document.documentElement.classList.toggle('high-contrast', !!next.highContrast);
-    document.documentElement.classList.toggle('custom-app-background', !!next.backgroundEnabled && !!String(next.backgroundUrl || '').trim());
-    rootStyle.setProperty('--app-background-image', next.backgroundEnabled && next.backgroundUrl ? `url("${String(next.backgroundUrl).replace(/"/g, '%22')}")` : 'none');
-    rootStyle.setProperty('--app-background-opacity', String(Math.max(0, Math.min(0.45, Number(next.backgroundOpacity ?? 0.12)))));
-    document.documentElement.dataset.themePreset = next.preset || 'custom';
-    state.displaySettings = next;
-  }
-
-  function saveDisplaySettings(settings) {
-    const next = { ...DEFAULT_DISPLAY_SETTINGS, ...(settings || {}) };
-    localStorage.setItem(displayStorageKey(), JSON.stringify(next));
-    localStorage.setItem('officialDocDisplaySettings:last', JSON.stringify(next));
-    applyDisplaySettings(next);
-  }
-
 
   function mascotStorageKey(username) {
     const key = String(username || state.user?.username || 'guest').toLowerCase();
@@ -917,7 +865,7 @@
   window.addEventListener('pageshow', (event) => {
     if (event.persisted && state.user) syncDashboardSilently_(true);
   });
-  window.addEventListener('online', () => { if (state.user) syncDashboardSilently_(true); });
+  window.addEventListener('online', () => { if (state.user) { syncDashboardSilently_(true); refreshWmkPaperStats_(true); } });
   window.addEventListener('offline', () => updateDashboardSyncIndicator_('ออฟไลน์ • แสดงข้อมูลล่าสุดที่โหลดไว้', true));
 
   async function loadDashboard() {
@@ -956,6 +904,57 @@
   }
   setInterval(updateWmkClock_, 30000);
 
+  // Paper statistics are prepared server-side in small batches, never by blocking the dashboard.
+  let wmkPaperSummary_ = null;
+  let wmkPaperLastPoll_ = 0;
+  let wmkPaperLoading_ = false;
+  async function refreshWmkPaperStats_(force = false) {
+    const counter = document.getElementById('wmk-paper-count');
+    if (!state.token || !state.user || wmkPaperLoading_) return;
+    if (!force && Date.now() - wmkPaperLastPoll_ < 60000) {
+      if (counter && wmkPaperSummary_) counter.textContent = wmkPaperSummary_.complete ?
+        `${wmkPaperSummary_.totalPages.toLocaleString('th-TH')} หน้า` : `ตรวจแล้ว ${wmkPaperSummary_.scannedFiles}/${wmkPaperSummary_.totalFiles}`;
+      return;
+    }
+    wmkPaperLoading_ = true;
+    wmkPaperLastPoll_ = Date.now();
+    if (counter) counter.textContent = 'กำลังตรวจข้อมูล';
+    try {
+      wmkPaperSummary_ = await gasCall('wmkGetPaperStats', state.token);
+      if (counter && counter.isConnected) counter.textContent = wmkPaperSummary_.complete ?
+        `${wmkPaperSummary_.totalPages.toLocaleString('th-TH')} หน้า` : `ตรวจแล้ว ${wmkPaperSummary_.scannedFiles}/${wmkPaperSummary_.totalFiles}`;
+      // Schedule backfill only for authorized office roles; no PDF bytes are loaded in browser.
+      if (!wmkPaperSummary_.complete && (isClericalUser() || isDocumentMaintenanceAdmin())) {
+        gasCall('wmkStartPaperSync', state.token).catch((err) => console.warn('[WMK] paper sync schedule:', err));
+      }
+    } catch (error) {
+      if (counter && counter.isConnected) counter.textContent = 'ยังไม่มีสถิติ';
+      console.warn('[WMK] paper summary:', error);
+    } finally { wmkPaperLoading_ = false; }
+  }
+  function openWmkPaperStats_() {
+    const info = wmkPaperSummary_;
+    if (!info) {
+      Swal.fire('กำลังตรวจข้อมูล', 'ยังไม่พบสถิติ กรุณาลองใหม่ภายหลัง', 'info');
+      refreshWmkPaperStats_(true);
+      return;
+    }
+    const pct = info.totalFiles ? Math.round(info.scannedFiles / info.totalFiles * 100) : 100;
+    Swal.fire({
+      title: '🌿 สถิติ PDF ทั้งระบบ',
+      html: `<div class="wmk-paper-detail">
+        <strong>${info.totalPages.toLocaleString('th-TH')} หน้า</strong>
+        <p>ตรวจแล้ว ${info.scannedFiles.toLocaleString('th-TH')} / ${info.totalFiles.toLocaleString('th-TH')} ไฟล์ (${pct}%)</p>
+        <div class="wmk-paper-progress"><span style="width:${pct}%"></span></div>
+        <p>PDF.js ยืนยันแล้ว ${info.exactFiles.toLocaleString('th-TH')} ไฟล์ · ประเมินจากโครงสร้าง PDF ${info.estimatedFiles.toLocaleString('th-TH')} ไฟล์</p>
+        <p>ไฟล์ที่ยังระบุจำนวนหน้าไม่ได้ ${info.unknownFiles.toLocaleString('th-TH')} ไฟล์</p>
+        <p>ลดการใช้กระดาษโดยประมาณ ${info.totalPages.toLocaleString('th-TH')} แผ่น หากเอกสารที่นับได้ทดแทนการพิมพ์ 1 ชุด</p>
+        <small>เป็นค่าประมาณตามจำนวนหน้าที่ตรวจพบ ไม่ใช่การวัดการพิมพ์จริง และอาจยังไม่ครอบคลุมไฟล์ที่ไม่รองรับ</small></div>`,
+      confirmButtonText: 'ปิด', showDenyButton: isClericalUser() || isDocumentMaintenanceAdmin(),
+      denyButtonText: 'ซิงก์ข้อมูล',
+    }).then((r) => { if (r.isDenied) gasCall('wmkStartPaperSync',state.token,true).then(()=>refreshWmkPaperStats_(true)).catch(showError); });
+  }
+
   function renderDashboard() {
     const isTeacher = guideRoleKey() === 'ครู';
     const isMaintenanceAdmin = isDocumentMaintenanceAdmin();
@@ -987,7 +986,6 @@
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
               <button id="wmk-paper-counter" class="wmk-paper-counter" type="button" title="สถิติการลดการใช้กระดาษ (ประมาณการ)">🌿 <span id="wmk-paper-count">— หน้า</span></button>
-              <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
 
               <button id="settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า" title="การตั้งค่า">⚙</button>
               <button id="logout-btn" class="btn bg-red-950/40 text-white">ออกจากระบบ</button>
@@ -1020,9 +1018,9 @@
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
           </div>
-            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.0</span></div>
+            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.1</span></div>
           </aside>
-          <div class="wmk-table-title"><div><h2>${state.tab === 'telegram' ? 'จัดการการแจ้งเตือน' : 'รายการเอกสาร'}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
+          <div class="wmk-table-title"><div><h2>${({action:'งานรอดำเนินการ',inbox:'จดหมายเข้า',all:'จดหมายทั้งหมด',acknowledged:'รับทราบแล้ว',completed:'เอกสารเสร็จสิ้น',telegram:'จัดการการแจ้งเตือน'}[state.tab] || 'รายการเอกสาร')}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
           <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
@@ -1049,7 +1047,7 @@
           </div>
           <div id="calendar-active-filter"></div>
           <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
-          <div id="document-pagination" class="document-pagination"></div>
+          <div id="document-pagination" class="document-pagination" aria-label="แบ่งหน้ารายการเอกสาร"></div>
         </main>
       </div>`;
 
@@ -1076,19 +1074,10 @@
     });
     const acknowledgeAllBtn = document.getElementById('acknowledge-all-btn');
     if (acknowledgeAllBtn) acknowledgeAllBtn.onclick = acknowledgeAllPendingDocuments;
-    document.getElementById('download-center-btn').onclick = openDownloadCenter;
     document.getElementById('wmk-sidebar-download')?.addEventListener('click', openDownloadCenter);
     document.getElementById('settings-btn').onclick = openSettingsPanel;
-    // This is an estimate, not observed printing activity. Missing page counts assume 1 page.
-    const paperDocs = new Map((state.allDocs || []).map((doc) => [String(doc.docId), doc]));
-    const paperPages = [...paperDocs.values()].reduce((sum, doc) => sum + Math.max(1, Number(doc.pageCount || doc.pdfPageCount || 1) || 1), 0);
-    const paperCount = document.getElementById('wmk-paper-count');
-    if (paperCount) paperCount.textContent = `${paperPages.toLocaleString('th-TH')} หน้า`;
-    document.getElementById('wmk-paper-counter')?.addEventListener('click', () => Swal.fire({
-      title: '🌿 ลดการใช้กระดาษโดยประมาณ',
-      html: `<div class="wmk-paper-detail"><strong>${paperPages.toLocaleString('th-TH')} หน้า</strong><p>คำนวณจากเอกสาร ${paperDocs.size.toLocaleString('th-TH')} ฉบับที่บัญชีนี้เข้าถึงได้ โดยสมมติว่าระบบทดแทนการพิมพ์ 1 ชุดต่อฉบับ และเอกสารที่ไม่ทราบจำนวนหน้าคิดขั้นต่ำ 1 หน้า</p><small>เป็นตัวเลขประมาณการ ไม่ใช่ยอดกระดาษที่วัดจากการพิมพ์จริง และไม่ใช่ยอดรวมทุกหน่วยงาน</small></div>`,
-      confirmButtonText: 'เข้าใจแล้ว'
-    }));
+    document.getElementById('wmk-paper-counter')?.addEventListener('click', openWmkPaperStats_);
+    refreshWmkPaperStats_();
 
     document.getElementById('role-guide-btn')?.addEventListener('click', openRoleGuide);
 
@@ -1143,8 +1132,8 @@
       const left = receiveNumberParts(a.recvNo);
       const right = receiveNumberParts(b.recvNo);
       if (left.valid !== right.valid) return right.valid ? 1 : -1;
-      if (left.number !== right.number) return right.number - left.number;
       if (left.year !== right.year) return right.year - left.year;
+      if (left.number !== right.number) return right.number - left.number;
       return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
     });
   }
@@ -1355,7 +1344,7 @@
     const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
     const filter = document.getElementById('doc-filter')?.value || 'all';
     let sourceDocs = currentDocuments();
-    if (state.tab === 'all' || state.tab === 'acknowledged') sourceDocs = sortDocumentsByReceiveNumberDesc(filterDocumentsByCalendar_(sourceDocs));
+    sourceDocs = sortDocumentsByReceiveNumberDesc(filterDocumentsByCalendar_(sourceDocs));
     renderCalendarActiveFilter_();
     let docs = sourceDocs.filter((doc) => {
       const text = `${doc.recvNo} ${doc.subject} ${doc.fromSender} ${doc.status} ${doc.operationMode || ''} ${doc.priority || ''} ${doc.dispatchMode || ''}`.toLowerCase();
@@ -1370,7 +1359,7 @@
     const totalFiltered = docs.length;
     renderDocumentPagination_(totalFiltered);
     if (!docs.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-8">ไม่มีเอกสารในรายการนี้</td></tr>';
+      tbody.innerHTML = '<tr class="wmk-empty-row"><td colspan="5"><div class="wmk-empty-document-state"><span aria-hidden="true">📂</span><strong>ไม่มีเอกสารในรายการนี้</strong><small>ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</small></div></td></tr>';
       return;
     }
     const pageSize = Number(state.displaySettings?.pageSize || 25);
@@ -1407,12 +1396,12 @@
       const reminderButton = isClericalUser() && recipientCount
         ? `<button class="btn btn-reminder text-xs reminder-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">🔔 ส่งการแจ้งเตือน</button>`
         : '';
-      return `<tr>
+      return `<tr class="wmk-document-row" data-document-receive="${escapeHtml(doc.recvNo)}">
         <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
         <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
-        <td><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
+        <td class="wmk-document-subject"><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
         <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}</div><div class="mt-2">${recipientText}</div></td>
-        <td><div class="flex flex-col gap-2">${actionButton}${ackButton}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
+        <td class="wmk-document-actions-cell"><div class="wmk-document-actions">${actionButton}${ackButton}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
       </tr>`;
     }).join('');
     } catch (renderError) {
@@ -1430,7 +1419,6 @@
         clearTimeout(hoverTimer);
         hoverTimer = setTimeout(() => prefetchDocumentFile_(button.dataset.docId), 0);
       };
-      button.addEventListener('mouseenter', warm, { passive: true });
       button.addEventListener('focus', warm, { passive: true });
       button.addEventListener('touchstart', () => prefetchDocumentFile_(button.dataset.docId), { passive: true, once: true });
     });
@@ -2426,7 +2414,8 @@
     function refresh() {
       const docs = filteredDocs();
       $('tgmanual-count').textContent = `เลือก ${selected.size} ฉบับ (สูงสุด 10)`; $('tgmanual-send-selected').disabled = selected.size === 0; $('tgmanual-send-selected').textContent = selected.size ? `🔔 ส่งแจ้งเตือน (${selected.size} ฉบับ)` : '🔔 ส่งแจ้งเตือน (เลือกเอกสารก่อน)';
-      $('tgmanual-doc').innerHTML = docs.length ? docs.map(d => `<label class="wmk-v10-doc"><input type="checkbox" data-id="${escape(d.docId)}" ${selected.has(String(d.docId))?'checked':''}><span><b>${escape(d.recvNo||d.receiveNo||'-')}</b><small>${escape(d.fromSender||d.sender||'')}</small></span><span class="wmk-v10-subject">${escape(d.subject||'ไม่ระบุเรื่อง')}<small>${escape(d.status||'')}</small></span></label>`).join('') : '<div class="wmk-v10-empty">ไม่พบเอกสารในขั้นตอน “แจ้งให้ทราบ / ดำเนินการ” สำหรับช่วงวันที่เลือก</div>';
+      $('tgmanual-doc').innerHTML = docs.length ? docs.map(d => `<label class="wmk-v10-doc"><input type="checkbox" data-id="${escape(d.docId)}" ${selected.has(String(d.docId))?'checked':''}><span><b>${escape(d.recvNo||d.receiveNo||'-')}</b><small>${escape(d.fromSender||d.sender||'')}</small></span><span class="wmk-v10-subject">${escape(d.subject||'ไม่ระบุเรื่อง')}<small>${escape(d.status||'')}</small></span></label>`).join('') : `<div class="wmk-v10-empty"><b>ไม่มีหนังสือที่เข้าเกณฑ์ในช่วงนี้</b><p>ลองเปลี่ยนช่วงวันที่ หรือค้นหาโดยเลขรับและชื่อเรื่อง</p>${eligible.length && period === 'today' ? '<button type="button" class="btn btn-muted" id="tgmanual-empty-week">ดูสัปดาห์นี้</button>' : ''}</div>`;
+      $('tgmanual-empty-week')?.addEventListener('click', () => setPeriod('week'));
       $('tgmanual-doc').querySelectorAll('input[data-id]').forEach(input => input.onchange = () => {
         if (input.checked && selected.size>=10) { input.checked=false; $('tgmanual-status').textContent='เลือกได้สูงสุด 10 ฉบับ'; return; }
         if(input.checked) selected.add(input.dataset.id); else selected.delete(input.dataset.id);
@@ -3012,6 +3001,7 @@
       // ใช้ PDF.js render ภายในหน้าเว็บโดยตรงแทน
       const bytes = base64ToUint8Array(result.file.base64);
       quickPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      recordExactPageCount_(docId, quickPdf.numPages);
 
       const viewer = document.createElement('div');
       viewer.className = 'quick-pdf-viewer';
@@ -3992,6 +3982,7 @@
   async function loadPdf(base64) {
     const bytes = base64ToUint8Array(base64);
     state.currentPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    if (state.currentDoc?.docId) recordExactPageCount_(state.currentDoc.docId, state.currentPdf.numPages);
     state.currentPageNumber = 1;
     await renderAllPdfPages();
   }
@@ -4775,18 +4766,10 @@
     return `<span class="settings-status ${ready ? 'is-ready' : 'is-missing'}">${ready ? '✓' : '!' } ${escapeHtml(label)}</span>`;
   }
 
-  function themePresetCards(current) {
-    return Object.entries(THEME_PRESETS).map(([key, preset]) => `<button type="button" class="theme-preset-card ${current.preset === key ? 'selected' : ''}" data-theme-preset="${key}">
-      <span class="theme-preset-colors"><i style="background:${preset.primary}"></i><i style="background:${preset.secondary}"></i></span>
-      <span><b>${escapeHtml(preset.name)}</b><small>${escapeHtml(preset.description)}</small></span>
-    </button>`).join('');
-  }
-
   function settingsSectionMarkup(sectionId, isAdmin) {
     const user = state.user || {};
     const admin = state.appSettings?.admin || {};
     const defaults = state.appSettings?.defaults || { fromSender: 'สพป.ชม.2', operationMode: 'normal' };
-    const display = state.displaySettings || DEFAULT_DISPLAY_SETTINGS;
     const workflowMascot = state.workflowMascotSettings || loadWorkflowMascotSettings(user.username);
     const signatureHtml = user.signatureDataUrl
       ? `<img class="settings-signature-preview" src="${user.signatureDataUrl}" alt="ตัวอย่างลายเซ็น">`
@@ -4796,7 +4779,6 @@
       account: `<section class="settings-content-section"><h2>👤 บัญชีของฉัน</h2><p class="settings-lead">ข้อมูลบัญชีที่อ่านจากชีต Users</p><div class="settings-info-grid"><div><span>ชื่อ</span><b>${escapeHtml(user.name)}</b></div><div><span>ชื่อผู้ใช้</span><b>${escapeHtml(user.username)}</b></div><div><span>บทบาท</span><b>${escapeHtml(user.role)}</b></div><div><span>ฝ่าย/งาน</span><b>${escapeHtml(user.department || 'ยังไม่ระบุ')}</b></div><div><span>อีเมล</span><b>${escapeHtml(user.email || 'ยังไม่ระบุ')}</b></div><div><span>ลายเซ็น</span><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าแล้ว' : 'ยังไม่ตั้งค่า'}</b></div></div></section>`,
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
-      display: `<section class="settings-content-section"><h2>🖥️ การแสดงผล</h2><p class="settings-lead">เลือกธีมสำเร็จรูปหรือกำหนดสีหลักและสีรองเอง การตั้งค่าจะจำไว้ใน Browser เครื่องนี้</p><div class="settings-display-grid"><div><h3>โทนสีสำเร็จรูป</h3><div id="theme-preset-grid" class="theme-preset-grid">${themePresetCards(display)}</div><h3 class="mt-5">กำหนดสีเอง</h3><div class="theme-color-inputs"><label>สีหลัก<div><input id="theme-primary" type="color" value="${display.primary}"><input id="theme-primary-text" class="input" value="${display.primary}"></div></label><label>สีรอง<div><input id="theme-secondary" type="color" value="${display.secondary}"><input id="theme-secondary-text" class="input" value="${display.secondary}"></div></label></div><div class="settings-background-block"><h3>พื้นหลังหน้าเว็บ</h3><label class="switch-row"><span>เปิดภาพพื้นหลัง</span><input id="display-background-enabled" type="checkbox" ${display.backgroundEnabled ? 'checked' : ''}></label><label>URL รูปภาพพื้นหลัง<input id="display-background-url" class="input" placeholder="https://..." value="${escapeHtml(display.backgroundUrl || '')}"></label><label>ความเข้มพื้นหลัง<input id="display-background-opacity" type="range" min="0" max="0.45" step="0.01" value="${Number(display.backgroundOpacity ?? 0.12)}"></label><p class="text-xs text-slate-500">ระบบใช้ภาพพื้นหลังแบบ fixed layer เพียงชั้นเดียว ไม่ทำ animation เพื่อช่วยลดอาการหน่วง</p></div><div class="settings-toggle-list"><label>จำนวนเอกสารต่อหน้า<select id="display-page-size" class="input"><option value="15" ${display.pageSize === 15 ? 'selected' : ''}>15 รายการ</option><option value="25" ${display.pageSize === 25 ? 'selected' : ''}>25 รายการ</option><option value="50" ${display.pageSize === 50 ? 'selected' : ''}>50 รายการ</option><option value="100" ${display.pageSize === 100 ? 'selected' : ''}>100 รายการ</option></select></label><label>ขนาดตัวอักษร<select id="display-font-scale" class="input"><option value="0.9" ${display.fontScale === .9 ? 'selected' : ''}>เล็ก</option><option value="1" ${display.fontScale === 1 ? 'selected' : ''}>ปกติ</option><option value="1.15" ${display.fontScale === 1.15 ? 'selected' : ''}>ใหญ่</option></select></label><label class="switch-row"><span>ลดภาพเคลื่อนไหว</span><input id="display-reduced-motion" type="checkbox" ${display.reducedMotion ? 'checked' : ''}></label><label class="switch-row"><span>เพิ่มความคมชัดของสี</span><input id="display-high-contrast" type="checkbox" ${display.highContrast ? 'checked' : ''}></label></div></div><div><h3>ตัวอย่างหน้าจอ</h3><div id="theme-live-preview" class="theme-live-preview" style="--preview-primary:${display.primary};--preview-secondary:${display.secondary}"><div class="preview-topbar">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="preview-body"><div class="preview-side"><i></i><i></i><i></i></div><div class="preview-main"><div class="preview-stats"><span>125</span><span>8</span><span>23</span></div><div class="preview-table"><b></b><b></b><b></b></div><div class="preview-buttons"><button>ปุ่มหลัก</button><button>ปุ่มรอง</button></div></div></div></div><div class="settings-theme-tip"><b>คำแนะนำ</b><p><b>สบายตา</b> เหมาะกับใช้งานนาน • <b>ทางการ</b> เหมาะกับเอกสารราชการ • <b>กลางคืน</b> ช่วยลดแสงจ้า</p></div></div></div><div class="settings-actions"><button id="reset-display-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-display-settings" class="btn btn-primary" type="button">บันทึกการแสดงผล</button></div></section>`,
       workflowMascot: `<section class="settings-content-section"><h2>🐥 มาสคอตแจ้งเตือนงาน</h2><p class="settings-lead">สำหรับครู รองผู้อำนวยการ และผู้อำนวยการ สามารถซ่อนหรือแสดงเป็ด กระต่าย หมี และแพนด้าได้ตามต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>แสดงมาสคอตแจ้งเตือนงาน</b><small>เมื่อปิด มาสคอตจะไม่แสดงบนหน้ารายการเอกสาร แต่จำนวนงานและการแจ้งเตือนอื่นยังทำงานตามปกติ</small></span><input id="workflow-mascot-enabled" type="checkbox" ${workflowMascot.enabled ? 'checked' : ''}></label><div class="mascot-preview-box"><b>ตัวอย่างมาสคอต</b><div class="mascot-settings-preview"><span title="เป็ดแจ้งงานใหม่">${mascotArt('duck')}</span><span title="กระต่ายบันทึกสำเร็จ">${mascotArt('bunny')}</span><span title="หมีงานเสร็จแล้ว">${mascotArt('bear')}</span><span title="แพนด้าพักสายตา">${mascotArt('panda')}</span></div><small>การตั้งค่านี้บันทึกแยกตามชื่อผู้ใช้ใน Browser เครื่องที่กำลังใช้งาน</small></div></div><div class="settings-actions"><button id="reset-workflow-mascot-settings" class="btn btn-muted" type="button">เปิดค่าเริ่มต้น</button><button id="save-workflow-mascot-settings" class="btn btn-primary" type="button">บันทึกการตั้งค่า</button></div></section>`,
       mascots: `<section class="settings-content-section"><h2>🎀 มาสคอตและตัวละคร</h2><p class="settings-lead">แสดงเฉพาะบัญชีที่มีบทบาท “ธุรการ” เลือกตัวละครได้สูงสุด 10 ตัว และเลือกตำแหน่งที่ต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>เปิดใช้งานมาสคอต</b><small>ปิดได้ทุกเมื่อหากต้องการหน้าเว็บแบบเรียบ</small></span><input id="mascot-enabled" type="checkbox" ${(state.mascotSettings || loadMascotSettings()).enabled ? 'checked' : ''}></label><div class="mascot-settings-block"><h3>เลือกตัวละคร <small>เลือกได้ไม่เกิน 10 ตัว</small></h3><div id="mascot-choice-grid" class="mascot-choice-grid">${ADMIN_MASCOT_CATALOG.map((item) => `<label class="mascot-choice-card"><input type="checkbox" value="${item.id}" ${(state.mascotSettings || loadMascotSettings()).selected.includes(item.id) ? 'checked' : ''}><span class="mascot-choice-icon">${item.icon}</span><b>${escapeHtml(item.name)}</b></label>`).join('')}</div></div><div class="mascot-settings-options"><fieldset><legend>ตำแหน่งแสดงผล</legend><label><input type="radio" name="mascotPosition" value="top" ${(state.mascotSettings || loadMascotSettings()).position === 'top' ? 'checked' : ''}> วิ่งบริเวณด้านบนของหน้าเว็บ</label><label><input type="radio" name="mascotPosition" value="page" ${(state.mascotSettings || loadMascotSettings()).position === 'page' ? 'checked' : ''}> วิ่งภายในพื้นที่หน้าเว็บ</label></fieldset><label>ความเร็ว<select id="mascot-speed" class="input"><option value="slow" ${(state.mascotSettings || loadMascotSettings()).speed === 'slow' ? 'selected' : ''}>ช้า</option><option value="normal" ${(state.mascotSettings || loadMascotSettings()).speed === 'normal' ? 'selected' : ''}>ปกติ</option><option value="fast" ${(state.mascotSettings || loadMascotSettings()).speed === 'fast' ? 'selected' : ''}>เร็ว</option></select></label></div><div class="mascot-preview-box"><b>ตัวอย่างที่เลือก</b><div id="mascot-settings-preview" class="mascot-settings-preview"></div><small>เมื่อแตะตัวละครในหน้าเว็บ จะสุ่มแอนิเมชันและแสดงหัวใจ ดาว หรือข้อความสั้น ๆ</small></div></div><div class="settings-actions"><button id="reset-mascot-settings" class="btn btn-muted" type="button">คืนค่าเริ่มต้น</button><button id="save-mascot-settings" class="btn btn-primary" type="button">บันทึกมาสคอต</button></div></section>`,
       users: `<section class="settings-content-section"><h2>👥 จัดการผู้ใช้งาน</h2><p class="settings-lead">ธุรการสามารถตั้งรหัสผ่านใหม่ให้ครู รองผู้อำนวยการ หรือผู้อำนวยการได้ โดยไม่ต้องทราบรหัสเดิม</p><div class="settings-summary-card"><div class="user-admin-toolbar"><div><b>ผู้ใช้งานทั้งหมด ${Number(admin.counts?.users || 0)} คน</b><p>ระบบไม่แสดงรหัสผ่านเดิม และจะเก็บเฉพาะค่า Hash ในชีต Users</p></div><button id="open-users-sheet" class="btn btn-muted" type="button">เปิดชีต Users</button></div><input id="admin-user-search" class="input mt-4" placeholder="ค้นหาชื่อ ชื่อผู้ใช้ บทบาท หรือฝ่าย"><div id="admin-user-list" class="admin-user-list"><div class="settings-loading-row">กำลังอ่านรายชื่อผู้ใช้...</div></div></div></section>`,
@@ -4858,12 +4840,9 @@
   function openSettingsPanel() {
     const isAdmin = isClericalUser() || isDocumentMaintenanceAdmin();
     let activeSection = 'account';
-    let originalDisplay = { ...(state.displaySettings || DEFAULT_DISPLAY_SETTINGS) };
-    let displayDraft = { ...originalDisplay };
-    let displaySaved = true;
     const overlay = document.createElement('div');
-    overlay.className = 'settings-backdrop';
-    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>จัดการบัญชีและระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${settingsNavButton('display','🖥️','การแสดงผล','ธีม สี และตัวอักษร')}${isAdmin ? `<div class="settings-admin-divider"><span>สำหรับผู้ดูแล</span></div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${isClericalUser() ? settingsNavButton('worklinks','🔗','ลิงค์งาน','เพิ่มและจัดการลิงก์',true) : ''}${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','ปรับข้อความและเหตุการณ์',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    overlay.className = 'settings-backdrop wmk-settings-page';
+    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>WMK Settings Center · ตั้งค่าระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav><div class="wmk-settings-nav-group">บัญชีและความปลอดภัย</div>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${isAdmin ? `<div class="wmk-settings-nav-group">การจัดการสารบรรณและผู้ดูแล</div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${isClericalUser() ? settingsNavButton('worklinks','🔗','ลิงค์งาน','เพิ่มและจัดการลิงก์',true) : ''}${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','ปรับข้อความและเหตุการณ์',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
     document.body.appendChild(overlay);
 
     const content = overlay.querySelector('#settings-content');
@@ -4875,23 +4854,7 @@
       if(sectionId === "worklinks") overlay.querySelector("#settings-worklinks-open")?.addEventListener("click",()=>{overlay.remove();openWorkLinksModal(true);});
     };
 
-    const close = () => {
-      if (!displaySaved) applyDisplaySettings(originalDisplay);
-      overlay.remove();
-    };
-
-    const updateThemePreview = () => {
-      const primary = normalizeHexColor(overlay.querySelector('#theme-primary')?.value, displayDraft.primary);
-      const secondary = normalizeHexColor(overlay.querySelector('#theme-secondary')?.value, displayDraft.secondary);
-      displayDraft = { ...displayDraft, primary, secondary, preset: displayDraft.preset || 'custom' };
-      const preview = overlay.querySelector('#theme-live-preview');
-      if (preview) {
-        preview.style.setProperty('--preview-primary', primary);
-        preview.style.setProperty('--preview-secondary', secondary);
-      }
-      applyDisplaySettings(displayDraft);
-      displaySaved = false;
-    };
+    const close = () => overlay.remove();
 
     const bindSettingsSection = (sectionId) => {
       const passwordForm = overlay.querySelector('#change-own-password-form');
@@ -4913,47 +4876,6 @@
           );
         } catch (error) { showError(error); }
       };
-
-      if (sectionId === 'display') {
-        const syncTextAndColor = (colorId, textId) => {
-          const color = overlay.querySelector(colorId);
-          const text = overlay.querySelector(textId);
-          color.oninput = () => { text.value = color.value; displayDraft.preset = 'custom'; updateThemePreview(); };
-          text.onchange = () => { text.value = normalizeHexColor(text.value, color.value); color.value = text.value; displayDraft.preset = 'custom'; updateThemePreview(); };
-        };
-        syncTextAndColor('#theme-primary', '#theme-primary-text');
-        syncTextAndColor('#theme-secondary', '#theme-secondary-text');
-        overlay.querySelectorAll('[data-theme-preset]').forEach((button) => button.onclick = () => {
-          const key = button.dataset.themePreset;
-          const preset = THEME_PRESETS[key];
-          displayDraft = { ...displayDraft, preset: key, primary: preset.primary, secondary: preset.secondary };
-          overlay.querySelector('#theme-primary').value = preset.primary;
-          overlay.querySelector('#theme-primary-text').value = preset.primary;
-          overlay.querySelector('#theme-secondary').value = preset.secondary;
-          overlay.querySelector('#theme-secondary-text').value = preset.secondary;
-          overlay.querySelectorAll('[data-theme-preset]').forEach((item) => item.classList.toggle('selected', item === button));
-          updateThemePreview();
-        });
-        overlay.querySelector('#display-page-size').onchange = (event) => { displayDraft.pageSize = Number(event.target.value); state.documentPage = 1; };
-        overlay.querySelector('#display-background-enabled').onchange = (event) => { displayDraft.backgroundEnabled = event.target.checked; updateThemePreview(); };
-        overlay.querySelector('#display-background-url').onchange = (event) => { displayDraft.backgroundUrl = String(event.target.value || '').trim(); updateThemePreview(); };
-        overlay.querySelector('#display-background-opacity').oninput = (event) => { displayDraft.backgroundOpacity = Number(event.target.value); updateThemePreview(); };
-        overlay.querySelector('#display-font-scale').onchange = (event) => { displayDraft.fontScale = Number(event.target.value); updateThemePreview(); };
-        overlay.querySelector('#display-reduced-motion').onchange = (event) => { displayDraft.reducedMotion = event.target.checked; updateThemePreview(); };
-        overlay.querySelector('#display-high-contrast').onchange = (event) => { displayDraft.highContrast = event.target.checked; updateThemePreview(); };
-        overlay.querySelector('#save-display-settings').onclick = () => {
-          saveDisplaySettings(displayDraft);
-          originalDisplay = { ...displayDraft };
-          displaySaved = true;
-          Swal.fire('บันทึกแล้ว', 'ระบบจดจำธีมและการแสดงผลบนเครื่องนี้แล้ว', 'success');
-        };
-        overlay.querySelector('#reset-display-settings').onclick = () => {
-          displayDraft = { ...DEFAULT_DISPLAY_SETTINGS };
-          applyDisplaySettings(displayDraft);
-          displaySaved = false;
-          renderSection('display');
-        };
-      }
 
       if (sectionId === 'workflowMascot' && !isAdmin) {
         overlay.querySelector('#save-workflow-mascot-settings').onclick = () => {
@@ -5475,7 +5397,7 @@
     const overlay = document.createElement('div');
     overlay.className = 'modal-backdrop download-manager-backdrop';
     overlay.innerHTML = `<div class="modal-panel download-manager-panel">
-      <div class="download-manager-heading"><div><span class="document-manage-kicker">ดาวน์โหลดเฉพาะไฟล์ PDF</span><h2>ดาวน์โหลดเอกสารตามช่วงเวลา</h2><p>เลือกหนึ่งไฟล์เพื่อดาวน์โหลด PDF หรือเลือกหลายไฟล์เพื่อรวมเป็น ZIP</p></div><button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button></div>
+      <div class="download-manager-heading"><div><span class="document-manage-kicker">WMK DOCUMENT CENTER</span><h2>ดาวน์โหลดเอกสาร</h2><p>เลือกหนึ่งไฟล์เพื่อดาวน์โหลด PDF หรือเลือกหลายไฟล์เพื่อรวมเป็น ZIP</p></div><button class="text-2xl close-modal" type="button" aria-label="ปิด">×</button></div>
       <div class="download-period-tabs">
         <button class="download-period-tab active" data-download-mode="day" type="button">รายวัน</button>
         <button class="download-period-tab" data-download-mode="week" type="button">รายสัปดาห์</button>
@@ -5496,10 +5418,11 @@
     </div>`;
     document.body.appendChild(overlay);
 
+    let downloadBusy = false;
     let mode = 'day';
     let visibleDocs = [];
     const selectedIds = new Set();
-    const close = () => overlay.remove();
+    const close = () => { if (downloadBusy) return; overlay.remove(); };
     overlay.querySelector('.close-modal').onclick = close;
     overlay.onclick = (event) => { if (event.target === overlay) close(); };
 
@@ -5531,7 +5454,7 @@
 
     const updateSelectedCount = () => {
       overlay.querySelector('#download-selected-count').textContent = `เลือกแล้ว ${selectedIds.size} ไฟล์`;
-      overlay.querySelector('#download-selected').disabled = selectedIds.size === 0;
+      overlay.querySelector('#download-selected').disabled = downloadBusy || selectedIds.size === 0;
     };
 
     const renderList = () => {
@@ -5552,8 +5475,7 @@
         if (!key || key < startKey || key > endKey) return false;
         return !query || `${doc.recvNo} ${doc.subject} ${doc.fromSender}`.toLowerCase().includes(query);
       });
-      const visibleIdSet = new Set(visibleDocs.map((doc) => doc.docId));
-      [...selectedIds].forEach((id) => { if (!visibleIdSet.has(id)) selectedIds.delete(id); });
+      // Keep selections when changing date range/search; download selected IDs persist until explicitly cleared.
       overlay.querySelector('#download-result-count').textContent = `${visibleDocs.length} เอกสาร`;
       if (!visibleDocs.length) {
         overlay.querySelector('#download-list').innerHTML = '<div class="download-empty-state"><b>ไม่พบเอกสารในช่วงเวลานี้</b><span>ลองเปลี่ยนวันที่หรือค้นหาด้วยคำอื่น</span></div>';
@@ -5577,7 +5499,10 @@
       overlay.querySelectorAll('.download-check').forEach((input) => {
         input.onchange = () => {
           if (input.checked) selectedIds.add(input.value); else selectedIds.delete(input.value);
+          const list = overlay.querySelector('#download-list');
+          const scroll = list.scrollTop;
           renderList();
+          list.scrollTop = scroll;
         };
       });
       overlay.querySelectorAll('.download-select-day').forEach((button) => {
@@ -5585,7 +5510,10 @@
           const dayDocs = visibleDocs.filter((doc) => localDateKey(doc.createdAt) === button.dataset.dateKey);
           const shouldSelect = !dayDocs.every((doc) => selectedIds.has(doc.docId));
           dayDocs.forEach((doc) => shouldSelect ? selectedIds.add(doc.docId) : selectedIds.delete(doc.docId));
+          const list = overlay.querySelector('#download-list');
+          const scroll = list.scrollTop;
           renderList();
+          list.scrollTop = scroll;
         };
       });
       updateSelectedCount();
@@ -5596,12 +5524,11 @@
         mode = button.dataset.downloadMode;
         overlay.querySelectorAll('[data-download-mode]').forEach((item) => item.classList.toggle('active', item === button));
         ['day', 'week', 'month', 'custom'].forEach((name) => overlay.querySelector(`#download-${name}-filter`).classList.toggle('hide', name !== mode));
-        selectedIds.clear();
         renderList();
       };
     });
     ['#download-day-value', '#download-week-value', '#download-month-value', '#download-start-value', '#download-end-value'].forEach((selector) => {
-      overlay.querySelector(selector).onchange = () => { selectedIds.clear(); renderList(); };
+      overlay.querySelector(selector).onchange = renderList;
     });
     overlay.querySelector('#download-search').oninput = renderList;
     overlay.querySelector('#select-all-download').onclick = () => { visibleDocs.forEach((doc) => selectedIds.add(doc.docId)); renderList(); };
@@ -5613,10 +5540,11 @@
       if (!ids.length) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกเอกสารอย่างน้อย 1 ไฟล์', 'warning'); return; }
       const progress = overlay.querySelector('#download-progress');
       downloadAction.disabled = true;
+      downloadBusy = true;
       progress.classList.remove('hide');
       try {
         if (ids.length === 1) {
-          updateDownloadProgress(overlay, 10, 'กำลังอ่าน PDF');
+          updateDownloadProgress(overlay, 0, 'กำลังรับ PDF (ไม่สามารถวัดไบต์ระหว่างโอนได้)');
           const result = await gasCall('getDocumentFile', state.token, ids[0], false);
           const downloadName = buildDocumentDownloadFileName(result.document);
           downloadBase64(result.file.base64, downloadName, 'application/pdf');
@@ -5651,7 +5579,7 @@
         downloadBlob(blob, `เอกสารราชการ-${sanitizeZipLabel(range?.label || todayKey)}-${ids.length}-ไฟล์.zip`);
         updateDownloadProgress(overlay, 100, 'สร้าง ZIP สำเร็จ');
       } catch (error) { showError(error); }
-      finally { downloadAction.disabled = false; setTimeout(() => { if (progress.isConnected) progress.classList.add('hide'); }, 1800); }
+      finally { downloadBusy = false; downloadAction.disabled = selectedIds.size === 0; setTimeout(() => { if (progress.isConnected) progress.classList.add('hide'); }, 1800); }
     };
     renderList();
   }
