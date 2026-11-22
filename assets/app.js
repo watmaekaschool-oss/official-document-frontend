@@ -1,10 +1,10 @@
-/* WMK_UI_RELEASE: V10.15 — school shortcuts for every role, legacy module retired */
+/* WMK_UI_RELEASE: V10.16 — responsive sidebar, fast foreground synchronization */
 (() => {
   'use strict';
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'V10.15';
+  const FRONTEND_BUILD_VERSION = 'V10.16';
 
   const THEME_PRESETS = {
     formal: { name: 'ทางการ', description: 'แดงเข้มและทอง เหมาะกับงานราชการ', primary: '#b91c1c', secondary: '#f59e0b' },
@@ -102,7 +102,7 @@
     clearTimeout(quickPrimeTimer_);
 
     // ไม่ prefetch เมื่อผู้ใช้เปิดโหมดประหยัดข้อมูล
-    if (navigator.connection?.saveData) return;
+    if (navigator.connection?.saveData || document.hidden) return;
 
     quickPrimeTimer_ = window.setTimeout(() => {
       const buttons = [...document.querySelectorAll('.quick-view-btn[data-doc-id]')].slice(0, 2);
@@ -822,31 +822,105 @@
     }
   }
 
-  async function loadDashboard() {
-    // 4.0.0: เอกสารเป็น critical path; settings ไม่จำเป็นต่อการวาดหน้าแรก
-    const result = await gasCall('getDashboardDocuments', state.token);
+  // WMK V10.16: polling is best-effort; browsers may suspend timers for hidden tabs.
+  const WMK_SYNC_INTERVAL_MS = 30000;
+  let dashboardSyncPromise_ = null;
+  let dashboardLastSyncAt_ = 0;
+  let dashboardSyncTimer_ = null;
+  let dashboardDataSignature_ = '';
 
+  function dashboardSignature_(result) {
+    // Compare changes without creating another storage copy of confidential records.
+    return JSON.stringify([
+      result.actionDocs || [], result.inboxDocs || [],
+      result.acknowledgedDocs || [], result.completedDocs || [], result.allDocs || []
+    ]);
+  }
+
+  function updateDashboardSyncIndicator_(message, offline = false) {
+    const node = document.getElementById('wmk-sync-indicator');
+    if (!node) return;
+    node.textContent = message;
+    node.classList.toggle('wmk-sync-offline', offline);
+  }
+
+  function applyDashboardResponse_(result, preserveControls = false) {
+    const nextSignature = dashboardSignature_(result);
+    const changed = nextSignature !== dashboardDataSignature_ || !state.user;
+    dashboardDataSignature_ = nextSignature;
+    const oldQuery = preserveControls ? document.getElementById('search-input')?.value || '' : '';
+    const oldFilter = preserveControls ? document.getElementById('doc-filter')?.value || 'all' : 'all';
     state.actionDocs = result.actionDocs || [];
     state.inboxDocs = result.inboxDocs || [];
     state.acknowledgedDocs = result.acknowledgedDocs || [];
     state.completedDocs = result.completedDocs || [];
     state.allDocs = result.allDocs || [];
     state.user = result.user || state.user;
-
     if (state.user) {
-      applyDisplaySettings(loadDisplaySettings(state.user.username));
+      if (!state.displaySettings) applyDisplaySettings(loadDisplaySettings(state.user.username));
       if (!state.mascotSettings) state.mascotSettings = loadMascotSettings(state.user.username);
       if (!state.workflowMascotSettings) state.workflowMascotSettings = loadWorkflowMascotSettings(state.user.username);
-      if (!state.tab) {
-        state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
+      if (!state.tab || (guideRoleKey() === 'ครู' && state.tab === 'action')) state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
+    }
+    dashboardLastSyncAt_ = Date.now();
+    if (changed) {
+      // Do not replace open editor/modals or typed form fields during silent refresh.
+      const overlayOpen = state.tab === 'telegram' || !!document.querySelector('.swal2-container, .modal-overlay, .settings-overlay, .quick-pdf-viewer');
+      if (preserveControls && overlayOpen) dashboardDataSignature_ = ''; // retry paint after modal closes
+      if (!preserveControls || (!overlayOpen && document.getElementById('document-tbody'))) {
+        renderDashboard();
+        if (preserveControls) {
+          const search = document.getElementById('search-input');
+          const filter = document.getElementById('doc-filter');
+          if (search) search.value = oldQuery;
+          if (filter) filter.value = oldFilter;
+          renderDocumentRows();
+        }
       }
     }
+    updateDashboardSyncIndicator_('● อัปเดตล่าสุด ' + new Date(dashboardLastSyncAt_).toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit'}));
+    return changed;
+  }
 
-    // แสดง dashboard ทันที
-    renderDashboard();
+  async function syncDashboardSilently_(force = false) {
+    if (!state.token || !state.user || !navigator.onLine) {
+      if (!navigator.onLine) updateDashboardSyncIndicator_('ออฟไลน์ • แสดงข้อมูลล่าสุดที่โหลดไว้', true);
+      return;
+    }
+    if (!force && (document.hidden || Date.now() - dashboardLastSyncAt_ < WMK_SYNC_INTERVAL_MS - 1000)) return;
+    if (dashboardSyncPromise_) return dashboardSyncPromise_;
+    updateDashboardSyncIndicator_('◌ กำลังตรวจข้อมูลใหม่…');
+    dashboardSyncPromise_ = gasCall('getDashboardDocuments', state.token)
+      .then((result) => applyDashboardResponse_(result, true))
+      .catch((error) => {
+        updateDashboardSyncIndicator_('เชื่อมต่อไม่สำเร็จ • ใช้ข้อมูลเดิม', true);
+        if (/เซสชันหมดอายุ|เข้าสู่ระบบใหม่/i.test(String(error.message || ''))) clearSession();
+      })
+      .finally(() => { dashboardSyncPromise_ = null; });
+    return dashboardSyncPromise_;
+  }
+
+  function startDashboardSync_() {
+    if (dashboardSyncTimer_) return;
+    dashboardSyncTimer_ = window.setInterval(() => {
+      if (!document.hidden && navigator.onLine) syncDashboardSilently_();
+    }, WMK_SYNC_INTERVAL_MS);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.user) syncDashboardSilently_(true);
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted && state.user) syncDashboardSilently_(true);
+  });
+  window.addEventListener('online', () => { if (state.user) syncDashboardSilently_(true); });
+  window.addEventListener('offline', () => updateDashboardSyncIndicator_('ออฟไลน์ • แสดงข้อมูลล่าสุดที่โหลดไว้', true));
+
+  async function loadDashboard() {
+    // Preserve the existing document/API/authorization contract.
+    const result = await gasCall('getDashboardDocuments', state.token);
+    applyDashboardResponse_(result, false);
     maybeOpenDeepLinkedDocument_();
-
-    // โหลด settings ภายหลัง ไม่ block การเปิดระบบ
+    startDashboardSync_();
     if (!state.appSettings) {
       gasCall('getApplicationSettings', state.token)
         .then((settings) => { state.appSettings = settings || state.appSettings; })
@@ -886,7 +960,7 @@
           <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between gap-4 items-center">
             <div class="brand-mark">
               <img class="brand-logo" src="${SCHOOL_LOGO_URL}" alt="โลโก้โรงเรียน">
-              <div class="brand-copy"><div class="brand-title-main text-lg">ทะเบียนหนังสือโรงเรียนวัดแม่กะ</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div>
+              <div class="brand-copy"><div class="brand-title-main text-lg">ระบบสารบรรณ WMK</div><div class="brand-title-sub pixel-build" aria-label="Watmaeka school">${pixelTextMarkup('Watmaeka school')}</div></div>
               <nav class="wmk-school-shortcuts" aria-label="เว็บแอปโรงเรียนวัดแม่กะ">
                 <a id="wmk-portal-btn" class="wmk-school-shortcut wmk-school-shortcut-portal" href="https://wmk-portal.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิด Wmk portal ในแท็บใหม่">
                   <img class="wmk-school-shortcut-logo" src="${SCHOOL_LOGO_URL}" alt="ตราโรงเรียนวัดแม่กะ" loading="lazy">
@@ -917,9 +991,19 @@
 
         <main class="max-w-7xl mx-auto px-4 py-6">
           <section class="wmk-welcome" aria-label="ยินดีต้อนรับ">
-            <div><div class="wmk-welcome-small">ยินดีต้อนรับ</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>${escapeHtml(state.user.role || '')}</div></div>
+            <div class="wmk-welcome-copy"><div class="wmk-welcome-small">ยินดีต้อนรับ 👋</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>ระบบสารบรรณอิเล็กทรอนิกส์ โรงเรียนวัดแม่กะ · ${escapeHtml(state.user.role || '')}</div></div>
             <a class="wmk-calendar" href="https://wmk-cal2.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
           </section>
+          <section class="wmk-overview" aria-label="สรุปเอกสาร">
+            <button type="button" class="wmk-overview-card wmk-stat-action" data-go-tab="${isTeacher ? 'inbox' : 'action'}"><span class="wmk-overview-icon">▤</span><span class="wmk-overview-copy"><small>${isTeacher ? 'จดหมายเข้า' : 'งานรอดำเนินการ'}</small><strong>${isTeacher ? state.inboxDocs.length : state.actionDocs.length}</strong><em>รายการ</em></span><span class="wmk-overview-arrow">↗</span></button>
+            <button type="button" class="wmk-overview-card wmk-stat-inbox" data-go-tab="inbox"><span class="wmk-overview-icon">✉</span><span class="wmk-overview-copy"><small>จดหมายเข้า</small><strong>${state.inboxDocs.length}</strong><em>รายการ</em></span><span class="wmk-overview-arrow">↗</span></button>
+            <button type="button" class="wmk-overview-card wmk-stat-all" data-go-tab="all"><span class="wmk-overview-icon">▥</span><span class="wmk-overview-copy"><small>จดหมายทั้งหมด</small><strong>${state.allDocs.length}</strong><em>รายการ</em></span><span class="wmk-overview-arrow">↗</span></button>
+            <button type="button" class="wmk-overview-card wmk-stat-ack" data-go-tab="acknowledged"><span class="wmk-overview-icon">✓</span><span class="wmk-overview-copy"><small>รับทราบแล้ว</small><strong>${state.acknowledgedDocs.length}</strong><em>รายการ</em></span><span class="wmk-overview-arrow">↗</span></button>
+          </section>
+          <aside class="wmk-dashboard-sidebar" aria-label="เมนูหลัก">
+            <div class="wmk-sidebar-user"><span class="wmk-sidebar-avatar">${escapeHtml((state.user.name || state.user.username || 'ผ').slice(0,1))}</span><span><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><small>${escapeHtml(state.user.role || '')}</small></span></div>
+            <button class="wmk-sidebar-home" type="button" id="wmk-sidebar-home">⌂ <span>หน้าแรก</span></button>
+            <div class="wmk-sidebar-section-title">เมนูเอกสาร</div>
           <div class="dashboard-tabs-mascot-row">
             <div class="dashboard-tabs wmk-tabs flex gap-2 overflow-auto pb-1">
               ${!isTeacher ? `<button class="tab-button ${state.tab === 'action' ? 'active' : ''}" data-tab="action">${isClericalUser() ? 'งานรอดำเนินการ' : 'จดหมายรอเกษียณ'} (${state.actionDocs.length})</button>` : ''}
@@ -929,8 +1013,10 @@
               ${isClericalUser() ? '<button id="wmk-telegram-tab" class="tab-button" type="button">จัดการการแจ้งเตือน</button>' : ''}
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
-            
           </div>
+            <div class="wmk-sidebar-footer">WMK Saraban <span>V10.16</span></div>
+          </aside>
+          <div class="wmk-table-title"><div><h2>รายการเอกสาร</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
           <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
@@ -969,10 +1055,19 @@
       try { await gasCall('logout', state.token); } catch (_) {}
       clearSession();
     };
-    document.getElementById('refresh-btn').onclick = async () => {
-      loading('กำลังรีเฟรช...');
-      try { await loadDashboard(); Swal.close(); } catch (error) { showError(error); }
-    };
+    document.getElementById('refresh-btn').onclick = () => syncDashboardSilently_(true);
+    document.getElementById('wmk-sidebar-home')?.addEventListener('click', () => {
+      state.tab = guideRoleKey() === 'ครู' ? 'inbox' : (isDocumentMaintenanceAdmin() ? 'all' : 'action');
+      state.documentPage = 1;
+      renderDashboard();
+    });
+    document.querySelectorAll('[data-go-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.tab = button.dataset.goTab;
+        state.documentPage = 1;
+        renderDashboard();
+      });
+    });
     const acknowledgeAllBtn = document.getElementById('acknowledge-all-btn');
     if (acknowledgeAllBtn) acknowledgeAllBtn.onclick = acknowledgeAllPendingDocuments;
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
@@ -1328,8 +1423,8 @@
 
     tbody.querySelectorAll('.reminder-doc-btn').forEach((button) => button.onclick = () => Swal.fire('ยกเลิกแล้ว','ใช้การแจ้งเตือน Telegram จากแท็บธุรการ','info'));
 
-    // เตรียม PDF รายการแรกแบบเงียบ ๆ หลังตารางขึ้นแล้ว เพื่อให้กดเปิดได้เร็วขึ้น
-    primeFirstVisiblePdf_();
+    // V10.16: ไม่ดึง PDF ทุกครั้งที่แสดงตาราง เพื่อรักษา bandwidth และความลื่นไหล
+    // ยัง prefetch เมื่อ hover / focus / touch ตามตัวจัดการปุ่มด้านบน
   }
 
 
