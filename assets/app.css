@@ -3380,3 +3380,81 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media (prefers-reduced-motion:reduce) {
   .topbar .wmk-school-shortcut { transition:none; }
 }
+
+/* WMK Saraban V10.16 — Modern Minimal / Enterprise dashboard.
+   Scoped to app-shell to preserve all workflow/PDF/settings modal styles. */
+html,body {scroll-behavior:auto}
+.app-shell{min-height:100vh;background:#f4f7fd;color:#1c2944}
+.app-shell .topbar{background:rgba(255,255,255,.98)!important;color:#192647!important;border-bottom:1px solid #e5ebf4;box-shadow:0 2px 16px rgba(25,50,91,.06)!important;position:sticky;top:0;z-index:40}
+.app-shell .topbar > div{max-width:1740px!important;gap:12px!important;min-height:76px}
+.app-shell .brand-mark{flex:1 1 auto;gap:12px!important;min-width:0}
+.app-shell .brand-logo{height:51px;width:51px;object-fit:contain}
+.app-shell .brand-title-main{font-size:1.12rem!important;font-weight:850;color:#1a2a49;line-height:1.35}
+.app-shell .brand-title-sub{color:#64748b!important;font-size:.66rem}
+.app-shell .pixel-build{display:none!important}
+.app-shell .topbar .wmk-school-shortcuts{display:flex;flex-wrap:wrap;gap:8px;width:auto}
+.app-shell .topbar .wmk-school-shortcut{background:#f4f7fe;color:#193054!important;border:1px solid #e4eaf5;box-shadow:0 2px 6px rgba(23,54,99,.04);border-radius:12px;min-height:45px;padding:7px 11px;transition:background .13s ease,box-shadow .13s ease!important}
+.app-shell .topbar .wmk-school-shortcut:hover{transform:none!important;background:#e8f0ff;box-shadow:0 3px 10px rgba(23,54,99,.12)}
+.app-shell .topbar .wmk-school-shortcut-logo,.app-shell .topbar .wmk-school-shortcut-icon{width:29px;height:29px;border-radius:7px;padding:2px;background:#fff;font-size:22px;color:#1f63cc}
+.app-shell .topbar .wmk-school-shortcut-copy strong{font-size:.83rem;font-weight:750}
+.app-shell .topbar .wmk-school-shortcut-copy small{font-size:.65rem;color:#687992}
+.app-shell .topbar .wmk-school-shortcut-arrow{font-size:.85rem;color:#4d6d9c}
+.app-shell .topbar .btn{font-size:.8rem}
+.app-shell .topbar .text-amber-100{color:#63748e!important}
+.app-shell .topbar #download-center-btn{background:#eef4ff!important;color:#28529c!important;border:1px solid #dbe7fb}
+.app-shell .topbar #logout-btn{background:#fff1f1!important;color:#9d3446!important}
+.app-shell .topbar .settings-gear-btn{color:#273d63!important}
+.app-shell .topbar .header-guide-btn{color:#34496d!important}
+.app-shell main{max-width:1740px!important;display:grid;grid-template-columns:244px minmax(0,1fr);column-gap:22px;row-gap:16px;align-content:start;padding-top:24px!important;padding-bottom:36px!important}
+.app-shell main > :not(.wmk-dashboard-sidebar){grid-column:2;min-width:0}
+.app-shell main > .wmk-dashboard-sidebar{grid-column:1;grid-row:1 / span 8;position:sticky;top:102px;align-self:start;background:#fff;border:1px solid #e9eef7;border-radius:20px;box-shadow:0 8px 24px rgba(24,45,88,.045);padding:15px;min-height:calc(100vh - 142px);display:flex;flex-direction:column;gap:10px}
+.wmk-sidebar-user{display:flex;align-items:center;gap:12px;padding:11px;border-radius:15px;background:#f6f9ff;min-width:0}
+.wmk-sidebar-avatar{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;background:#dbeaff;color:#2165d4;border-radius:14px;font-size:1.2rem;font-weight:800}
+.wmk-sidebar-user strong{display:block;color:#1a2f51;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:142px}
+.wmk-sidebar-user small{display:block;color:#76849a;font-size:.72rem}
+.wmk-sidebar-home{background:#176bd8;color:#fff;border:0;border-radius:12px;display:flex;gap:14px;align-items:center;padding:13px 14px;font-weight:750;cursor:pointer;text-align:left;transition:background .15s}
+.wmk-sidebar-home:hover{background:#1151aa}
+.wmk-sidebar-section-title{font-size:.69rem;text-transform:uppercase;letter-spacing:.08em;color:#98a5b8;font-weight:700;padding:12px 13px 2px}
+.app-shell .dashboard-tabs-mascot-row{margin:0!important;display:block!important;min-width:0}
+.app-shell .dashboard-tabs.wmk-tabs{border:0!important;display:flex!important;flex-direction:column;gap:5px!important;padding:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;border-radius:0!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button{border:0!important;border-radius:12px!important;display:block!important;min-height:43px!important;text-align:left!important;flex:auto!important;font-size:.82rem!important;padding:10px 13px!important;color:#465775!important;background:transparent!important;box-shadow:none!important;white-space:normal;transition:background .12s,color .12s!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button:hover{background:#f0f5ff!important;color:#145dcc!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button.active{background:#e8f1ff!important;color:#1264cc!important;box-shadow:none!important}
+.wmk-sidebar-footer{margin-top:auto;border-top:1px solid #edf1f8;padding:15px 9px 4px;font-weight:750;font-size:.77rem;color:#71829b;display:flex;justify-content:space-between}
+.wmk-sidebar-footer span{font-weight:500}
+.app-shell .wmk-welcome{position:relative;overflow:hidden;margin:0;border:1px solid #dfebfb!important;min-height:154px;border-radius:19px!important;background:linear-gradient(113deg,#f3f8ff 0%,#e2efff 61%,#c3dffe 100%)!important;box-shadow:0 6px 20px rgba(23,65,129,.06)!important;color:#193459!important;padding:24px 30px!important}
+.app-shell .wmk-welcome::after{content:"";position:absolute;right:12%;top:-130px;width:330px;height:330px;border:65px solid rgba(255,255,255,.26);border-radius:50%;pointer-events:none}
+.app-shell .wmk-welcome-copy{position:relative;z-index:1}
+.app-shell .wmk-welcome-small{color:#496a9b;font-weight:650;font-size:.9rem}
+.app-shell .wmk-welcome strong{font-size:1.55rem!important;line-height:1.4;color:#142f59;margin:4px 0!important}
+.app-shell .wmk-welcome-copy > div:last-child{font-size:.84rem;color:#546b8a}
+.app-shell .wmk-calendar{position:relative;z-index:1;background:rgba(255,255,255,.78)!important;border:1px solid rgba(255,255,255,.88);box-shadow:0 3px 12px rgba(32,86,164,.06);color:#2d5d9b!important}
+.wmk-overview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.wmk-overview-card{border:1px solid #e6edf9;border-radius:17px;box-shadow:0 4px 14px rgba(35,62,112,.045);text-align:left;padding:19px 17px;display:flex;align-items:center;gap:12px;min-width:0;cursor:pointer;transition:box-shadow .13s,background .13s;color:#233758}
+.wmk-overview-card:hover{box-shadow:0 8px 21px rgba(35,62,112,.13);filter:saturate(1.08)}
+.wmk-stat-action{background:#eaf3ff}.wmk-stat-inbox{background:#e7f9f2}.wmk-stat-all{background:#f1e9ff}.wmk-stat-ack{background:#fff1df}
+.wmk-overview-icon{width:47px;height:47px;flex-shrink:0;border-radius:14px;display:grid;place-items:center;background:#2c92ef;color:#fff;font-size:1.7rem;font-weight:750}
+.wmk-stat-inbox .wmk-overview-icon{background:#1cbf80}.wmk-stat-all .wmk-overview-icon{background:#9663e9}.wmk-stat-ack .wmk-overview-icon{background:#ffb13e}
+.wmk-overview-copy{min-width:0;display:block;line-height:1.3;flex:1}
+.wmk-overview-copy small{display:block;font-size:.76rem;font-weight:700;color:#364d70}
+.wmk-overview-copy strong{display:inline-block;font-size:1.65rem;color:#142a50;font-weight:850;font-variant-numeric:tabular-nums;margin-top:3px}
+.wmk-overview-copy em{font-size:.69rem;color:#70809b;font-style:normal;margin-left:5px}
+.wmk-overview-arrow{color:#6a89b5;font-size:1.18rem}
+.wmk-table-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:5px 3px 0}
+.wmk-table-title h2{font-size:1.14rem;font-weight:800;color:#19345b;margin:0}
+.wmk-table-title p{margin:2px 0 0;color:#8996a9;font-size:.77rem}
+.wmk-sync-indicator{font-size:.73rem;color:#247c61;background:#e9f9f2;border:1px solid #d5f0e3;border-radius:100px;padding:7px 11px;white-space:nowrap}
+.wmk-sync-indicator.wmk-sync-offline{color:#975f24;background:#fff5e5;border-color:#ffe6bb}
+.app-shell .wmk-context-toolbar{background:#fff;border:1px solid #e7edf6;border-radius:16px;padding:13px 16px;margin-bottom:0!important;box-shadow:0 3px 14px rgba(35,62,112,.035)}
+.app-shell .table-wrap{background:#fff!important;border:1px solid #e7edf6!important;border-radius:17px!important;box-shadow:0 4px 20px rgba(35,62,112,.055);margin-top:0!important}
+.app-shell .data-table{min-width:740px}
+.app-shell .data-table thead{background:#f3f6fb}
+.app-shell .data-table th{font-weight:800;color:#536785;font-size:.77rem}
+.app-shell .data-table td{border-bottom:1px solid #edf1f7}
+.app-shell .data-table tbody tr:hover{background:#f9fbff}
+.app-shell #document-pagination{padding:0 4px}
+.app-shell button:focus-visible,.app-shell a:focus-visible{outline:3px solid #85b7ff;outline-offset:2px}
+@media(max-width:1300px){.app-shell .topbar > div{flex-wrap:wrap}.app-shell .brand-mark{flex-wrap:wrap}.wmk-overview{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:940px){.app-shell main{grid-template-columns:1fr;gap:12px}.app-shell main > :not(.wmk-dashboard-sidebar),.app-shell main > .wmk-dashboard-sidebar{grid-column:1}.app-shell main > .wmk-dashboard-sidebar{grid-row:auto;position:static;min-height:0;order:0}.app-shell main > .wmk-welcome{order:1}.app-shell main > .wmk-overview{order:2}.app-shell main > .wmk-table-title{order:3}.app-shell main > .wmk-context-toolbar{order:4}.app-shell main > #calendar-active-filter{order:5}.app-shell main > .table-wrap{order:6}.app-shell main > #document-pagination{order:7}.app-shell .dashboard-tabs.wmk-tabs{flex-direction:row!important;flex-wrap:wrap;gap:4px!important}.app-shell .dashboard-tabs.wmk-tabs .tab-button{flex:0 1 auto!important}.wmk-sidebar-footer{display:none}}
+@media(max-width:640px){.app-shell .topbar > div{padding:10px 12px!important}.app-shell .brand-title-main{font-size:.95rem!important}.app-shell .topbar .wmk-school-shortcuts{width:100%;display:grid;grid-template-columns:1fr 1fr}.app-shell .topbar .wmk-school-shortcut{min-width:0;padding:6px}.app-shell main{padding:12px!important}.app-shell .wmk-welcome{padding:18px!important;display:flex;flex-direction:column;gap:12px}.app-shell .wmk-welcome strong{font-size:1.18rem!important}.app-shell .wmk-calendar{align-self:stretch;text-align:left;padding:9px!important}.wmk-overview{gap:9px}.wmk-overview-card{gap:7px;padding:12px 9px}.wmk-overview-icon{width:32px;height:32px;font-size:1.2rem}.wmk-overview-copy small{font-size:.65rem}.wmk-overview-copy strong{font-size:1.27rem}.wmk-overview-arrow{display:none}.wmk-table-title{align-items:flex-start;flex-wrap:wrap}.app-shell .wmk-context-toolbar{padding:10px}.app-shell .wmk-context-toolbar > div{width:100%}.app-shell .wmk-context-toolbar input{width:100%;flex:1}.app-shell .data-table{min-width:780px}}
+@media(prefers-reduced-motion:reduce){.app-shell *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
