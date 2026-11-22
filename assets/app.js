@@ -1,10 +1,10 @@
-/* WMK_UI_RELEASE: V10.16 — responsive sidebar, fast foreground synchronization */
+/* WMK_UI_RELEASE: v.3.0.0 — Red & Gold, document workflow preserved */
 (() => {
   'use strict';
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'V10.16';
+  const FRONTEND_BUILD_VERSION = 'v.3.0.0';
 
   const THEME_PRESETS = {
     formal: { name: 'ทางการ', description: 'แดงเข้มและทอง เหมาะกับงานราชการ', primary: '#b91c1c', secondary: '#f59e0b' },
@@ -702,7 +702,12 @@
   }
 
   function loading(title, text = '') {
-    Swal.fire({ title, text, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    // One shared, accessible WMK loader: no duplicated text or modal spinner.
+    Swal.fire({
+      html: '<div class="wmk-loading-ring" role="status" aria-label="กำลังดำเนินการ"><span>WMK</span></div>',
+      showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false,
+      customClass: { popup: 'wmk-loading-popup' },
+    });
   }
 
   function showError(error) {
@@ -981,6 +986,7 @@
             </div>
             <div class="flex items-center gap-3">
               <div class="text-right hidden sm:block"><div class="font-semibold">${escapeHtml(state.user.name)}</div><div class="text-xs text-amber-100">${escapeHtml(state.user.role)}</div></div>
+              <button id="wmk-paper-counter" class="wmk-paper-counter" type="button" title="สถิติการลดการใช้กระดาษ (ประมาณการ)">🌿 <span id="wmk-paper-count">— หน้า</span></button>
               <button id="download-center-btn" class="btn bg-white/15 text-white">⬇ ดาวน์โหลด</button>
 
               <button id="settings-btn" class="settings-gear-btn" type="button" aria-label="การตั้งค่า" title="การตั้งค่า">⚙</button>
@@ -1014,9 +1020,9 @@
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
           </div>
-            <div class="wmk-sidebar-footer">WMK Saraban <span>V10.16</span></div>
+            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.0</span></div>
           </aside>
-          <div class="wmk-table-title"><div><h2>รายการเอกสาร</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
+          <div class="wmk-table-title"><div><h2>${state.tab === 'telegram' ? 'จัดการการแจ้งเตือน' : 'รายการเอกสาร'}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
           <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
@@ -1071,7 +1077,18 @@
     const acknowledgeAllBtn = document.getElementById('acknowledge-all-btn');
     if (acknowledgeAllBtn) acknowledgeAllBtn.onclick = acknowledgeAllPendingDocuments;
     document.getElementById('download-center-btn').onclick = openDownloadCenter;
+    document.getElementById('wmk-sidebar-download')?.addEventListener('click', openDownloadCenter);
     document.getElementById('settings-btn').onclick = openSettingsPanel;
+    // This is an estimate, not observed printing activity. Missing page counts assume 1 page.
+    const paperDocs = new Map((state.allDocs || []).map((doc) => [String(doc.docId), doc]));
+    const paperPages = [...paperDocs.values()].reduce((sum, doc) => sum + Math.max(1, Number(doc.pageCount || doc.pdfPageCount || 1) || 1), 0);
+    const paperCount = document.getElementById('wmk-paper-count');
+    if (paperCount) paperCount.textContent = `${paperPages.toLocaleString('th-TH')} หน้า`;
+    document.getElementById('wmk-paper-counter')?.addEventListener('click', () => Swal.fire({
+      title: '🌿 ลดการใช้กระดาษโดยประมาณ',
+      html: `<div class="wmk-paper-detail"><strong>${paperPages.toLocaleString('th-TH')} หน้า</strong><p>คำนวณจากเอกสาร ${paperDocs.size.toLocaleString('th-TH')} ฉบับที่บัญชีนี้เข้าถึงได้ โดยสมมติว่าระบบทดแทนการพิมพ์ 1 ชุดต่อฉบับ และเอกสารที่ไม่ทราบจำนวนหน้าคิดขั้นต่ำ 1 หน้า</p><small>เป็นตัวเลขประมาณการ ไม่ใช่ยอดกระดาษที่วัดจากการพิมพ์จริง และไม่ใช่ยอดรวมทุกหน่วยงาน</small></div>`,
+      confirmButtonText: 'เข้าใจแล้ว'
+    }));
 
     document.getElementById('role-guide-btn')?.addEventListener('click', openRoleGuide);
 
@@ -1382,10 +1399,10 @@
         ? '<span class="badge badge-circular">เวียนคณะครู</span>' : '';
       const actionButton = isDocumentMaintenanceAdmin()
         ? `<button class="btn btn-admin-edit text-xs admin-edit-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">✏️ แก้ไขเอกสาร</button>
-           <button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`
+           <button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">📄 เปิดเอกสาร</button>`
         : (state.tab === 'action'
           ? `<button class="btn btn-primary text-xs action-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">ประทับตรา / จัดการ</button>`
-          : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">⚡ เปิดด่วน</button>`);
+          : `<button class="btn btn-muted text-xs view-doc-btn quick-view-btn" data-doc-id="${escapeHtml(doc.docId)}">📄 เปิดเอกสาร</button>`);
       const replaceButton = ''; // WMK V6: PDF replacement retired; attachment merging retained.
       const reminderButton = isClericalUser() && recipientCount
         ? `<button class="btn btn-reminder text-xs reminder-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">🔔 ส่งการแจ้งเตือน</button>`
@@ -1579,7 +1596,7 @@
           </p>
         </div>
 
-        <div id="new-document-file-list" class="multi-file-click-list">
+        <div class="wmk-upload-list-hint">รายการไฟล์ที่เลือก · คลิกชื่อไฟล์เพื่อแก้ไขรายละเอียด (เลื่อนภายในกรอบนี้ได้)</div><div id="new-document-file-list" class="multi-file-click-list wmk-upload-scroll-list">
           <div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>
         </div>
 
@@ -2343,7 +2360,7 @@
     if (inline) {
       const main=document.querySelector('.app-shell main');
       const tabs=main?.querySelector('.dashboard-tabs-mascot-row');
-      if (tabs) tabs.insertAdjacentElement('afterend',overlay); else main?.appendChild(overlay);
+      main?.appendChild(overlay);
     } else document.body.appendChild(overlay);
     const $ = id => overlay.querySelector('#'+id);
     if(!inline) $('tgmanual-close').onclick = () => overlay.remove();
@@ -2981,7 +2998,7 @@
       return;
     }
 
-    loading('กำลังเปิดเอกสารแบบด่วน...');
+    loading('กำลังเปิดเอกสาร...');
     let quickPdf = null;
     let observer = null;
     let renderGeneration = Date.now();
@@ -5474,7 +5491,7 @@
       </div>
       <div class="download-selection-toolbar"><div><b id="download-result-count">0 เอกสาร</b><span id="download-selected-count">เลือกแล้ว 0 ไฟล์</span></div><div><button id="select-all-download" class="btn btn-muted text-xs" type="button">เลือกทั้งหมดที่แสดง</button><button id="clear-download" class="btn btn-muted text-xs" type="button">ยกเลิกทั้งหมด</button></div></div>
       <div id="download-list" class="download-date-list"></div>
-      <div id="download-progress" class="hide mt-4"><div class="flex justify-between text-sm"><span id="download-progress-text">กำลังเตรียมไฟล์</span><span id="download-progress-percent">0%</span></div><div class="progress-track mt-2"><div id="download-progress-bar" class="progress-bar"></div></div></div>
+      <div id="download-progress" class="hide mt-4 wmk-download-progress" role="status" aria-live="polite"><div class="flex justify-between text-sm"><span id="download-progress-text">กำลังเตรียมไฟล์</span><span id="download-progress-percent">0%</span></div><div class="progress-track mt-2"><div id="download-progress-bar" class="progress-bar"></div></div></div>
       <div class="download-manager-footer"><span>ไฟล์ที่เลือกหลายรายการจะรวมเป็น ZIP อัตโนมัติ</span><button id="download-selected" class="btn btn-success" type="button">ดาวน์โหลดไฟล์ที่เลือก</button></div>
     </div>`;
     document.body.appendChild(overlay);
@@ -5591,8 +5608,11 @@
     overlay.querySelector('#clear-download').onclick = () => { selectedIds.clear(); renderList(); };
     overlay.querySelector('#download-selected').onclick = async () => {
       const ids = [...selectedIds];
+      const downloadAction = overlay.querySelector('#download-selected');
+      if (downloadAction.disabled) return;
       if (!ids.length) { Swal.fire('แจ้งเตือน', 'กรุณาเลือกเอกสารอย่างน้อย 1 ไฟล์', 'warning'); return; }
       const progress = overlay.querySelector('#download-progress');
+      downloadAction.disabled = true;
       progress.classList.remove('hide');
       try {
         if (ids.length === 1) {
@@ -5604,24 +5624,40 @@
           return;
         }
         const zip = new JSZip();
-        for (let index = 0; index < ids.length; index++) {
-          const result = await gasCall('getDocumentFile', state.token, ids[index], false);
+        // Bounded concurrency: reduce total wait without overwhelming Apps Script/Drive.
+        // Progress represents actual completed file requests and JSZip compression,
+        // not a simulated byte-level network progress indicator.
+        let cursor = 0, finished = 0;
+        const fetched = new Array(ids.length);
+        const worker = async () => {
+          while (cursor < ids.length) {
+            const index = cursor++;
+            const result = await gasCall('getDocumentFile', state.token, ids[index], false);
+            if (!result?.file?.base64) throw new Error(`ไม่พบ PDF ลำดับที่ ${index + 1}`);
+            fetched[index] = result;
+            finished++;
+            updateDownloadProgress(overlay, Math.round((finished / ids.length) * 70), `รับไฟล์แล้ว ${finished}/${ids.length}`);
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(3, ids.length) }, () => worker()));
+        fetched.forEach((result) => {
           const downloadName = buildDocumentDownloadFileName(result.document);
           const safeName = uniqueFileName(zip, downloadName);
           zip.file(safeName, result.file.base64, { base64: true });
-          updateDownloadProgress(overlay, Math.round(((index + 1) / ids.length) * 75), `รับไฟล์ ${index + 1}/${ids.length}`);
-        }
-        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (meta) => updateDownloadProgress(overlay, 75 + Math.round(meta.percent * .25), 'กำลังสร้าง ZIP'));
+        });
+        updateDownloadProgress(overlay, 70, 'กำลังบีบอัด ZIP');
+        const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } }, (meta) => updateDownloadProgress(overlay, 70 + Math.round(meta.percent * .3), 'กำลังสร้าง ZIP'));
         const range = dateRange();
         downloadBlob(blob, `เอกสารราชการ-${sanitizeZipLabel(range?.label || todayKey)}-${ids.length}-ไฟล์.zip`);
         updateDownloadProgress(overlay, 100, 'สร้าง ZIP สำเร็จ');
       } catch (error) { showError(error); }
-      finally { setTimeout(() => progress.classList.add('hide'), 1800); }
+      finally { downloadAction.disabled = false; setTimeout(() => { if (progress.isConnected) progress.classList.add('hide'); }, 1800); }
     };
     renderList();
   }
 
   function updateDownloadProgress(overlay, percent, text) {
+    percent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
     overlay.querySelector('#download-progress-bar').style.width = `${percent}%`;
     overlay.querySelector('#download-progress-percent').textContent = `${percent}%`;
     overlay.querySelector('#download-progress-text').textContent = text;
