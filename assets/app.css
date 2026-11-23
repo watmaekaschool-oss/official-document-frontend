@@ -3963,3 +3963,43 @@ body .swal2-container { z-index:1000000!important; }
  .wmk-v303-upload-backdrop{padding:0!important}.wmk-v303-upload-backdrop .wmk-v303-upload-panel{max-height:100dvh!important;height:100dvh!important;border-radius:0!important}.wmk-v303-upload-header{padding:13px}.wmk-v303-upload-steps{padding:9px 12px}.wmk-v303-upload-panel .wmk-v303-upload-form{padding:13px}.wmk-v303-upload-footer-note{display:none}.wmk-v303-upload-files .multi-file-click-list{max-height:180px!important}
 }
 @media(prefers-reduced-motion:reduce){.app-shell .wmk-v303-table *{transition:none!important}}
+
+/* WMK v3.0.4 — distinguishable upload workspace & real file drop target */
+.wmk-v303-upload-backdrop .wmk-v303-upload-panel{width:min(1120px,calc(100vw - 32px))!important;max-height:94dvh!important}
+.wmk-v303-upload-panel .wmk-v303-upload-form{display:grid!important;grid-template-columns:minmax(0,1.28fr) minmax(290px,.72fr);gap:14px 18px;align-content:start;padding:20px!important}
+.wmk-v303-upload-form>.wmk-v303-upload-section:first-of-type{grid-column:1;grid-row:1;margin:0}
+.wmk-v303-upload-form>.wmk-v303-upload-files{grid-column:1;grid-row:2;margin:0}
+.wmk-v303-upload-form>.wmk-v303-operation-picker{grid-column:2;grid-row:1 / span 2;margin:0!important;align-self:stretch}
+.wmk-v303-upload-form>.wmk-v303-upload-footer{grid-column:1 / -1;grid-row:3;margin:0!important;padding:13px 0 0!important}
+.wmk-v304-dropzone{position:relative;min-height:230px!important;gap:10px!important;background:linear-gradient(155deg,#FFFAF4,#FFF0DB)!important;border:2px dashed #D7A85B!important;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease;cursor:pointer}
+.wmk-v304-dropzone.is-dragover{border-color:#A81F2E!important;background:#FFE9D3!important;box-shadow:0 0 0 5px rgba(183,38,51,.12)!important}
+.wmk-v304-dropzone.has-files{border-style:solid!important;border-color:#B8A365!important;background:#FFF9EA!important}
+.wmk-v304-drop-illustration{display:grid;place-items:center;width:57px;height:57px;border-radius:18px;background:#B72333;color:white;font-size:36px;font-weight:800;box-shadow:0 5px 16px rgba(177,31,45,.15)}
+.wmk-v304-dropzone strong{font-size:1.07rem!important;color:#8B1E2B!important}.wmk-v304-dropzone small{font-size:.77rem!important;line-height:1.5}
+.wmk-v304-browse-btn{background:#A92434;color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:750;cursor:pointer}
+.wmk-v304-browse-btn:hover{background:#831826}
+.wmk-v304-drop-status{font-size:.75rem;color:#78624E;font-weight:600}
+.wmk-v304-native-file{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;overflow:hidden!important;pointer-events:none!important;margin:0!important;padding:0!important;border:0!important}
+.wmk-v303-upload-files .multi-file-click-list{max-height:290px!important}
+.wmk-v303-upload-panel .wmk-v303-operation-picker .operation-option{min-height:74px;margin-bottom:9px;padding:13px!important}
+.wmk-v303-upload-panel .wmk-v303-upload-steps{background:#FFFBF6}
+@media(max-width:800px){.wmk-v303-upload-panel .wmk-v303-upload-form{display:flex!important;flex-direction:column;gap:12px;padding:13px!important}.wmk-v303-upload-form>.wmk-v303-operation-picker{align-self:auto}.wmk-v304-dropzone{min-height:190px!important}.wmk-v303-upload-files .multi-file-click-list{max-height:190px!important}}
+@media(prefers-reduced-motion:reduce){.wmk-v304-dropzone{transition:none}}
+
+/* WMK Saraban v3.0.5 — immediate per-file metadata fields (no accordion). */
+.wmk-v305-picker{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.wmk-v303-upload-files .multi-file-click-list{max-height:min(46dvh,475px)!important;display:flex;flex-direction:column;gap:12px;padding:12px!important}
+.wmk-v303-upload-files .wmk-v305-file-box{border:1px solid #EBD8C5!important;border-radius:14px;background:#fff;overflow:visible!important;flex:none;box-shadow:0 2px 10px rgba(105,46,32,.04)}
+.wmk-v305-file-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #F3E8DB;background:#FFF8EF;border-radius:14px 14px 0 0}
+.wmk-v305-file-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.wmk-v305-file-title b{color:#872733;font-size:.89rem;overflow-wrap:anywhere;line-height:1.4}
+.wmk-v305-file-title small{font-size:.72rem;color:#817168}
+.wmk-v305-file-ok{color:#14804B;font-weight:800;font-size:1rem}
+.wmk-v305-file-fields{padding:12px 14px 16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.wmk-v305-file-fields label{display:flex;flex-direction:column;gap:6px;min-width:0;color:#644B45;font-weight:750;font-size:.79rem}
+.wmk-v305-file-fields em{color:#B91C2B;font-style:normal}
+.wmk-v305-file-fields input{min-width:0;box-sizing:border-box;width:100%;height:43px;padding:10px 12px;border:1px solid #E4D5C8;border-radius:9px;background:#fff;font-size:.86rem;color:#2C2730;box-shadow:none}
+.wmk-v305-file-fields input:focus{outline:2px solid #D6A63A;outline-offset:1px;border-color:#A92232}
+.wmk-v305-file-fields input.wmk-v305-invalid{border-color:#C71E31!important;background:#FFF3F3!important}
+@media(max-width:850px){.wmk-v305-file-fields{grid-template-columns:1fr}.wmk-v303-upload-files .multi-file-click-list{max-height:39dvh!important}}
+@media(prefers-reduced-motion:reduce){.wmk-v305-file-box *{scroll-behavior:auto!important}}
