@@ -4,7 +4,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'v.3.0.1';
+  const FRONTEND_BUILD_VERSION = 'v.3.0.2';
 
   // v3.0.1: One fixed, accessible school-wide theme. Old local color choices are deliberately ignored.
   const DEFAULT_DISPLAY_SETTINGS = Object.freeze({
@@ -1018,7 +1018,7 @@
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
           </div>
-            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.1</span></div>
+            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.2</span></div>
           </aside>
           <div class="wmk-table-title"><div><h2>${({action:'งานรอดำเนินการ',inbox:'จดหมายเข้า',all:'จดหมายทั้งหมด',acknowledged:'รับทราบแล้ว',completed:'เอกสารเสร็จสิ้น',telegram:'จัดการการแจ้งเตือน'}[state.tab] || 'รายการเอกสาร')}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
           <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -1046,7 +1046,7 @@
             </div>
           </div>
           <div id="calendar-active-filter"></div>
-          <div class="card table-wrap"><table class="data-table"><thead><tr><th>เลขรับ</th><th>จาก</th><th>เรื่อง</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
+          <div class="card table-wrap wmk-smart-table-wrap"><table class="data-table wmk-smart-table" aria-label="รายการเอกสารราชการ"><thead><tr><th>เลขรับ</th><th>เรื่อง / จาก</th><th>สถานะ</th><th>การดำเนินการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
           <div id="document-pagination" class="document-pagination" aria-label="แบ่งหน้ารายการเอกสาร"></div>
         </main>
       </div>`;
@@ -1359,7 +1359,7 @@
     const totalFiltered = docs.length;
     renderDocumentPagination_(totalFiltered);
     if (!docs.length) {
-      tbody.innerHTML = '<tr class="wmk-empty-row"><td colspan="5"><div class="wmk-empty-document-state"><span aria-hidden="true">📂</span><strong>ไม่มีเอกสารในรายการนี้</strong><small>ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</small></div></td></tr>';
+      tbody.innerHTML = '<tr class="wmk-empty-row"><td colspan="4"><div class="wmk-empty-document-state"><span aria-hidden="true">📂</span><strong>ไม่มีเอกสารในรายการนี้</strong><small>ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</small></div></td></tr>';
       return;
     }
     const pageSize = Number(state.displaySettings?.pageSize || 25);
@@ -1396,20 +1396,34 @@
       const reminderButton = isClericalUser() && recipientCount
         ? `<button class="btn btn-reminder text-xs reminder-doc-btn" data-doc-id="${escapeHtml(doc.docId)}">🔔 ส่งการแจ้งเตือน</button>`
         : '';
-      return `<tr class="wmk-document-row" data-document-receive="${escapeHtml(doc.recvNo)}">
-        <td class="font-bold text-slate-700 whitespace-nowrap">${escapeHtml(doc.recvNo)}</td>
-        <td class="whitespace-nowrap">${escapeHtml(doc.fromSender)}</td>
-        <td class="wmk-document-subject"><div class="font-semibold">${escapeHtml(doc.subject)}</div><div class="text-xs text-slate-400 mt-1">${escapeHtml(doc.docId)}</div></td>
-        <td><div class="flex flex-wrap gap-2 items-center"><span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}</div><div class="mt-2">${recipientText}</div></td>
-        <td class="wmk-document-actions-cell"><div class="wmk-document-actions">${actionButton}${ackButton}${reminderButton}${replaceButton}<button class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button></div></td>
+      // The same four-tab data and backend handlers power desktop rows and mobile compact cards.
+      // Secondary actions retain their original class names and are wired below.
+      const actionExtras = `${reminderButton}${replaceButton}<button type="button" class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">📎 ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button>`;
+      const statusBadges = `<span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}`;
+      return `<tr class="wmk-document-row wmk-smart-row" data-document-receive="${escapeHtml(doc.recvNo)}">
+        <td class="wmk-smart-number"><strong>${escapeHtml(doc.recvNo)}</strong></td>
+        <td class="wmk-smart-description"><div class="wmk-smart-subject" title="${escapeHtml(doc.subject)}">${escapeHtml(doc.subject)}</div><div class="wmk-smart-meta"><span>จาก: ${escapeHtml(doc.fromSender)}</span><span>📎 ${(doc.attachments || []).length} ไฟล์</span></div></td>
+        <td class="wmk-smart-status"><div class="wmk-smart-badges">${statusBadges}</div><div class="wmk-smart-ack">${recipientText}</div></td>
+        <td class="wmk-document-actions-cell"><div class="wmk-smart-action-area"><div class="wmk-smart-primary">${actionButton}${ackButton}</div><details class="wmk-smart-more"><summary aria-label="คำสั่งเพิ่มเติมของเอกสาร ${escapeHtml(doc.recvNo)}">⋯ <span>เพิ่มเติม</span></summary><div class="wmk-smart-more-panel">${actionExtras}</div></details></div></td>
       </tr>`;
     }).join('');
     } catch (renderError) {
       console.error('[WMK] document row rendering failed', renderError);
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8">ไม่สามารถแสดงรายการเอกสารได้ กรุณาตรวจสอบ Console และแจ้งผู้ดูแลระบบ</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8">ไม่สามารถแสดงรายการเอกสารได้ กรุณาตรวจสอบ Console และแจ้งผู้ดูแลระบบ</td></tr>';
       return;
     }
 
+    tbody.querySelectorAll('.wmk-smart-more').forEach((menu) => {
+      menu.addEventListener('toggle', () => {
+        if (!menu.open) return;
+        tbody.querySelectorAll('.wmk-smart-more[open]').forEach((other) => {
+          if (other !== menu) other.open = false;
+        });
+      });
+      menu.querySelectorAll('.wmk-smart-more-panel button').forEach((button) => {
+        button.addEventListener('click', () => { menu.open = false; });
+      });
+    });
     tbody.querySelectorAll('.action-doc-btn').forEach((button) => button.onclick = () => openWorkspace(button.dataset.docId, true));
     tbody.querySelectorAll('.admin-edit-doc-btn').forEach((button) => button.onclick = () => openSystemAdminDocumentEditor(button.dataset.docId));
     tbody.querySelectorAll('.view-doc-btn').forEach((button) => {
