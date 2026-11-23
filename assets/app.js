@@ -1,10 +1,10 @@
-/* WMK_UI_RELEASE: v.3.0.1 — Red & Gold, document workflow preserved */
+/* WMK_UI_RELEASE: v.3.0.5 — Direct metadata editors and safe performance instrumentation */
 (() => {
   'use strict';
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'v.3.0.3';
+  const FRONTEND_BUILD_VERSION = 'v.3.0.5';
 
   // v3.0.1: One fixed, accessible school-wide theme. Old local color choices are deliberately ignored.
   const DEFAULT_DISPLAY_SETTINGS = Object.freeze({
@@ -96,7 +96,9 @@
   function primeFirstVisiblePdf_() {
     clearTimeout(quickPrimeTimer_);
 
-    // ไม่ prefetch เมื่อผู้ใช้เปิดโหมดประหยัดข้อมูล
+    // Proactive PDF prefetch competes with document APIs on slower devices.
+    // Open-on-click uses the existing two-entry in-memory PDF cache instead.
+    return;
     if (navigator.connection?.saveData || document.hidden) return;
 
     quickPrimeTimer_ = window.setTimeout(() => {
@@ -868,9 +870,14 @@
   window.addEventListener('online', () => { if (state.user) { syncDashboardSilently_(true); refreshWmkPaperStats_(true); } });
   window.addEventListener('offline', () => updateDashboardSyncIndicator_('ออฟไลน์ • แสดงข้อมูลล่าสุดที่โหลดไว้', true));
 
+  let dashboardLoadPromise_ = null;
   async function loadDashboard() {
-    // Preserve the existing document/API/authorization contract.
+    // Coalesce simultaneous refresh calls; no new backend API or long-lived persistent cache.
+    if (dashboardLoadPromise_) return dashboardLoadPromise_;
+    dashboardLoadPromise_ = (async () => {
+    const startedAt = performance.now();
     const result = await gasCall('getDashboardDocuments', state.token);
+    console.info('[WMK perf] dashboard API (ms)', Math.round(performance.now() - startedAt));
     applyDashboardResponse_(result, false);
     maybeOpenDeepLinkedDocument_();
     startDashboardSync_();
@@ -879,6 +886,9 @@
         .then((settings) => { state.appSettings = settings || state.appSettings; })
         .catch(() => {});
     }
+    })();
+    try { return await dashboardLoadPromise_; }
+    finally { dashboardLoadPromise_ = null; }
   }
 
   function maybeOpenDeepLinkedDocument_() {
@@ -1018,7 +1028,7 @@
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
           </div>
-            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.3</span></div>
+            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.5</span></div>
           </aside>
           <div class="wmk-table-title wmk-v303-section-heading"><div><span class="wmk-v303-eyebrow">WMK SARABAN · DOCUMENT WORKSPACE</span><h2>${({action:'งานรอดำเนินการ',inbox:'จดหมายเข้า',all:'จดหมายทั้งหมด',acknowledged:'รับทราบแล้ว',completed:'เอกสารเสร็จสิ้น',telegram:'จัดการการแจ้งเตือน'}[state.tab] || 'รายการเอกสาร')}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
           <div class="wmk-v303-document-workspace"><div class="wmk-context-toolbar wmk-v303-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -1585,8 +1595,8 @@
       <form id="upload-form" class="space-y-4 wmk-v303-upload-form">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
 
-        <section class="wmk-v303-upload-section"><div class="wmk-v303-upload-section-title"><strong>01 · เลือกเอกสาร PDF</strong><span>รองรับหลายฉบับ</span></div><label class="wmk-v303-upload-dropzone" for="new-document-pdf-files"><span class="wmk-v303-upload-drop-icon">⇧</span><strong>คลิกเลือกไฟล์ PDF</strong><small>เลือกได้หลายไฟล์ · 1 PDF เท่ากับหนังสือ 1 ฉบับ</small><input id="new-document-pdf-files" type="file" accept="application/pdf,.pdf" multiple required></label></section>
-        <section class="wmk-v303-upload-section wmk-v303-upload-files"><div class="wmk-v303-upload-section-title"><strong>02 · ตรวจสอบชื่อเรื่องและหน่วยงานผู้ส่ง</strong><span id="wmk-v303-upload-file-count">ยังไม่เลือกไฟล์</span></div><div class="wmk-upload-list-hint">คลิกชื่อไฟล์เพื่อแก้ไขรายละเอียดทีละฉบับ · เลื่อนรายการภายในกรอบได้</div><div id="new-document-file-list" class="multi-file-click-list wmk-upload-scroll-list">
+        <section class="wmk-v303-upload-section"><div class="wmk-v303-upload-section-title"><strong>01 · เลือกเอกสาร PDF</strong><span>รองรับหลายฉบับ</span></div><div id="wmk-upload-dropzone" class="wmk-v303-upload-dropzone wmk-v304-dropzone" role="button" tabindex="0" aria-label="ลากไฟล์ PDF มาวาง หรือกดเลือกไฟล์จากอุปกรณ์"><div class="wmk-v304-drop-illustration" aria-hidden="true">⇧</div><strong>ลากไฟล์ PDF มาวางที่นี่</strong><small>หรือเลือกไฟล์จากเครื่อง · เพิ่มได้หลายไฟล์ (ไม่เกิน 15 MB ต่อไฟล์)</small><button type="button" id="wmk-upload-browse" class="wmk-v304-browse-btn">＋ เลือกไฟล์ PDF</button><span id="wmk-upload-drop-status" class="wmk-v304-drop-status" role="status" aria-live="polite">ยังไม่ได้เลือกไฟล์</span><input id="new-document-pdf-files" class="wmk-v304-native-file" type="file" accept="application/pdf,.pdf" multiple required aria-label="เลือกเอกสาร PDF"></div></section>
+        <section class="wmk-v303-upload-section wmk-v303-upload-files"><div class="wmk-v303-upload-section-title"><strong>02 · ตรวจสอบชื่อเรื่องและหน่วยงานผู้ส่ง</strong><span id="wmk-v303-upload-file-count">ยังไม่เลือกไฟล์</span></div><div class="wmk-upload-list-hint">แก้ไข “เรื่อง” และ “จาก” ได้ทันทีในทุกกล่อง · ไม่ต้องกดขยาย</div><div id="new-document-file-list" class="multi-file-click-list wmk-upload-scroll-list">
           <div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>
         </div></section>
 
@@ -1621,6 +1631,74 @@
     const input = overlay.querySelector('#new-document-pdf-files');
     const listHost = overlay.querySelector('#new-document-file-list');
     const submitBtn = overlay.querySelector('#multi-file-upload-submit');
+    // v3.0.4: drag & drop and browse use the SAME native input/form handler.
+    // No separate upload API, no change to backend document workflow.
+    const dropZone = overlay.querySelector('#wmk-upload-dropzone');
+    const browseBtn = overlay.querySelector('#wmk-upload-browse');
+    const dropStatus = overlay.querySelector('#wmk-upload-drop-status');
+    let dragDepth = 0;
+    const refreshDropStatus_ = () => {
+      const count = input.files?.length || 0;
+      if (dropStatus) dropStatus.textContent = count ? `เลือกแล้ว ${count} ไฟล์ PDF · ลากเพิ่มได้` : 'ยังไม่ได้เลือกไฟล์';
+      dropZone?.classList.toggle('has-files', count > 0);
+    };
+    const addFiles_ = (incoming) => {
+      syncMetaFromEditors_();
+      const files = [...(input.files || []), ...(incoming || [])];
+      validatePdfFiles(files);
+      const unique = new Map(files.map((file) => [fileKey_(file), file]));
+      const transfer = new DataTransfer();
+      [...unique.values()].forEach((file) => transfer.items.add(file));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    // Separate picker: the native input used for submission must retain previously chosen files.
+    const picker = document.createElement('input');
+    picker.type = 'file'; picker.accept = 'application/pdf,.pdf'; picker.multiple = true;
+    picker.className = 'wmk-v305-picker';
+    picker.setAttribute('aria-label','เพิ่มเอกสาร PDF');
+    picker.addEventListener('change', () => { try { addFiles_([...picker.files]); } catch (error) { showError(error); } picker.value = ''; });
+    overlay.appendChild(picker);
+    browseBtn.addEventListener('click', (event) => { event.stopPropagation(); picker.click(); });
+    dropZone.addEventListener('click', (event) => {
+      if (event.target.closest('button') || event.target === input) return;
+      picker.click();
+    });
+    dropZone.addEventListener('keydown', (event) => {
+      if (event.target !== dropZone || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault(); picker.click();
+    });
+    const markDrag_ = (active) => dropZone.classList.toggle('is-dragover', active);
+    dropZone.addEventListener('dragenter', (event) => {
+      if (!event.dataTransfer?.types?.includes('Files')) return;
+      event.preventDefault(); dragDepth += 1; markDrag_(true);
+    });
+    dropZone.addEventListener('dragover', (event) => {
+      if (!event.dataTransfer?.types?.includes('Files')) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; markDrag_(true);
+    });
+    dropZone.addEventListener('dragleave', (event) => {
+      event.preventDefault(); dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) markDrag_(false);
+    });
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault(); dragDepth = 0; markDrag_(false);
+      const dropped = [...(event.dataTransfer?.files || [])];
+      if (!dropped.length) return;
+      try {
+        validatePdfFiles(dropped);
+        addFiles_(dropped);
+      } catch (error) { showError(error); }
+    });
+    // Prevent a PDF dropped outside the target from navigating away from the app.
+    // Scoped to this modal and automatically removed upon close.
+    const blockExternalDrop_ = (event) => {
+      if (!event.dataTransfer?.types?.includes('Files') || dropZone.contains(event.target)) return;
+      event.preventDefault();
+    };
+    overlay.addEventListener('dragover', blockExternalDrop_);
+    overlay.addEventListener('drop', blockExternalDrop_);
+
 
     overlay.querySelectorAll('.close-modal').forEach((button) => {
       button.onclick = () => overlay.remove();
@@ -1662,7 +1740,7 @@
           fileMeta.set(key, {
             subject: subjectFromFileName_(file.name),
             sender: defaultSender,
-            expanded: false,
+            expanded: true,
           });
         }
       });
@@ -1677,61 +1755,39 @@
         ? `＋ เพิ่มหนังสือ ${files.length} ฉบับ`
         : '＋ เพิ่มหนังสือ';
 
+      // Keep one visible, fully editable box for each PDF. Input events only update
+      // the metadata Map; typing NEVER rebuilds the list or steals keyboard focus.
+      const scrollTop = listHost.scrollTop;
       listHost.innerHTML = files.map((file, index) => {
         const key = fileKey_(file);
         const meta = fileMeta.get(key);
-        return `<div class="selected-file-card ${meta.expanded ? 'expanded' : ''}" data-file-key="${escapeHtml(key)}">
-          <button type="button" class="selected-file-summary" aria-expanded="${meta.expanded ? 'true' : 'false'}">
+        return `<section class="selected-file-card wmk-v305-file-box" data-file-key="${escapeHtml(key)}" aria-label="เอกสารฉบับที่ ${index + 1}">
+          <header class="wmk-v305-file-head">
             <span class="selected-file-number">${index + 1}</span>
-            <span class="selected-file-main">
-              <b>${escapeHtml(file.name)}</b>
-              <small>${(Number(file.size || 0) / (1024 * 1024)).toFixed(2)} MB • กดเพื่อแก้ชื่อเรื่องและจาก</small>
-            </span>
-            <span class="selected-file-chevron">${meta.expanded ? '▲' : '▼'}</span>
-          </button>
-
-          <div class="selected-file-editor ${meta.expanded ? '' : 'hide'}">
-            <label>
-              <span>เรื่อง</span>
-              <input class="input selected-file-subject" value="${escapeHtml(meta.subject)}" autocomplete="off">
-            </label>
-            <label>
-              <span>จาก</span>
-              <input class="input selected-file-sender" value="${escapeHtml(meta.sender)}" autocomplete="off">
-            </label>
+            <span class="wmk-v305-file-title"><b title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</b>
+              <small>${(Number(file.size || 0) / (1024 * 1024)).toFixed(2)} MB · PDF</small></span>
+            <span class="wmk-v305-file-ok" aria-hidden="true">✓</span>
+          </header>
+          <div class="wmk-v305-file-fields">
+            <label><span>เรื่อง <em>*</em></span>
+              <input class="input selected-file-subject" value="${escapeHtml(meta.subject)}" autocomplete="off" required maxlength="1000" aria-label="ชื่อเรื่องไฟล์ที่ ${index + 1}"></label>
+            <label><span>จาก (หน่วยงานผู้ส่ง) <em>*</em></span>
+              <input class="input selected-file-sender" value="${escapeHtml(meta.sender)}" autocomplete="off" required maxlength="500" aria-label="ผู้ส่งไฟล์ที่ ${index + 1}"></label>
           </div>
-        </div>`;
+        </section>`;
       }).join('');
-
-      listHost.querySelectorAll('.selected-file-summary').forEach((button) => {
-        button.onclick = () => {
-          syncMetaFromEditors_();
-          const card = button.closest('.selected-file-card');
-          const key = card?.dataset.fileKey;
-          if (!key || !fileMeta.has(key)) return;
-
-          // เปิดทีละกล่องเดียวเพื่อลดความสูงของหน้าต่างและไม่ทำให้เลื่อนช้า
-          fileMeta.forEach((meta, otherKey) => {
-            meta.expanded = otherKey === key ? !meta.expanded : false;
-          });
-          renderSelectedFiles_();
-
-          requestAnimationFrame(() => {
-            const opened = listHost.querySelector(`.selected-file-card[data-file-key="${CSS.escape(key)}"].expanded`);
-            opened?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            opened?.querySelector('.selected-file-subject')?.focus({ preventScroll: true });
-          });
-        };
-      });
-
+      listHost.scrollTop = scrollTop;
       listHost.querySelectorAll('.selected-file-subject, .selected-file-sender').forEach((field) => {
-        field.addEventListener('input', () => syncMetaFromEditors_());
-        field.addEventListener('click', (event) => event.stopPropagation());
+        field.addEventListener('input', () => {
+          syncMetaFromEditors_();
+          field.classList.toggle('wmk-v305-invalid', !field.value.trim());
+        });
       });
     }
 
-    input.onchange = () => { renderSelectedFiles_(); const node = overlay.querySelector('#wmk-v303-upload-file-count'); if (node) node.textContent = `${input.files?.length || 0} ไฟล์`; };
+    input.onchange = () => { renderSelectedFiles_(); refreshDropStatus_(); const node = overlay.querySelector('#wmk-v303-upload-file-count'); if (node) node.textContent = `${input.files?.length || 0} ไฟล์`; };
     renderSelectedFiles_();
+    refreshDropStatus_();
 
     form.onsubmit = async (event) => {
       event.preventDefault();
@@ -1744,10 +1800,17 @@
 
         const jobs = files.map((file, index) => {
           const meta = fileMeta.get(fileKey_(file));
-          const subject = String(meta?.subject || subjectFromFileName_(file.name)).trim();
-          const sender = String(meta?.sender || defaultSender).trim();
-          if (!subject) throw new Error(`ไฟล์ที่ ${index + 1}: กรุณากรอกชื่อเรื่อง`);
-          if (!sender) throw new Error(`ไฟล์ที่ ${index + 1}: กรุณากรอก "จาก"`);
+          // Important: NEVER replace a user-cleared field with the original filename/default.
+          const subject = String(meta?.subject ?? '').trim();
+          const sender = String(meta?.sender ?? '').trim();
+          if (!subject || !sender) {
+            const card = [...listHost.querySelectorAll('.wmk-v305-file-box')][index];
+            const field = card?.querySelector(!subject ? '.selected-file-subject' : '.selected-file-sender');
+            field?.classList.add('wmk-v305-invalid');
+            field?.focus();
+            field?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            throw new Error(`ไฟล์ที่ ${index + 1}: กรุณากรอก${!subject ? 'ชื่อเรื่อง' : 'หน่วยงานผู้ส่ง'}ให้ครบ`);
+          }
           return { file, subject, sender };
         });
 
@@ -1800,6 +1863,8 @@
 
         const success = [];
         const failed = [];
+        const batchStart = performance.now();
+        submitBtn.disabled = true;
 
         // ทำทีละไฟล์เพื่อให้เลขรับเรียงต่อเนื่อง และไม่ยิง Apps Script/Drive พร้อมกันจนหน่วง
         for (let i = 0; i < jobs.length; i += 1) {
@@ -1814,6 +1879,7 @@
             barEl.style.width = `${Math.round((i / jobs.length) * 100)}%`;
           }
 
+          const fileStart = performance.now();
           try {
             // ไม่ใช้ PDFLib merge ในโหมดนี้: ส่งไฟล์ต้นฉบับตรง เพื่อลด RAM และเพิ่มความเสถียร
             const result = await uploadFileForm('uploadNewDocument', 'pdfFile', job.file, {
@@ -1824,7 +1890,9 @@
               sourceNames: JSON.stringify([job.file.name]),
             });
             success.push({ job, result });
+            console.info('[WMK perf] upload document completed (ms)', Math.round(performance.now() - fileStart));
           } catch (error) {
+            console.warn('[WMK perf] upload document failed (ms)', Math.round(performance.now() - fileStart));
             failed.push({
               job,
               message: String(error?.message || error || 'ไม่ทราบสาเหตุ'),
@@ -1836,6 +1904,7 @@
           }
         }
 
+        console.info('[WMK perf] upload batch completed (ms)', Math.round(performance.now() - batchStart), 'success', success.length, 'failed', failed.length);
         overlay.remove();
         await loadDashboard();
 
@@ -3982,11 +4051,14 @@
   }
 
   async function loadPdf(base64) {
+    const startedAt = performance.now();
     const bytes = base64ToUint8Array(base64);
     state.currentPdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    console.info('[WMK perf] PDF parse (ms)', Math.round(performance.now() - startedAt));
     if (state.currentDoc?.docId) recordExactPageCount_(state.currentDoc.docId, state.currentPdf.numPages);
     state.currentPageNumber = 1;
     await renderAllPdfPages();
+    console.info('[WMK perf] PDF viewer initialization (ms)', Math.round(performance.now() - startedAt));
   }
 
   async function renderPdfPageView_(view, generation) {
