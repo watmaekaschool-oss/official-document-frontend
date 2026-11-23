@@ -4,7 +4,7 @@
   window.OFFICIAL_DOC_APP_STARTED = true;
 
   const SCHOOL_LOGO_URL = 'https://i.postimg.cc/k4TFzHPQ/Screenshot-2026-06-16-150410.png';
-  const FRONTEND_BUILD_VERSION = 'v.3.0.2';
+  const FRONTEND_BUILD_VERSION = 'v.3.0.3';
 
   // v3.0.1: One fixed, accessible school-wide theme. Old local color choices are deliberately ignored.
   const DEFAULT_DISPLAY_SETTINGS = Object.freeze({
@@ -993,7 +993,7 @@
           </div>
         </header>
 
-        <main class="max-w-7xl mx-auto px-4 py-6">
+        <main class="max-w-7xl mx-auto px-4 py-6 wmk-v303-main">
           <section class="wmk-welcome" aria-label="ยินดีต้อนรับ">
             <div class="wmk-welcome-copy"><div class="wmk-welcome-small">ยินดีต้อนรับ 👋</div><strong>${escapeHtml(state.user.name || state.user.username || '')}</strong><div>ระบบสารบรรณอิเล็กทรอนิกส์ โรงเรียนวัดแม่กะ · ${escapeHtml(state.user.role || '')}</div></div>
             <a class="wmk-calendar" href="https://wmk-cal2.vercel.app/" target="_blank" rel="noopener noreferrer" title="เปิดปฏิทินโรงเรียน"><span>📅 ปฏิทินโรงเรียน ↗</span><time id="wmk-clock"></time></a>
@@ -1018,10 +1018,10 @@
               <button class="tab-button ${state.tab === 'acknowledged' ? 'active' : ''}" data-tab="acknowledged">รับทราบแล้ว (${state.acknowledgedDocs.length})</button>
             </div>
           </div>
-            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.2</span></div>
+            <div class="wmk-sidebar-section-title">เครื่องมือ</div><button class="wmk-sidebar-tool" type="button" id="wmk-sidebar-download">⬇ <span>ดาวน์โหลดเอกสาร</span></button><div class="wmk-sidebar-footer">WMK Saraban <span>v.3.0.3</span></div>
           </aside>
-          <div class="wmk-table-title"><div><h2>${({action:'งานรอดำเนินการ',inbox:'จดหมายเข้า',all:'จดหมายทั้งหมด',acknowledged:'รับทราบแล้ว',completed:'เอกสารเสร็จสิ้น',telegram:'จัดการการแจ้งเตือน'}[state.tab] || 'รายการเอกสาร')}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
-          <div class="wmk-context-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="wmk-table-title wmk-v303-section-heading"><div><span class="wmk-v303-eyebrow">WMK SARABAN · DOCUMENT WORKSPACE</span><h2>${({action:'งานรอดำเนินการ',inbox:'จดหมายเข้า',all:'จดหมายทั้งหมด',acknowledged:'รับทราบแล้ว',completed:'เอกสารเสร็จสิ้น',telegram:'จัดการการแจ้งเตือน'}[state.tab] || 'รายการเอกสาร')}</h2><p>จัดการหนังสือราชการตามสิทธิ์ของคุณ</p></div><span id="wmk-sync-indicator" class="wmk-sync-indicator">● พร้อมใช้งาน</span></div>
+          <div class="wmk-v303-document-workspace"><div class="wmk-context-toolbar wmk-v303-toolbar flex flex-wrap items-center justify-between gap-3 mb-4">
             <div class="flex flex-wrap gap-2 items-stretch">
               ${isClericalUser() ? '<button id="upload-btn" class="btn btn-success">＋ นำเข้าหนังสือใหม่</button>' : ''}
               <button id="refresh-btn" class="btn btn-muted">↻ รีเฟรช</button>
@@ -1046,8 +1046,9 @@
             </div>
           </div>
           <div id="calendar-active-filter"></div>
-          <div class="card table-wrap wmk-smart-table-wrap"><table class="data-table wmk-smart-table" aria-label="รายการเอกสารราชการ"><thead><tr><th>เลขรับ</th><th>เรื่อง / จาก</th><th>สถานะ</th><th>การดำเนินการ</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
-          <div id="document-pagination" class="document-pagination" aria-label="แบ่งหน้ารายการเอกสาร"></div>
+          <div class="wmk-v303-list-heading"><div><b>รายการหนังสือราชการ</b><small>เลือกหนังสือเพื่อดูรายละเอียดหรือดำเนินงานตามสิทธิ์</small></div><span class="wmk-v303-live-dot">● อัปเดตข้อมูลอัตโนมัติ</span></div>
+          <div class="card table-wrap wmk-smart-table-wrap wmk-v303-table-wrap"><table class="data-table wmk-smart-table wmk-v303-table" aria-label="รายการเอกสารราชการ"><thead><tr><th>เลขรับ</th><th>เรื่อง / หน่วยงานผู้ส่ง</th><th>สถานะเอกสาร</th><th>คำสั่ง</th></tr></thead><tbody id="document-tbody"></tbody></table></div>
+          <div id="document-pagination" class="document-pagination" aria-label="แบ่งหน้ารายการเอกสาร"></div></div>
         </main>
       </div>`;
 
@@ -1401,8 +1402,8 @@
       const actionExtras = `${reminderButton}${replaceButton}<button type="button" class="btn btn-purple text-xs attachment-btn" data-doc-id="${escapeHtml(doc.docId)}">📎 ไฟล์แนบ / รวม PDF (${(doc.attachments || []).length})</button>`;
       const statusBadges = `<span class="badge">${escapeHtml(doc.status)}</span>${operationBadge(doc.operationMode)}${doc.recipientCount ? priorityBadge : ''}${circularBadge}`;
       return `<tr class="wmk-document-row wmk-smart-row" data-document-receive="${escapeHtml(doc.recvNo)}">
-        <td class="wmk-smart-number"><strong>${escapeHtml(doc.recvNo)}</strong></td>
-        <td class="wmk-smart-description"><div class="wmk-smart-subject" title="${escapeHtml(doc.subject)}">${escapeHtml(doc.subject)}</div><div class="wmk-smart-meta"><span>จาก: ${escapeHtml(doc.fromSender)}</span><span>📎 ${(doc.attachments || []).length} ไฟล์</span></div></td>
+        <td class="wmk-smart-number"><span class="wmk-v303-file-symbol" aria-hidden="true">▤</span><strong>${escapeHtml(doc.recvNo)}</strong></td>
+        <td class="wmk-smart-description"><div class="wmk-smart-subject" title="${escapeHtml(doc.subject)}">${escapeHtml(doc.subject)}</div><div class="wmk-smart-meta"><span class="wmk-v303-sender">จาก: ${escapeHtml(doc.fromSender)}</span><span>📎 ${(doc.attachments || []).length} ไฟล์</span></div></td>
         <td class="wmk-smart-status"><div class="wmk-smart-badges">${statusBadges}</div><div class="wmk-smart-ack">${recipientText}</div></td>
         <td class="wmk-document-actions-cell"><div class="wmk-smart-action-area"><div class="wmk-smart-primary">${actionButton}${ackButton}</div><details class="wmk-smart-more"><summary aria-label="คำสั่งเพิ่มเติมของเอกสาร ${escapeHtml(doc.recvNo)}">⋯ <span>เพิ่มเติม</span></summary><div class="wmk-smart-more-panel">${actionExtras}</div></details></div></td>
       </tr>`;
@@ -1563,7 +1564,7 @@
     const defaultSender = state.appSettings?.defaults?.fromSender || 'สพป.ชม.2';
     const defaultOperationMode = state.appSettings?.defaults?.operationMode || 'normal';
     const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop';
+    overlay.className = 'modal-backdrop wmk-v303-upload-backdrop';
 
     const fileMeta = new Map();
 
@@ -1578,32 +1579,18 @@
         .replace(/\s+/g, ' ')
         .trim();
 
-    overlay.innerHTML = `<div class="modal-panel upload-single-window-panel">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-xl font-bold">นำเข้าหนังสือรับเรื่องใหม่</h2>
-          <p class="text-xs text-slate-500 mt-1">เลือก PDF หลายไฟล์ได้ • PDF 1 ไฟล์ = หนังสือ 1 ฉบับ</p>
-        </div>
-        <button type="button" class="text-2xl close-modal">×</button>
-      </div>
-
-      <form id="upload-form" class="space-y-4">
+    overlay.innerHTML = `<div class="modal-panel upload-single-window-panel wmk-v303-upload-panel" role="dialog" aria-modal="true" aria-label="นำเข้าหนังสือรับเรื่องใหม่">
+      <header class="wmk-v303-upload-header"><div class="wmk-v303-upload-heading"><span class="wmk-v303-upload-heading-icon">▤</span><div><small>WMK SARABAN / IMPORT DOCUMENTS</small><h2>นำเข้าหนังสือรับเรื่องใหม่</h2><p>เลือก PDF หลายฉบับ กำหนดรายละเอียด และเลือกเส้นทางดำเนินงาน</p></div></div><button type="button" class="wmk-v303-upload-close close-modal" aria-label="ปิด">×</button></header>
+      <div class="wmk-v303-upload-steps"><span><b>1</b> เลือกไฟล์ PDF</span><span><b>2</b> ตรวจชื่อเรื่องและผู้ส่ง</span><span><b>3</b> การดำเนินงาน</span></div>
+      <form id="upload-form" class="space-y-4 wmk-v303-upload-form">
         <input type="hidden" name="sessionToken" value="${escapeHtml(state.token)}">
 
-        <div>
-          <label class="font-semibold text-sm">ไฟล์ PDF</label>
-          <input id="new-document-pdf-files" class="input mt-1" type="file" accept="application/pdf,.pdf" multiple required>
-          <p class="text-xs text-slate-500 mt-1">
-            หลังเลือกไฟล์ ให้กดที่ชื่อไฟล์แต่ละรายการเพื่อแก้ “เรื่อง” และ “จาก”
-          </p>
-        </div>
-
-        <div class="wmk-upload-list-hint">รายการไฟล์ที่เลือก · คลิกชื่อไฟล์เพื่อแก้ไขรายละเอียด (เลื่อนภายในกรอบนี้ได้)</div><div id="new-document-file-list" class="multi-file-click-list wmk-upload-scroll-list">
+        <section class="wmk-v303-upload-section"><div class="wmk-v303-upload-section-title"><strong>01 · เลือกเอกสาร PDF</strong><span>รองรับหลายฉบับ</span></div><label class="wmk-v303-upload-dropzone" for="new-document-pdf-files"><span class="wmk-v303-upload-drop-icon">⇧</span><strong>คลิกเลือกไฟล์ PDF</strong><small>เลือกได้หลายไฟล์ · 1 PDF เท่ากับหนังสือ 1 ฉบับ</small><input id="new-document-pdf-files" type="file" accept="application/pdf,.pdf" multiple required></label></section>
+        <section class="wmk-v303-upload-section wmk-v303-upload-files"><div class="wmk-v303-upload-section-title"><strong>02 · ตรวจสอบชื่อเรื่องและหน่วยงานผู้ส่ง</strong><span id="wmk-v303-upload-file-count">ยังไม่เลือกไฟล์</span></div><div class="wmk-upload-list-hint">คลิกชื่อไฟล์เพื่อแก้ไขรายละเอียดทีละฉบับ · เลื่อนรายการภายในกรอบได้</div><div id="new-document-file-list" class="multi-file-click-list wmk-upload-scroll-list">
           <div class="multi-file-empty">ยังไม่ได้เลือกไฟล์ PDF</div>
-        </div>
+        </div></section>
 
-        <fieldset class="operation-picker">
-          <legend>การดำเนินงาน</legend>
+        <fieldset class="operation-picker wmk-v303-operation-picker"><legend>03 · เลือกเส้นทางการดำเนินงาน</legend>
           <label class="operation-option operation-normal">
             <input type="radio" name="operationMode" value="normal" ${defaultOperationMode === 'normal' ? 'checked' : ''}>
             <span><b>1. ปกติ</b><small>ธุรการ → รองผู้อำนวยการ → ผู้อำนวยการ</small></span>
@@ -1618,7 +1605,7 @@
           </label>
         </fieldset>
 
-        <div class="upload-two-actions">
+        <div class="upload-two-actions wmk-v303-upload-footer"><span class="wmk-v303-upload-footer-note">ตรวจสอบข้อมูลทุกฉบับก่อนนำเข้า</span>
           <button type="button" class="btn btn-muted close-modal">ยกเลิก</button>
           <button id="multi-file-upload-submit" class="btn btn-add-book upload-add-book-blue" type="submit">
             ＋ เพิ่มหนังสือ
@@ -1628,6 +1615,7 @@
     </div>`;
 
     document.body.appendChild(overlay);
+    overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') overlay.remove(); });
 
     const form = overlay.querySelector('#upload-form');
     const input = overlay.querySelector('#new-document-pdf-files');
@@ -1742,7 +1730,7 @@
       });
     }
 
-    input.onchange = renderSelectedFiles_;
+    input.onchange = () => { renderSelectedFiles_(); const node = overlay.querySelector('#wmk-v303-upload-file-count'); if (node) node.textContent = `${input.files?.length || 0} ไฟล์`; };
     renderSelectedFiles_();
 
     form.onsubmit = async (event) => {
@@ -4790,7 +4778,7 @@
       : '<div class="settings-empty-signature">ยังไม่ได้ตั้งค่าลายเซ็น</div>';
 
     const sections = {
-      account: `<section class="settings-content-section"><h2>👤 บัญชีของฉัน</h2><p class="settings-lead">ข้อมูลบัญชีที่อ่านจากชีต Users</p><div class="settings-info-grid"><div><span>ชื่อ</span><b>${escapeHtml(user.name)}</b></div><div><span>ชื่อผู้ใช้</span><b>${escapeHtml(user.username)}</b></div><div><span>บทบาท</span><b>${escapeHtml(user.role)}</b></div><div><span>ฝ่าย/งาน</span><b>${escapeHtml(user.department || 'ยังไม่ระบุ')}</b></div><div><span>อีเมล</span><b>${escapeHtml(user.email || 'ยังไม่ระบุ')}</b></div><div><span>ลายเซ็น</span><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าแล้ว' : 'ยังไม่ตั้งค่า'}</b></div></div></section>`,
+      account: `<section class="settings-content-section wmk-v303-account-section"><div class="wmk-v303-content-heading"><span aria-hidden="true">♙</span><div><h2>ข้อมูลบัญชีของฉัน</h2><p class="settings-lead">ข้อมูลจากทะเบียนผู้ใช้ของระบบ · อ่านอย่างเดียว</p></div></div><div class="settings-info-grid"><div><span>ชื่อผู้ใช้งาน</span><b>${escapeHtml(user.name)}</b></div><div><span>ชื่อบัญชี</span><b>${escapeHtml(user.username)}</b></div><div><span>บทบาท</span><b>${escapeHtml(user.role)}</b></div><div><span>ฝ่าย/งาน</span><b>${escapeHtml(user.department || 'ยังไม่ระบุ')}</b></div><div><span>อีเมล</span><b>${escapeHtml(user.email || 'ยังไม่ระบุ')}</b></div><div><span>ลายเซ็น</span><b class="wmk-v303-signature-status">${user.signatureConfigured || user.signatureDataUrl ? '✓ ตั้งค่าแล้ว' : 'ยังไม่ตั้งค่า'}</b></div></div></section>`,
       password: `<section class="settings-content-section"><h2>🔐 เปลี่ยนรหัสผ่าน</h2><p class="settings-lead">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</p><form id="change-own-password-form" class="settings-form"><label>รหัสผ่านเดิม<input class="input" type="password" name="currentPassword" autocomplete="current-password" required></label><label>รหัสผ่านใหม่<input class="input" type="password" name="newPassword" autocomplete="new-password" minlength="8" required></label><label>ยืนยันรหัสผ่านใหม่<input class="input" type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="btn btn-primary" type="submit">บันทึกรหัสผ่านใหม่</button></form></section>`,
       signature: `<section class="settings-content-section"><h2>✍️ ลายเซ็นของฉัน</h2><p class="settings-lead">ลายเซ็นถูกอ่านจาก signatureFileId ในชีต Users</p><div class="settings-signature-card">${signatureHtml}<div><b>${user.signatureConfigured || user.signatureDataUrl ? 'ตั้งค่าลายเซ็นแล้ว' : 'ยังไม่ได้ตั้งค่าลายเซ็น'}</b><p>ผู้ดูแลระบบเป็นผู้เปลี่ยนไฟล์ลายเซ็น เพื่อป้องกันการนำลายเซ็นของบุคคลอื่นมาใช้</p></div></div></section>`,
       workflowMascot: `<section class="settings-content-section"><h2>🐥 มาสคอตแจ้งเตือนงาน</h2><p class="settings-lead">สำหรับครู รองผู้อำนวยการ และผู้อำนวยการ สามารถซ่อนหรือแสดงเป็ด กระต่าย หมี และแพนด้าได้ตามต้องการ</p><div class="mascot-settings-card"><label class="switch-row mascot-master-switch"><span><b>แสดงมาสคอตแจ้งเตือนงาน</b><small>เมื่อปิด มาสคอตจะไม่แสดงบนหน้ารายการเอกสาร แต่จำนวนงานและการแจ้งเตือนอื่นยังทำงานตามปกติ</small></span><input id="workflow-mascot-enabled" type="checkbox" ${workflowMascot.enabled ? 'checked' : ''}></label><div class="mascot-preview-box"><b>ตัวอย่างมาสคอต</b><div class="mascot-settings-preview"><span title="เป็ดแจ้งงานใหม่">${mascotArt('duck')}</span><span title="กระต่ายบันทึกสำเร็จ">${mascotArt('bunny')}</span><span title="หมีงานเสร็จแล้ว">${mascotArt('bear')}</span><span title="แพนด้าพักสายตา">${mascotArt('panda')}</span></div><small>การตั้งค่านี้บันทึกแยกตามชื่อผู้ใช้ใน Browser เครื่องที่กำลังใช้งาน</small></div></div><div class="settings-actions"><button id="reset-workflow-mascot-settings" class="btn btn-muted" type="button">เปิดค่าเริ่มต้น</button><button id="save-workflow-mascot-settings" class="btn btn-primary" type="button">บันทึกการตั้งค่า</button></div></section>`,
@@ -4856,13 +4844,34 @@
     let activeSection = 'account';
     const overlay = document.createElement('div');
     overlay.className = 'settings-backdrop wmk-settings-page';
-    overlay.innerHTML = `<div class="settings-shell"><aside class="settings-sidebar"><div class="settings-sidebar-head"><div><span class="settings-large-gear">⚙</span><h2>การตั้งค่า</h2><p>WMK Settings Center · ตั้งค่าระบบ</p></div><button class="settings-close" type="button" aria-label="ปิด">×</button></div><nav><div class="wmk-settings-nav-group">บัญชีและความปลอดภัย</div>${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}${isAdmin ? `<div class="wmk-settings-nav-group">การจัดการสารบรรณและผู้ดูแล</div>${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}${isClericalUser() ? settingsNavButton('worklinks','🔗','ลิงค์งาน','เพิ่มและจัดการลิงก์',true) : ''}${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','ปรับข้อความและเหตุการณ์',true)}${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}</nav><button class="settings-close-bottom" type="button">ปิด</button></aside><main id="settings-content" class="settings-content"></main></div>`;
+    overlay.innerHTML = `<div class="settings-shell wmk-v303-settings-shell">
+      <header class="wmk-v303-settings-header">
+        <div class="wmk-v303-settings-header-title"><span class="wmk-v303-settings-icon" aria-hidden="true">⚙</span><div><small>WMK SARABAN / SETTINGS</small><h1>การตั้งค่าระบบ</h1><p>จัดการบัญชี ความปลอดภัย และการตั้งค่าระบบสารบรรณ</p></div></div>
+        <button class="settings-close wmk-v303-close" type="button" aria-label="ปิดการตั้งค่า">× <span>กลับหน้าหลัก</span></button>
+      </header>
+      <div class="wmk-v303-settings-stage">
+        <aside class="settings-sidebar wmk-v303-settings-sidebar"><div class="settings-sidebar-head"><div><h2>หมวดการตั้งค่า</h2><p>เลือกรายการเพื่อจัดการ</p></div></div><nav>
+          <div class="wmk-settings-nav-group">บัญชีและความปลอดภัย</div>
+          ${settingsNavButton('account','👤','บัญชีของฉัน','ข้อมูลบัญชีและสิทธิ์')}
+          ${settingsNavButton('password','🔐','เปลี่ยนรหัสผ่าน','ดูแลความปลอดภัย')}
+          ${settingsNavButton('signature','✍️','ลายเซ็นของฉัน','ตรวจสถานะลายเซ็น')}
+          ${isAdmin ? `<div class="wmk-settings-nav-group">การจัดการสารบรรณ</div>
+          ${settingsNavButton('users','👥','จัดการผู้ใช้งาน','เปิดชีต Users',true)}
+          ${settingsNavButton('import','📥','ค่าเริ่มต้นการนำเข้า','ผู้ส่งและเส้นทาง',true)}
+          ${settingsNavButton('receive','🔢','เลขรับและปีทะเบียน','เลขเอกสารถัดไป',true)}
+          ${settingsNavButton('system','🩺','ตรวจสอบระบบ','สถานะระบบทั้งหมด',true)}
+          ${isClericalUser() ? settingsNavButton('worklinks','🔗','ลิงค์งาน','เพิ่มและจัดการลิงก์',true) : ''}
+          ${settingsNavButton('telegram','✈️','แจ้งเตือน Telegram','การแจ้งเตือนเอกสาร',true)}
+          ${settingsNavButton('data','🗂️','จัดการข้อมูล','ชีตและโฟลเดอร์',true)}` : ''}
+        </nav><button class="settings-close-bottom" type="button">ปิดการตั้งค่า</button></aside>
+        <main id="settings-content" class="settings-content wmk-v303-settings-content"></main>
+      </div></div>`;
     document.body.appendChild(overlay);
 
     const content = overlay.querySelector('#settings-content');
     const renderSection = (sectionId) => {
       activeSection = sectionId;
-      content.innerHTML = settingsSectionMarkup(sectionId, isAdmin);
+      content.innerHTML = `<div class="wmk-v303-settings-content-wrap"><div class="wmk-v303-settings-breadcrumb">การตั้งค่าระบบ <span>›</span> ${escapeHtml(({account:"บัญชีของฉัน",password:"ความปลอดภัย",signature:"ลายเซ็น",users:"จัดการผู้ใช้",import:"ค่าเริ่มต้น",receive:"เลขรับและปีทะเบียน",system:"ตรวจสอบระบบ",worklinks:"ลิงก์งาน",telegram:"Telegram",data:"จัดการข้อมูล"})[sectionId] || "การตั้งค่า")}</div><div class="wmk-v303-settings-card">${settingsSectionMarkup(sectionId, isAdmin)}</div></div>`;
       overlay.querySelectorAll('[data-settings-section]').forEach((button) => button.classList.toggle('active', button.dataset.settingsSection === sectionId));
       bindSettingsSection(sectionId);
       if(sectionId === "worklinks") overlay.querySelector("#settings-worklinks-open")?.addEventListener("click",()=>{overlay.remove();openWorkLinksModal(true);});
