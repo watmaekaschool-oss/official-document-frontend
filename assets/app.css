@@ -3845,3 +3845,121 @@ body .swal2-container { z-index:1000000!important; }
 }
 @media(prefers-reduced-motion:reduce){.app-shell .wmk-smart-table tbody .wmk-smart-row{transition:none}}
 .app-shell .wmk-smart-table tbody .wmk-smart-row:has(.wmk-smart-more[open]){z-index:20}
+
+/* =============================================================
+   WMK Saraban v.3.0.3 - Structural Frontend Redesign
+   New layout rules deliberately override legacy version-specific UI.
+   No changes to permission, workflow or document API semantics.
+   ============================================================= */
+:root{--wmk303-red:#A91D2C;--wmk303-red-dark:#861624;--wmk303-gold:#D29A31;--wmk303-cream:#FFF6E8;--wmk303-line:#EEDFCC;--wmk303-text:#2B2530}
+.app-shell{background:linear-gradient(140deg,#FFFCF7 0%,#FCF4EB 65%,#FFFDF9 100%)!important;color:var(--wmk303-text)!important}
+.app-shell .topbar{background:linear-gradient(115deg,#941824 0%,#B72232 64%,#C53D36 100%)!important;color:#fff!important;border-bottom:3px solid #D9A444!important;box-shadow:0 5px 22px rgba(123,22,33,.12)!important}
+.app-shell .topbar .brand-title-main{color:#fff!important;font-size:1.2rem!important}
+.app-shell .topbar .brand-title-sub,.app-shell .topbar .text-amber-100{color:#FFEDD9!important}
+.app-shell .topbar .wmk-school-shortcut{border:1px solid rgba(255,255,255,.38)!important;box-shadow:none!important;background:rgba(255,255,255,.12)!important;color:#fff!important}
+.app-shell .topbar .wmk-school-shortcut:hover{background:rgba(255,255,255,.22)!important}
+.app-shell .topbar .wmk-school-shortcut-copy small,.app-shell .topbar .wmk-school-shortcut-arrow{color:#FFE3BF!important}
+.app-shell .topbar #logout-btn{background:#fff2e7!important;color:#8F202C!important}
+.app-shell .topbar .settings-gear-btn,.app-shell .topbar .header-guide-btn{color:#fff!important}
+.app-shell main.wmk-v303-main{max-width:1840px!important;grid-template-columns:246px minmax(0,1fr)!important;column-gap:24px!important;row-gap:18px!important;padding:23px 24px 38px!important}
+.app-shell main.wmk-v303-main>.wmk-dashboard-sidebar{border:1px solid #EBD7BE!important;background:#FFFBF6!important;border-radius:20px!important;box-shadow:0 10px 30px rgba(113,53,21,.06)!important;padding:17px!important}
+.app-shell .wmk-sidebar-user{background:#FFF0DC!important;border-radius:14px!important;border:1px solid #F0D7AF!important}
+.app-shell .wmk-sidebar-section-title{color:#A17A54!important;font-size:.72rem!important;letter-spacing:.05em!important;text-transform:uppercase!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button{color:#5C4C48!important;border-radius:10px!important;min-height:43px!important;padding:10px 12px!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button:hover{background:#FFF0DD!important;color:#9D2633!important}
+.app-shell .dashboard-tabs.wmk-tabs .tab-button.active{background:#A71D2D!important;color:#fff!important;box-shadow:0 4px 11px rgba(166,30,45,.16)!important}
+.app-shell .wmk-sidebar-tool{background:#FFF0DB!important;border:1px solid #F2D7B0!important;color:#8D2631!important;border-radius:11px!important}
+.app-shell .wmk-sidebar-footer{border-top:1px solid #F0DEC7!important;color:#8E6C56!important}
+.app-shell .wmk-welcome{background:linear-gradient(110deg,#FFF5E7 0%,#FFECD8 59%,#F5D5A7 100%)!important;border:1px solid #EED7B6!important;box-shadow:0 6px 22px rgba(126,63,34,.045)!important;min-height:140px!important}
+.app-shell .wmk-welcome strong,.app-shell .wmk-welcome-small{color:#8C2230!important}
+.app-shell .wmk-welcome-copy>div:last-child{color:#79584D!important}
+.app-shell .wmk-calendar{color:#8D2833!important;border-color:#F4DDC2!important}
+.app-shell .wmk-overview-card{border:1px solid #EAD9C6!important;background:#FFFBF5!important;border-radius:15px!important;box-shadow:0 4px 13px rgba(113,53,21,.04)!important;color:#432A31!important}
+.app-shell .wmk-overview-card:nth-child(1){background:#FFF0EF!important}.app-shell .wmk-overview-card:nth-child(2){background:#FFF5E0!important}.app-shell .wmk-overview-card:nth-child(3){background:#FFEDF1!important}.app-shell .wmk-overview-card:nth-child(4){background:#F1F7E9!important}
+.app-shell .wmk-overview-card .wmk-overview-icon{color:#AB1D2B!important}
+.app-shell .wmk-v303-section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 3px!important;margin-bottom:0!important}
+.wmk-v303-eyebrow{display:block;font-size:.64rem;letter-spacing:.12em;font-weight:800;color:#B7874E;margin-bottom:5px}
+.app-shell .wmk-v303-section-heading h2{font-size:1.58rem!important;color:#8B1F2C!important;margin:0!important}
+.app-shell .wmk-v303-section-heading p{color:#8A7468!important}
+.app-shell .wmk-v303-document-workspace{background:#fff;border:1px solid #EFDDCA;border-radius:22px;padding:19px 20px 15px;box-shadow:0 9px 25px rgba(104,48,21,.06);min-width:0}
+.app-shell .wmk-v303-toolbar{padding:0 0 17px!important;margin:0 0 15px!important;border:0!important;border-bottom:1px solid #F1E3D6!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+.app-shell .wmk-v303-toolbar .input{border-color:#E9D7C6!important;border-radius:11px!important;background:#FFFDFC!important;min-height:43px}
+.app-shell .wmk-v303-toolbar .btn{border-radius:10px!important;min-height:40px!important}
+.wmk-v303-list-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:10px 2px 15px}
+.wmk-v303-list-heading div{display:grid;gap:2px}.wmk-v303-list-heading b{font-size:.97rem;color:#82252C}.wmk-v303-list-heading small{font-size:.72rem;color:#987D6F}
+.wmk-v303-live-dot{font-size:.7rem;font-weight:650;color:#2D8151;background:#EEF8ED;border-radius:30px;padding:7px 12px;white-space:nowrap}
+.app-shell .wmk-v303-table-wrap{border:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;border-radius:0!important}
+.app-shell .wmk-v303-table{border:0!important;border-collapse:separate!important;border-spacing:0 8px!important;background:transparent!important;table-layout:fixed!important}
+.app-shell .wmk-v303-table thead{background:transparent!important}
+.app-shell .wmk-v303-table thead th{background:#FFF1D9!important;border-top:1px solid #EFDBB9!important;border-bottom:1px solid #EFDBB9!important;color:#86472F!important;font-size:.75rem!important;padding:12px 15px!important}
+.app-shell .wmk-v303-table thead th:first-child{border-left:1px solid #EFDBB9!important;border-radius:11px 0 0 11px!important}
+.app-shell .wmk-v303-table thead th:last-child{border-right:1px solid #EFDBB9!important;border-radius:0 11px 11px 0!important}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row{background:transparent!important;z-index:auto}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row td{background:#FFFDFC!important;border-top:1px solid #EDE0D0!important;border-bottom:1px solid #EDE0D0!important;padding:14px 13px!important;vertical-align:middle!important;line-height:1.45}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row td:first-child{border-left:1px solid #EDE0D0!important;border-radius:12px 0 0 12px!important}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row td:last-child{border-right:1px solid #EDE0D0!important;border-radius:0 12px 12px 0!important}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row:hover td{background:#FFF8EF!important;border-color:#E7C8A6!important}
+.app-shell .wmk-v303-table tbody tr.wmk-smart-row:has(.wmk-smart-more[open]){position:relative;z-index:20!important}
+.app-shell .wmk-v303-table th:nth-child(1){width:14%!important}.app-shell .wmk-v303-table th:nth-child(2){width:39%!important}.app-shell .wmk-v303-table th:nth-child(3){width:26%!important}.app-shell .wmk-v303-table th:nth-child(4){width:21%!important}
+.wmk-v303-file-symbol{display:inline-grid;place-items:center;width:30px;height:34px;background:#FFF0E4;color:#A92432;border-radius:9px;font-size:1.35rem;margin-right:9px;vertical-align:middle}
+.app-shell .wmk-v303-table .wmk-smart-number strong{font-size:.89rem!important;color:#A42131!important}
+.app-shell .wmk-v303-table .wmk-smart-subject{font-size:.86rem;font-weight:700;color:#342C2E;line-height:1.47}
+.app-shell .wmk-v303-table .wmk-smart-meta{font-size:.72rem;margin-top:8px;color:#8A7771}
+.app-shell .wmk-v303-table .wmk-smart-action-area{gap:7px;align-items:flex-start}
+.app-shell .wmk-v303-table .wmk-smart-primary{gap:6px}
+.app-shell .wmk-v303-table .wmk-smart-primary .btn{border-radius:9px!important;padding:9px 11px!important;min-height:35px!important}
+.app-shell .wmk-v303-table .wmk-smart-more summary{min-height:35px;border-radius:9px;background:#FFF4E8;color:#922B35;padding:8px 10px}
+.app-shell .wmk-v303-table .wmk-smart-more-panel{border:1px solid #E7C8A6;box-shadow:0 18px 42px rgba(85,36,20,.19)}
+.app-shell .document-pagination{background:transparent!important;box-shadow:none!important}
+
+/* Settings becomes a centered full-page work area with a distinct content cabinet. */
+.settings-backdrop.wmk-settings-page{background:#FFF9F1!important;overflow-y:auto!important;display:block!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-shell{display:block!important;min-height:100dvh!important;height:auto!important;max-height:none!important;width:100%!important;background:linear-gradient(165deg,#FFF9F1,#FFFCF8 58%,#FFF3E5)!important;overflow:visible!important}
+.wmk-v303-settings-header{padding:21px clamp(20px,4vw,72px);background:#fff;border-bottom:1px solid #F1DFC9;display:flex;align-items:center;justify-content:space-between;gap:20px;position:sticky;top:0;z-index:3}
+.wmk-v303-settings-header-title{display:flex;align-items:center;gap:16px}.wmk-v303-settings-header-title small{display:block;font-size:.67rem;letter-spacing:.13em;color:#B48349;font-weight:850}.wmk-v303-settings-header-title h1{font-size:clamp(1.35rem,2.5vw,1.85rem);color:#932532;font-weight:850;margin:2px 0}.wmk-v303-settings-header-title p{margin:0;color:#876B5C;font-size:.79rem}
+.wmk-v303-settings-icon{height:55px;width:55px;display:grid;place-items:center;font-size:29px;border-radius:16px;background:#A71D2D;color:#fff;box-shadow:0 5px 14px rgba(167,29,45,.2)}
+.settings-backdrop.wmk-settings-page .wmk-v303-close{display:flex;align-items:center;gap:9px;border:1px solid #F0D8BB;border-radius:11px;background:#FFF6EA;padding:9px 13px;color:#912934;font-size:1.1rem;font-weight:800;flex-shrink:0}.wmk-v303-close span{font-size:.79rem}
+.wmk-v303-settings-stage{width:min(1180px,calc(100% - 44px));margin:28px auto 60px;border-radius:22px;display:grid;grid-template-columns:256px minmax(0,1fr);background:#fff;box-shadow:0 15px 45px rgba(100,48,27,.08);border:1px solid #EBD8C4;overflow:hidden;min-height:590px}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar{padding:22px 14px!important;background:#FFFBF5!important;border-right:1px solid #EEDFCE!important;overflow:visible!important;max-height:none!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-sidebar-head{padding:0 12px 10px;margin-bottom:8px}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-sidebar-head h2{font-size:1rem;color:#8F2732}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-sidebar-head p{font-size:.72rem;color:#A38A78;grid-column:auto}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar nav{gap:3px!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item{min-height:40px!important;padding:7px 10px!important;border-radius:9px!important;grid-template-columns:27px minmax(0,1fr);gap:5px!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item b{font-size:.81rem}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item small{font-size:.66rem}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item.active{background:#FFECCF!important;border:1px solid #F1D7AD!important;box-shadow:none!important;color:#992432!important;border-left:4px solid #AA2432!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-close-bottom{margin-top:22px}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-content{background:#fff!important;min-height:0!important;overflow:visible!important;padding:24px clamp(18px,3vw,38px)!important}
+.wmk-v303-settings-content-wrap{max-width:790px;margin:0 auto}.wmk-v303-settings-breadcrumb{color:#9B8374;font-size:.73rem;margin-bottom:19px}.wmk-v303-settings-breadcrumb span{margin:0 7px;color:#B62936}
+.wmk-v303-settings-card{background:#fff!important;border:1px solid #EEE0D1;border-radius:18px;padding:24px clamp(17px,3vw,32px);min-height:355px;box-shadow:0 5px 19px rgba(99,53,26,.035)}
+.settings-backdrop.wmk-settings-page .wmk-v303-settings-card .settings-content-section{margin:0;max-width:none!important}
+.wmk-v303-content-heading{display:flex;align-items:center;gap:14px;padding-bottom:15px;margin-bottom:6px;border-bottom:1px solid #F0E3D5}.wmk-v303-content-heading>span{width:43px;height:43px;display:grid;place-items:center;background:#FFF0E4;color:#AE2534;font-size:26px;border-radius:12px}
+.settings-backdrop.wmk-settings-page .wmk-v303-content-heading h2{margin:0;font-size:1.3rem}.wmk-v303-content-heading .settings-lead{margin:3px 0 0;font-size:.73rem}
+.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid{display:block;gap:0}.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid>div{display:grid;grid-template-columns:175px minmax(0,1fr);gap:16px;align-items:center;border:0!important;border-bottom:1px solid #EFE5DB!important;box-shadow:none!important;border-radius:0!important;padding:17px 6px!important}.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid>div:last-child{border-bottom:0!important}
+.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid span{font-size:.78rem;color:#9C7D67}.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid b{margin:0;font-size:.91rem;color:#30282B}.wmk-v303-signature-status{color:#187849!important}
+
+/* Imported PDF workspace, replacing plain legacy upload form appearance */
+.wmk-v303-upload-backdrop{padding:18px!important;overflow-y:auto!important;align-items:center!important;background:rgba(43,25,26,.62)!important;backdrop-filter:blur(5px)}
+.wmk-v303-upload-backdrop .wmk-v303-upload-panel{width:min(920px,100%)!important;max-height:min(92dvh,950px)!important;display:flex!important;flex-direction:column!important;padding:0!important;border:1px solid #F0DECC!important;border-radius:20px!important;box-shadow:0 28px 85px rgba(37,18,19,.24)!important;overflow:hidden!important;background:#FFFCF8!important}
+.wmk-v303-upload-header{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:23px 27px 20px;background:linear-gradient(112deg,#FFF4E9,#FFF9F1 78%);border-bottom:1px solid #EEDBC8;flex-shrink:0}
+.wmk-v303-upload-heading{display:flex;align-items:center;gap:14px}.wmk-v303-upload-heading-icon{background:#A71F30;color:white;border-radius:14px;width:49px;height:49px;display:grid;place-items:center;font-size:31px;box-shadow:0 5px 14px rgba(161,30,44,.17)}
+.wmk-v303-upload-heading small{display:block;color:#B28557;font-weight:850;letter-spacing:.09em;font-size:.62rem}.wmk-v303-upload-heading h2{margin:3px 0;font-size:1.25rem;color:#8D202C;font-weight:850}.wmk-v303-upload-heading p{color:#927769;margin:0;font-size:.75rem}
+.wmk-v303-upload-close{font-size:25px;color:#8E3640;background:#fff;min-height:40px;min-width:40px;border:1px solid #ECD4BA;border-radius:11px;cursor:pointer}
+.wmk-v303-upload-steps{display:flex;flex-wrap:wrap;gap:9px;padding:13px 25px;border-bottom:1px solid #F0E4D7;background:#fff;flex-shrink:0}.wmk-v303-upload-steps span{font-size:.73rem;display:flex;align-items:center;gap:6px;color:#735B52}.wmk-v303-upload-steps span b{display:grid;place-items:center;background:#A92432;color:white;border-radius:50%;width:22px;height:22px;font-size:.7rem}
+.wmk-v303-upload-panel .wmk-v303-upload-form{padding:18px 25px 0;overflow-y:auto!important;min-height:0!important;flex:1 1 auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.wmk-v303-upload-section{border:1px solid #EDDDCB;background:#fff;border-radius:15px;padding:15px;margin-bottom:13px}.wmk-v303-upload-section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:11px}.wmk-v303-upload-section-title strong{color:#922B35;font-size:.88rem}.wmk-v303-upload-section-title span{color:#A17B62;background:#FFF4E4;border-radius:30px;padding:4px 10px;font-size:.7rem}
+.wmk-v303-upload-dropzone{display:flex!important;flex-direction:column;gap:5px;align-items:center;justify-content:center;border:2px dashed #DFBA81;background:#FFF9F1;min-height:125px;border-radius:13px;text-align:center;cursor:pointer;padding:15px;color:#922B35!important}
+.wmk-v303-upload-dropzone:hover,.wmk-v303-upload-dropzone:focus-within{border-color:#A92634;background:#FFF4E7}.wmk-v303-upload-dropzone .wmk-v303-upload-drop-icon{font-size:32px;line-height:1}.wmk-v303-upload-dropzone strong{font-size:.9rem}.wmk-v303-upload-dropzone small{font-size:.73rem;color:#8D7265}
+.wmk-v303-upload-dropzone input{width:100%;max-width:410px;font-size:.72rem;margin-top:6px;color:#77594E}
+.wmk-v303-upload-files .wmk-upload-list-hint{font-size:.73rem;color:#927869;margin-bottom:9px}.wmk-v303-upload-files .multi-file-click-list{max-height:210px!important;min-height:55px;background:#FFFDF9;border:1px solid #EBD8C2;padding:7px;overscroll-behavior:contain;overflow-y:auto!important}
+.wmk-v303-upload-files .selected-file-card{border-color:#EBD9C3;border-radius:10px}.wmk-v303-upload-files .selected-file-card.expanded{border-color:#C88639;box-shadow:0 0 0 2px #FFF0DC}.wmk-v303-upload-files .selected-file-number{background:#AB2636;color:#fff}
+.wmk-v303-upload-panel .wmk-v303-operation-picker{border:1px solid #EDD9BB!important;background:#FFF9EF!important;border-radius:15px!important;margin:10px 0 18px!important;padding:14px!important}.wmk-v303-upload-panel .wmk-v303-operation-picker legend{color:#932B35;font-size:.87rem;font-weight:850;padding:0 8px}
+.wmk-v303-upload-panel .wmk-v303-operation-picker .operation-option{border-radius:10px!important;background:#fff!important;border-color:#EFDEC9!important}
+.wmk-v303-upload-panel .wmk-v303-operation-picker .operation-option:has(input:checked){border-color:#B92535!important;background:#FFF3EB!important;box-shadow:0 0 0 1px #B92535}
+.wmk-v303-upload-panel .wmk-v303-upload-footer{position:sticky;bottom:0;z-index:5;display:flex!important;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;background:#fff;border-top:1px solid #EEDBC8;padding:14px 3px!important;margin-top:10px;box-shadow:0 -4px 13px rgba(86,43,27,.04)}
+.wmk-v303-upload-footer-note{color:#9C8170;font-size:.74rem;margin-right:auto}.wmk-v303-upload-panel #multi-file-upload-submit{background:#A91D2C!important;color:#fff!important;border-radius:10px!important}
+@media(max-width:1050px){.app-shell main.wmk-v303-main{grid-template-columns:210px minmax(0,1fr)!important;padding:18px!important;gap:15px!important}.app-shell .wmk-v303-table .wmk-smart-row td{padding:10px!important}.wmk-v303-settings-stage{width:calc(100% - 26px)}}
+@media(max-width:760px){
+ .app-shell main.wmk-v303-main{display:block!important;padding:12px!important}.app-shell main.wmk-v303-main>.wmk-dashboard-sidebar{position:static!important;min-height:0!important;margin-bottom:14px!important}.app-shell .wmk-v303-document-workspace{padding:12px!important;border-radius:15px!important}.app-shell .wmk-v303-table{display:block!important;border-spacing:0!important}.app-shell .wmk-v303-table thead{display:none!important}.app-shell .wmk-v303-table tbody{display:grid!important;gap:10px!important;padding:0!important}.app-shell .wmk-v303-table tbody tr.wmk-smart-row{display:grid!important;grid-template-columns:1fr!important;background:#fff!important;border:1px solid #EBD9C6!important;border-radius:14px!important;padding:10px!important;box-shadow:0 4px 14px rgba(107,47,20,.05)}.app-shell .wmk-v303-table tbody tr.wmk-smart-row td{display:block!important;border:0!important;border-radius:0!important;background:transparent!important;padding:5px!important}.app-shell .wmk-v303-table tbody tr.wmk-smart-row td:first-child,.app-shell .wmk-v303-table tbody tr.wmk-smart-row td:last-child{border:0!important;border-radius:0!important}.wmk-v303-file-symbol{width:27px;height:29px;font-size:1.2rem}.wmk-v303-list-heading{align-items:flex-start}.wmk-v303-live-dot{white-space:normal;text-align:right}
+ .wmk-v303-settings-header{position:static;padding:14px;align-items:flex-start}.wmk-v303-settings-header-title{gap:9px}.wmk-v303-settings-icon{width:42px;height:42px;font-size:23px}.wmk-v303-settings-header-title h1{font-size:1.17rem}.wmk-v303-settings-header-title p{font-size:.69rem}.wmk-v303-close span{display:none}.wmk-v303-settings-stage{display:flex;flex-direction:column;min-height:0;width:calc(100% - 18px);margin:12px auto 26px;border-radius:14px}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar{padding:10px!important;max-height:none!important;overflow:visible!important}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar nav{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:7px!important;scroll-snap-type:x proximity;padding-bottom:7px}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .wmk-settings-nav-group{display:none!important}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item{flex:0 0 auto!important;width:auto!important;padding:7px!important;scroll-snap-align:start}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-nav-item small{display:none}.settings-backdrop.wmk-settings-page .wmk-v303-settings-sidebar .settings-close-bottom{display:none}.settings-backdrop.wmk-settings-page .wmk-v303-settings-content{padding:12px!important}.wmk-v303-settings-card{padding:15px}.settings-backdrop.wmk-settings-page .wmk-v303-account-section .settings-info-grid>div{grid-template-columns:1fr;gap:4px}
+ .wmk-v303-upload-backdrop{padding:0!important}.wmk-v303-upload-backdrop .wmk-v303-upload-panel{max-height:100dvh!important;height:100dvh!important;border-radius:0!important}.wmk-v303-upload-header{padding:13px}.wmk-v303-upload-steps{padding:9px 12px}.wmk-v303-upload-panel .wmk-v303-upload-form{padding:13px}.wmk-v303-upload-footer-note{display:none}.wmk-v303-upload-files .multi-file-click-list{max-height:180px!important}
+}
+@media(prefers-reduced-motion:reduce){.app-shell .wmk-v303-table *{transition:none!important}}
